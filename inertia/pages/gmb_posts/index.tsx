@@ -1,5 +1,22 @@
 import GmbPostsController from '#controllers/gmb_posts_controller'
 import { InferPageProps } from '@adonisjs/inertia/types'
+import {
+    closestCenter,
+    DndContext,
+    DragEndEvent,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+} from '@dnd-kit/core'
+import {
+    arrayMove,
+    horizontalListSortingStrategy,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { router as inertiaRouter } from '@inertiajs/react'
 import {
     ActionIcon,
@@ -7,6 +24,7 @@ import {
     Center,
     Group,
     Input,
+    Loader,
     Modal,
     ScrollArea,
     Select,
@@ -18,41 +36,166 @@ import {
 } from '@mantine/core'
 import { DateTime } from 'luxon'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { LuCopy, LuDelete, LuPencil, LuSave, LuTrash2 } from 'react-icons/lu'
+import {
+    LuBriefcase,
+    LuCalendar,
+    LuCheck,
+    LuCopy,
+    LuFileText,
+    LuGripVertical,
+    LuImage,
+    LuPencil,
+    LuTag,
+    LuTrash2,
+    LuUser,
+    LuX,
+} from 'react-icons/lu'
+
+// Définissez les largeurs des colonnes
+const columnWidths = {
+    status: '15%',
+    text: '100%',
+    date: '50%',
+    image_url: '100%',
+    link_url: '100%',
+    keyword: '100%',
+    client: '100%',
+    project_name: '100%',
+    location_id: '100%',
+    account_id: '100%',
+    notion_id: '100%',
+}
 
 const columns = [
-    { key: 'status', label: 'Statut' },
-    { key: 'text', label: 'Texte' },
-    { key: 'date', label: 'Date' },
-    { key: 'image_url', label: 'Image' },
-    { key: 'link_url', label: 'Lien' },
-    { key: 'keyword', label: 'Mot-clé' },
-    { key: 'client', label: 'Client' },
-    { key: 'project_name', label: 'Nom du projet' },
+    {
+        key: 'status',
+        label: (
+            <Tooltip label="Statut">
+                <LuFileText />
+            </Tooltip>
+        ),
+    },
+    { key: 'text', label: 'Contenu' },
+    {
+        key: 'date',
+        label: (
+            <Tooltip label="Date">
+                <LuCalendar />
+            </Tooltip>
+        ),
+    },
+    {
+        key: 'image_url',
+        label: (
+            <Tooltip label="Image">
+                <LuImage />
+            </Tooltip>
+        ),
+    },
+    {
+        key: 'link_url',
+        label: (
+            <Tooltip label="Lien">
+                <LuFileText />
+            </Tooltip>
+        ),
+    },
+    {
+        key: 'keyword',
+        label: (
+            <Tooltip label="Mot-clé">
+                <LuTag />
+            </Tooltip>
+        ),
+    },
+    {
+        key: 'client',
+        label: (
+            <Tooltip label="Client">
+                <LuUser />
+            </Tooltip>
+        ),
+    },
+    {
+        key: 'project_name',
+        label: (
+            <Tooltip label="Projet">
+                <LuBriefcase />
+            </Tooltip>
+        ),
+    },
     { key: 'location_id', label: 'Location ID' },
     { key: 'account_id', label: 'Account ID' },
     { key: 'notion_id', label: 'Notion ID' },
-] as const
+]
 
-const PAGE_SIZE_OPTIONS = [10, 20, 30, 50, 100] as const
+const PAGE_SIZE_OPTIONS = [10, 20, 30, 50, 100]
 
-export default function Gmb_posts(props: InferPageProps<GmbPostsController, 'index'>) {
+function SortableTableHeader({ id, children }) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+        id,
+    })
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        backgroundColor: isDragging ? '#f0f0f0' : 'transparent',
+        opacity: isDragging ? 0.8 : 1,
+        zIndex: isDragging ? 1000 : 'auto',
+        width: columnWidths[id] || 'auto',
+    }
+
+    return (
+        <Table.Th ref={setNodeRef} style={style} {...attributes} {...listeners}>
+            <Group spacing="xs">
+                <ActionIcon aria-label="Drag handle" size="xs" style={{ cursor: 'grab' }}>
+                    <LuGripVertical size={14} style={{ color: '#ccc' }} />
+                </ActionIcon>
+                {children}
+            </Group>
+        </Table.Th>
+    )
+}
+
+export default function GmbPosts(props: InferPageProps<GmbPostsController, 'index'>) {
     const theme = useMantineTheme()
     const rawData = props.gmb_posts
 
+    const [columnOrder, setColumnOrder] = useState(columns.map((col) => col.key))
     const [filters, setFilters] = useState<{ [key: string]: string }>({})
     const [sortBy, setSortBy] = useState<string | null>(null)
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
     const [pageSize, setPageSize] = useState<number>(PAGE_SIZE_OPTIONS[2])
     const [visibleCount, setVisibleCount] = useState<number>(PAGE_SIZE_OPTIONS[2])
     const [useInfiniteScroll, setUseInfiniteScroll] = useState<boolean>(true)
-    // Edition Modale de ligne
     const [modalPost, setModalPost] = useState<any | null>(null)
-    // Edition cell individuelle
     const [editingCell, setEditingCell] = useState<{ id: number; key: string } | null>(null)
     const [cellEditValue, setCellEditValue] = useState<string>('')
+    const [isLoading, setIsLoading] = useState(false)
 
     const scrollRef = useRef<HTMLDivElement>(null)
+
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    )
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event
+        if (active.id !== over.id) {
+            setColumnOrder((items) => {
+                const oldIndex = items.indexOf(active.id)
+                const newIndex = items.indexOf(over.id)
+                return arrayMove(items, oldIndex, newIndex)
+            })
+        }
+    }
+
+    const orderedColumns = useMemo(() => {
+        return columnOrder.map((key) => columns.find((col) => col.key === key))
+    }, [columnOrder])
 
     const statusOptions = useMemo(
         () =>
@@ -63,7 +206,6 @@ export default function Gmb_posts(props: InferPageProps<GmbPostsController, 'ind
         [rawData]
     )
 
-    // FILTER/SORT/SLICE DATA
     const filteredSorted = useMemo(() => {
         let d = [...rawData]
         const globalSearch = (filters._global ?? '').toLowerCase().trim()
@@ -111,7 +253,6 @@ export default function Gmb_posts(props: InferPageProps<GmbPostsController, 'ind
         ? filteredSorted.slice(0, visibleCount)
         : filteredSorted.slice(0, pageSize)
 
-    // Actions pour la cellule unique
     const handleCellEditStart = (id: number, key: string, value: string) => {
         setEditingCell({ id, key })
         setCellEditValue(value || '')
@@ -123,14 +264,12 @@ export default function Gmb_posts(props: InferPageProps<GmbPostsController, 'ind
         setCellEditValue('')
     }
 
-    // Duplication
     const handleDuplicate = (element: any) => {
         const payload = { ...element }
         delete payload.id
         inertiaRouter.post('/gmb_posts', payload)
     }
 
-    // Edition modale (ligne entière)
     const handleEditModalOpen = (element: any) => setModalPost({ ...element })
     const handleEditModalChange = (k: string, v: string) =>
         setModalPost((old: any) => ({ ...old, [k]: v }))
@@ -181,8 +320,23 @@ export default function Gmb_posts(props: InferPageProps<GmbPostsController, 'ind
         setVisibleCount(val)
     }
 
-    // Responsivity helpers
+    useEffect(() => {
+        setIsLoading(true)
+        const timer = setTimeout(() => {
+            setIsLoading(false)
+        }, 1000)
+        return () => clearTimeout(timer)
+    }, [])
+
     const isMobile = typeof window !== 'undefined' && window.innerWidth < 600
+
+    if (isLoading) {
+        return (
+            <Center style={{ width: '100%', height: '100vh' }}>
+                <Loader />
+            </Center>
+        )
+    }
 
     return (
         <>
@@ -234,7 +388,6 @@ export default function Gmb_posts(props: InferPageProps<GmbPostsController, 'ind
                 />
             </Group>
 
-            {/* Edition Modale */}
             <Modal
                 opened={!!modalPost}
                 onClose={() => setModalPost(null)}
@@ -283,285 +436,345 @@ export default function Gmb_posts(props: InferPageProps<GmbPostsController, 'ind
                 )}
             </Modal>
 
-            <ScrollArea
-                type="auto"
-                h={isMobile ? 380 : 540}
-                style={{
-                    maxWidth: '100vw',
-                    minWidth: isMobile ? 350 : 1100,
-                }}
-                viewportRef={scrollRef}
+            <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
             >
-                <Table
-                    highlightOnHover
-                    stickyHeader
-                    withTableBorder
-                    striped
-                    fontSize={isMobile ? 'xs' : 'sm'}
-                    horizontalSpacing={isMobile ? 'xs' : 'sm'}
-                    verticalSpacing={isMobile ? 'xs' : 'sm'}
-                    style={{
-                        minWidth: isMobile ? 500 : undefined,
-                        fontSize: isMobile ? 13 : undefined,
-                    }}
-                >
-                    <Table.Thead>
-                        <Table.Tr>
-                            {columns.map((col) => (
-                                <Table.Th
-                                    key={col.key}
-                                    onClick={() => handleSort(col.key)}
-                                    style={{
-                                        cursor: 'pointer',
-                                        userSelect: 'none',
-                                        background: sortBy === col.key ? '#f2f4fa' : undefined,
-                                        minWidth: 90,
-                                        maxWidth: col.key === 'text' ? 180 : 160,
-                                        whiteSpace: 'nowrap',
-                                        fontSize: isMobile ? 13 : undefined,
-                                        padding: isMobile ? theme.spacing.xs : undefined,
-                                    }}
-                                >
-                                    <span style={{ marginRight: 4 }}>{col.label}</span>
-                                    {sortBy === col.key && (
-                                        <span style={{ fontSize: '0.9em' }}>
-                                            {sortDir === 'asc' ? '▲' : '▼'}
-                                        </span>
-                                    )}
-                                </Table.Th>
-                            ))}
-                            <Table.Th>Actions</Table.Th>
-                        </Table.Tr>
-                    </Table.Thead>
-                    <Table.Tbody>
-                        {dataToShow.length > 0 ? (
-                            dataToShow.map((element) => (
-                                <Table.Tr key={element.id}>
-                                    {columns.map((col) => {
-                                        const isEditing =
-                                            editingCell &&
-                                            editingCell.id === element.id &&
-                                            editingCell.key === col.key
-                                        return (
-                                            <Table.Td
-                                                key={col.key}
-                                                className="td-editable"
-                                                style={{
-                                                    padding: isMobile
-                                                        ? theme.spacing.xs
-                                                        : undefined,
-                                                    maxWidth: 170,
-                                                    overflowX: 'auto',
-                                                    fontSize: isMobile ? 13 : undefined,
-                                                }}
-                                            >
-                                                {isEditing ? (
+                <SortableContext items={columnOrder} strategy={horizontalListSortingStrategy}>
+                    <div style={{ overflowX: 'auto', width: '100%' }}>
+                        <ScrollArea
+                            type="auto"
+                            h={isMobile ? 380 : 540}
+                            style={{
+                                width: 'max-content',
+                                minWidth: isMobile ? 350 : '100%',
+                            }}
+                            viewportRef={scrollRef}
+                        >
+                            <Table
+                                highlightOnHover
+                                stickyHeader
+                                withTableBorder
+                                striped
+                                fontSize={isMobile ? 'xs' : 'sm'}
+                                horizontalSpacing={isMobile ? 'xs' : 'sm'}
+                                verticalSpacing={isMobile ? 'xs' : 'sm'}
+                                style={{
+                                    width: 'fit-content',
+                                    minWidth: '100%',
+                                    fontSize: isMobile ? 13 : undefined,
+                                }}
+                            >
+                                <Table.Thead>
+                                    <Table.Tr>
+                                        {orderedColumns.map((col) => (
+                                            <SortableTableHeader key={col.key} id={col.key}>
+                                                {col.label}
+                                            </SortableTableHeader>
+                                        ))}
+                                        <Table.Th style={{ width: '120px' }}>Actions</Table.Th>
+                                    </Table.Tr>
+                                </Table.Thead>
+                                <Table.Tbody>
+                                    {dataToShow.length > 0 ? (
+                                        dataToShow.map((element) => (
+                                            <Table.Tr key={element.id}>
+                                                {orderedColumns.map((col) => {
+                                                    const isEditing =
+                                                        editingCell &&
+                                                        editingCell.id === element.id &&
+                                                        editingCell.key === col.key
+                                                    return (
+                                                        <Table.Td
+                                                            key={col.key}
+                                                            className="td-editable"
+                                                            style={{
+                                                                padding: isMobile
+                                                                    ? theme.spacing.xs
+                                                                    : undefined,
+                                                                width: columnWidths[col.key],
+                                                                maxWidth: columnWidths[col.key],
+                                                                overflowX: 'auto',
+                                                                fontSize: isMobile ? 13 : undefined,
+                                                            }}
+                                                        >
+                                                            {isEditing ? (
+                                                                <Group gap="xs" wrap="nowrap">
+                                                                    <Input
+                                                                        value={cellEditValue}
+                                                                        onChange={(e) =>
+                                                                            setCellEditValue(
+                                                                                e.target.value
+                                                                            )
+                                                                        }
+                                                                        size={
+                                                                            isMobile ? 'xs' : 'sm'
+                                                                        }
+                                                                        type={
+                                                                            col.key === 'date'
+                                                                                ? 'datetime-local'
+                                                                                : 'text'
+                                                                        }
+                                                                        style={{
+                                                                            minWidth: 60,
+                                                                            maxWidth: 140,
+                                                                        }}
+                                                                        autoFocus
+                                                                    />
+                                                                    <ActionIcon
+                                                                        color="green"
+                                                                        variant="light"
+                                                                        size={
+                                                                            isMobile ? 'xs' : 'sm'
+                                                                        }
+                                                                        onClick={() =>
+                                                                            handleCellEditSave(
+                                                                                element.id,
+                                                                                col.key
+                                                                            )
+                                                                        }
+                                                                        aria-label="Save"
+                                                                    >
+                                                                        <LuCheck
+                                                                            size={
+                                                                                isMobile ? 12 : 14
+                                                                            }
+                                                                        />
+                                                                    </ActionIcon>
+                                                                    <ActionIcon
+                                                                        color="red"
+                                                                        variant="light"
+                                                                        size={
+                                                                            isMobile ? 'xs' : 'sm'
+                                                                        }
+                                                                        onClick={() =>
+                                                                            setEditingCell(null)
+                                                                        }
+                                                                        aria-label="Cancel"
+                                                                    >
+                                                                        <LuX
+                                                                            size={
+                                                                                isMobile ? 12 : 14
+                                                                            }
+                                                                        />
+                                                                    </ActionIcon>
+                                                                </Group>
+                                                            ) : (
+                                                                <Group
+                                                                    gap="xs"
+                                                                    wrap="nowrap"
+                                                                    justify="space-between"
+                                                                >
+                                                                    <span
+                                                                        style={{
+                                                                            maxWidth: 100,
+                                                                            overflow: 'hidden',
+                                                                            textOverflow:
+                                                                                'ellipsis',
+                                                                            whiteSpace: 'nowrap',
+                                                                            display: 'inline-block',
+                                                                        }}
+                                                                    >
+                                                                        {col.key === 'image_url' ? (
+                                                                            element[col.key] ? (
+                                                                                <img
+                                                                                    src={
+                                                                                        element[
+                                                                                            col.key
+                                                                                        ]
+                                                                                    }
+                                                                                    alt="Post"
+                                                                                    style={{
+                                                                                        width: 50,
+                                                                                        height: 30,
+                                                                                        borderRadius: 4,
+                                                                                        objectFit:
+                                                                                            'cover',
+                                                                                    }}
+                                                                                />
+                                                                            ) : (
+                                                                                <span
+                                                                                    style={{
+                                                                                        color: '#bbb',
+                                                                                    }}
+                                                                                >
+                                                                                    —
+                                                                                </span>
+                                                                            )
+                                                                        ) : col.key ===
+                                                                          'link_url' ? (
+                                                                            element[col.key] ? (
+                                                                                <a
+                                                                                    href={
+                                                                                        element[
+                                                                                            col.key
+                                                                                        ]
+                                                                                    }
+                                                                                    target="_blank"
+                                                                                    rel="noopener noreferrer"
+                                                                                >
+                                                                                    {(() => {
+                                                                                        try {
+                                                                                            return new URL(
+                                                                                                element[
+                                                                                                    col.key
+                                                                                                ]
+                                                                                            )
+                                                                                                .hostname
+                                                                                        } catch {
+                                                                                            return element[
+                                                                                                col
+                                                                                                    .key
+                                                                                            ]
+                                                                                        }
+                                                                                    })()}
+                                                                                </a>
+                                                                            ) : (
+                                                                                <span
+                                                                                    style={{
+                                                                                        color: '#bbb',
+                                                                                    }}
+                                                                                >
+                                                                                    —
+                                                                                </span>
+                                                                            )
+                                                                        ) : col.key === 'date' &&
+                                                                          element[col.key] ? (
+                                                                            DateTime.fromISO(
+                                                                                element[col.key]
+                                                                            ).isValid ? (
+                                                                                DateTime.fromISO(
+                                                                                    element[col.key]
+                                                                                ).toLocaleString(
+                                                                                    DateTime.DATETIME_MED
+                                                                                )
+                                                                            ) : (
+                                                                                element[col.key]
+                                                                            )
+                                                                        ) : col.key === 'text' &&
+                                                                          !!element[col.key] &&
+                                                                          element[col.key].length >
+                                                                              100 ? (
+                                                                            element[col.key].slice(
+                                                                                0,
+                                                                                100
+                                                                            ) + '…'
+                                                                        ) : element[col.key]
+                                                                              ?.toString()
+                                                                              .trim() ? (
+                                                                            element[col.key]
+                                                                        ) : (
+                                                                            <span
+                                                                                style={{
+                                                                                    color: '#bbb',
+                                                                                }}
+                                                                            >
+                                                                                —
+                                                                            </span>
+                                                                        )}
+                                                                    </span>
+                                                                    <ActionIcon
+                                                                        color="blue"
+                                                                        variant="light"
+                                                                        size={
+                                                                            isMobile ? 'xs' : 'sm'
+                                                                        }
+                                                                        onClick={() =>
+                                                                            handleCellEditStart(
+                                                                                element.id,
+                                                                                col.key,
+                                                                                element[col.key]
+                                                                            )
+                                                                        }
+                                                                        aria-label="Edit"
+                                                                    >
+                                                                        <LuPencil
+                                                                            size={
+                                                                                isMobile ? 12 : 14
+                                                                            }
+                                                                        />
+                                                                    </ActionIcon>
+                                                                </Group>
+                                                            )}
+                                                        </Table.Td>
+                                                    )
+                                                })}
+                                                <Table.Td
+                                                    style={{
+                                                        padding: isMobile
+                                                            ? theme.spacing.xs
+                                                            : undefined,
+                                                        width: '120px',
+                                                    }}
+                                                >
                                                     <Group gap="xs" wrap="nowrap">
-                                                        <Input
-                                                            value={cellEditValue}
-                                                            onChange={(e) =>
-                                                                setCellEditValue(e.target.value)
-                                                            }
-                                                            size={isMobile ? 'xs' : 'sm'}
-                                                            type={
-                                                                col.key === 'date'
-                                                                    ? 'datetime-local'
-                                                                    : 'text'
-                                                            }
-                                                            style={{ minWidth: 60, maxWidth: 140 }}
-                                                            autoFocus
-                                                        />
-
-                                                        <Tooltip label="Enregistrer">
+                                                        <Tooltip label="Modifier la ligne">
                                                             <ActionIcon
-                                                                color="green"
-                                                                variant="light"
+                                                                color="blue"
+                                                                variant="filled"
                                                                 size={isMobile ? 'xs' : 'sm'}
                                                                 onClick={() =>
-                                                                    handleCellEditSave(
-                                                                        element.id,
-                                                                        col.key
-                                                                    )
+                                                                    handleEditModalOpen(element)
                                                                 }
+                                                                aria-label="Edit row"
                                                             >
-                                                                <LuSave size={isMobile ? 12 : 14} />
+                                                                <LuPencil
+                                                                    size={isMobile ? 14 : 16}
+                                                                />
                                                             </ActionIcon>
                                                         </Tooltip>
-                                                        <Tooltip label="Annuler">
+                                                        <Tooltip label="Dupliquer">
+                                                            <ActionIcon
+                                                                color="teal"
+                                                                variant="filled"
+                                                                size={isMobile ? 'xs' : 'sm'}
+                                                                onClick={() =>
+                                                                    handleDuplicate(element)
+                                                                }
+                                                                aria-label="Duplicate"
+                                                            >
+                                                                <LuCopy size={isMobile ? 14 : 16} />
+                                                            </ActionIcon>
+                                                        </Tooltip>
+                                                        <Tooltip label="Supprimer">
                                                             <ActionIcon
                                                                 color="red"
                                                                 variant="light"
                                                                 size={isMobile ? 'xs' : 'sm'}
-                                                                onClick={() => setEditingCell(null)}
-                                                            >
-                                                                <LuDelete
-                                                                    size={isMobile ? 12 : 14}
-                                                                />
-                                                            </ActionIcon>
-                                                        </Tooltip>
-                                                    </Group>
-                                                ) : (
-                                                    <Group
-                                                        gap="xs"
-                                                        wrap="nowrap"
-                                                        justify="space-between"
-                                                        style={{
-                                                            flexWrap: isMobile ? 'wrap' : 'nowrap',
-                                                        }}
-                                                    >
-                                                        <span
-                                                            style={{
-                                                                maxWidth: 100,
-                                                                overflow: 'hidden',
-                                                                textOverflow: 'ellipsis',
-                                                                whiteSpace: 'nowrap',
-                                                                display: 'inline-block',
-                                                            }}
-                                                        >
-                                                            {col.key === 'image_url' ? (
-                                                                element[col.key] ? (
-                                                                    <img
-                                                                        src={element[col.key]}
-                                                                        alt="Post"
-                                                                        style={{
-                                                                            width: 50,
-                                                                            height: 30,
-                                                                            borderRadius: 4,
-                                                                            objectFit: 'cover',
-                                                                        }}
-                                                                    />
-                                                                ) : (
-                                                                    <span style={{ color: '#bbb' }}>
-                                                                        —
-                                                                    </span>
-                                                                )
-                                                            ) : col.key === 'link_url' ? (
-                                                                element[col.key] ? (
-                                                                    <a
-                                                                        href={element[col.key]}
-                                                                        target="_blank"
-                                                                        rel="noopener noreferrer"
-                                                                    >
-                                                                        {(() => {
-                                                                            try {
-                                                                                return new URL(
-                                                                                    element[col.key]
-                                                                                ).hostname
-                                                                            } catch {
-                                                                                return element[
-                                                                                    col.key
-                                                                                ]
-                                                                            }
-                                                                        })()}
-                                                                    </a>
-                                                                ) : (
-                                                                    <span style={{ color: '#bbb' }}>
-                                                                        —
-                                                                    </span>
-                                                                )
-                                                            ) : col.key === 'date' &&
-                                                              element[col.key] ? (
-                                                                DateTime.fromISO(element[col.key])
-                                                                    .isValid ? (
-                                                                    DateTime.fromISO(
-                                                                        element[col.key]
-                                                                    ).toLocaleString(
-                                                                        DateTime.DATETIME_MED
-                                                                    )
-                                                                ) : (
-                                                                    element[col.key]
-                                                                )
-                                                            ) : col.key === 'text' &&
-                                                              !!element[col.key] &&
-                                                              element[col.key].length > 100 ? (
-                                                                element[col.key].slice(0, 100) + '…'
-                                                            ) : element[col.key]
-                                                                  ?.toString()
-                                                                  .trim() ? (
-                                                                element[col.key]
-                                                            ) : (
-                                                                <span style={{ color: '#bbb' }}>
-                                                                    —
-                                                                </span>
-                                                            )}
-                                                        </span>
-                                                        <Tooltip label="Modifier ce champ">
-                                                            <ActionIcon
-                                                                color="blue"
-                                                                variant="light"
-                                                                size={isMobile ? 'xs' : 'sm'}
                                                                 onClick={() =>
-                                                                    handleCellEditStart(
-                                                                        element.id,
-                                                                        col.key,
-                                                                        element[col.key]
-                                                                    )
+                                                                    handleDelete(element.id)
                                                                 }
+                                                                aria-label="Delete"
                                                             >
-                                                                <LuPencil
-                                                                    size={isMobile ? 12 : 14}
+                                                                <LuTrash2
+                                                                    size={isMobile ? 14 : 16}
                                                                 />
                                                             </ActionIcon>
                                                         </Tooltip>
                                                     </Group>
-                                                )}
+                                                </Table.Td>
+                                            </Table.Tr>
+                                        ))
+                                    ) : (
+                                        <Table.Tr>
+                                            <Table.Td colSpan={columns.length + 1}>
+                                                <Center py="lg">Aucun résultat</Center>
                                             </Table.Td>
-                                        )
-                                    })}
-                                    <Table.Td
-                                        style={{ padding: isMobile ? theme.spacing.xs : undefined }}
-                                    >
-                                        <Group gap="xs" wrap="nowrap">
-                                            <Tooltip label="Modifier la ligne">
-                                                <ActionIcon
-                                                    color="blue"
-                                                    variant="filled"
-                                                    size={isMobile ? 'xs' : 'sm'}
-                                                    onClick={() => handleEditModalOpen(element)}
-                                                >
-                                                    <LuPencil size={isMobile ? 14 : 16} />
-                                                </ActionIcon>
-                                            </Tooltip>
-                                            <Tooltip label="Dupliquer">
-                                                <ActionIcon
-                                                    color="teal"
-                                                    variant="filled"
-                                                    size={isMobile ? 'xs' : 'sm'}
-                                                    onClick={() => handleDuplicate(element)}
-                                                >
-                                                    <LuCopy size={isMobile ? 14 : 16} />
-                                                </ActionIcon>
-                                            </Tooltip>
-                                            <Tooltip label="Supprimer">
-                                                <ActionIcon
-                                                    color="red"
-                                                    variant="light"
-                                                    size={isMobile ? 'xs' : 'sm'}
-                                                    onClick={() => handleDelete(element.id)}
-                                                >
-                                                    <LuTrash2 size={isMobile ? 14 : 16} />
-                                                </ActionIcon>
-                                            </Tooltip>
-                                        </Group>
-                                    </Table.Td>
-                                </Table.Tr>
-                            ))
-                        ) : (
-                            <Table.Tr>
-                                <Table.Td colSpan={columns.length + 1}>
-                                    <Center py="lg">Aucun résultat</Center>
-                                </Table.Td>
-                            </Table.Tr>
-                        )}
-                    </Table.Tbody>
-                    <Table.Caption>
-                        {dataToShow.length} / {filteredSorted.length} posts
-                        {useInfiniteScroll && dataToShow.length < filteredSorted.length
-                            ? ' (Scroll pour charger plus)'
-                            : ''}
-                    </Table.Caption>
-                </Table>
-            </ScrollArea>
+                                        </Table.Tr>
+                                    )}
+                                </Table.Tbody>
+                                <Table.Caption>
+                                    {dataToShow.length} / {filteredSorted.length} posts
+                                    {useInfiniteScroll && dataToShow.length < filteredSorted.length
+                                        ? ' (Scroll pour charger plus)'
+                                        : ''}
+                                </Table.Caption>
+                            </Table>
+                        </ScrollArea>
+                    </div>
+                </SortableContext>
+            </DndContext>
         </>
     )
 }
