@@ -56,6 +56,16 @@ export default function AppLayout(props: PropsWithChildren<SharedProps>) {
                             </Box>
                         </Group>
                     </UnstyledButton>
+                    <UnstyledButton className={classes.navItem} component={Link} href="/gmb_posts">
+                        <Group justify="space-between" gap={0}>
+                            <Box style={{ display: 'flex', alignItems: 'center' }}>
+                                <ThemeIcon variant="light" size={30}>
+                                    <LuLayoutDashboard size={18} />
+                                </ThemeIcon>
+                                <Box ml="md">{`Posts`}</Box>
+                            </Box>
+                        </Group>
+                    </UnstyledButton>
                     {props.user && (
                         <Button
                             mt="auto"
