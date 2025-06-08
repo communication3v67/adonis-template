@@ -208,51 +208,10 @@ export default function Home({ notionPages, databaseInfo, stats, error }: Props)
                         </Group>
                     </Card>
                 </SimpleGrid>
-
-                {/* Informations de la base de donnees Notion */}
-                {databaseInfo && (
-                    <Card withBorder p="md">
-                        <Group justify="space-between" mb="md">
-                            <Title order={3}>Base de donnees Notion</Title>
-                            <Button
-                                component="a"
-                                href={databaseInfo.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                variant="light"
-                                size="sm"
-                                rightSection={<LuExternalLink size={14} />}
-                            >
-                                Ouvrir dans Notion
-                            </Button>
-                        </Group>
-                        <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
-                            <Box>
-                                <Text size="sm" fw={500} c="dimmed">
-                                    Titre
-                                </Text>
-                                <Text size="sm">{databaseInfo.title}</Text>
-                            </Box>
-                            <Box>
-                                <Text size="sm" fw={500} c="dimmed">
-                                    Creee le
-                                </Text>
-                                <Text size="sm">{formatDate(databaseInfo.created_time)}</Text>
-                            </Box>
-                            <Box>
-                                <Text size="sm" fw={500} c="dimmed">
-                                    Modifiee le
-                                </Text>
-                                <Text size="sm">{formatDate(databaseInfo.last_edited_time)}</Text>
-                            </Box>
-                        </SimpleGrid>
-                    </Card>
-                )}
-
                 {/* Liste des pages Notion */}
                 <Card withBorder>
                     <Group justify="space-between" mb="md">
-                        <Title order={3}>Pages Notion recentes</Title>
+                        <Title order={3}>Opérations en attente de génération</Title>
                         <Group>
                             <ActionIcon
                                 variant="light"
@@ -333,41 +292,45 @@ export default function Home({ notionPages, databaseInfo, stats, error }: Props)
                     )}
                 </Card>
 
-                {/* Actions rapides */}
-                <Card withBorder p="md">
-                    <Title order={3} mb="md">
-                        Actions rapides
-                    </Title>
-                    <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
-                        <Button
-                            component={Link}
-                            href="/gmb-posts"
-                            variant="light"
-                            fullWidth
-                            leftSection={<LuFileText size={16} />}
-                        >
-                            Voir tous les posts GMB
-                        </Button>
-                        <Button
-                            component={Link}
-                            href="/gmb-posts/create"
-                            variant="light"
-                            fullWidth
-                            leftSection={<LuPlus size={16} />}
-                        >
-                            Creer un nouveau post
-                        </Button>
-                        <Button
-                            component={Link}
-                            href="/gmb-posts/stats"
-                            variant="light"
-                            fullWidth
-                            leftSection={<LuTrendingUp size={16} />}
-                        >
-                            Voir les statistiques
-                        </Button>
-                    </SimpleGrid>
-                </Card>
+                {/* Informations de la base de donnees Notion */}
+                {databaseInfo && (
+                    <Card withBorder p="md">
+                        <Group justify="space-between" mb="md">
+                            <Title order={3}>Base de donnees Notion</Title>
+                            <Button
+                                component="a"
+                                href={databaseInfo.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                variant="light"
+                                size="sm"
+                                rightSection={<LuExternalLink size={14} />}
+                            >
+                                Ouvrir dans Notion
+                            </Button>
+                        </Group>
+                        <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
+                            <Box>
+                                <Text size="sm" fw={500} c="dimmed">
+                                    Titre
+                                </Text>
+                                <Text size="sm">{databaseInfo.title}</Text>
+                            </Box>
+                            <Box>
+                                <Text size="sm" fw={500} c="dimmed">
+                                    Creee le
+                                </Text>
+                                <Text size="sm">{formatDate(databaseInfo.created_time)}</Text>
+                            </Box>
+                            <Box>
+                                <Text size="sm" fw={500} c="dimmed">
+                                    Modifiee le
+                                </Text>
+                                <Text size="sm">{formatDate(databaseInfo.last_edited_time)}</Text>
+                            </Box>
+                        </SimpleGrid>
+                    </Card>
+                )}
             </Stack>
         </>
     )

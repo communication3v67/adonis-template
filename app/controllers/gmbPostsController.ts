@@ -1,4 +1,5 @@
 import GmbPost from '#models/gmbPost'
+import { NotionService } from '#services/notion_service'
 import type { HttpContext } from '@adonisjs/core/http'
 import vine from '@vinejs/vine'
 import { DateTime } from 'luxon'
@@ -588,50 +589,150 @@ export default class GmbPostsController {
     }
 
     /**
-     * Retourne les statistiques des posts
+     * Synchronise les données depuis Notion pour l'utilisateur connecté
      */
-    async stats({ inertia }: HttpContext) {
+    async syncFromNotion({ response, session, auth }: HttpContext) {
         try {
-            const totalPosts = await GmbPost.query().count('* as total')
+            // S'assurer qu'un utilisateur est connecté
+            await auth.check()
+            const currentUser = auth.user!
 
-            const postsByStatus = await GmbPost.query()
-                .select('status')
-                .count('* as count')
-                .groupBy('status')
+            // Vérifier que l'utilisateur a un notion_id
+            if (!currentUser.notionId) {
+                session.flash('notification', {
+                    type: 'error',
+                    message: 'Votre compte n\'est pas lié à Notion. Veuillez configurer votre ID Notion.',
+                })
+                return response.redirect().back()
+            }
 
-            const postsByClient = await GmbPost.query()
-                .select('client')
-                .count('* as count')
-                .groupBy('client')
-                .orderBy('count', 'desc')
-                .limit(10)
+            console.log(`Synchronisation Notion pour l'utilisateur ${currentUser.username} (Notion ID: ${currentUser.notionId})`)
 
-            const recentPosts = await GmbPost.query()
-                .where('created_at', '>=', DateTime.now().minus({ days: 30 }))
-                .count('* as count')
+            const notionService = new NotionService()
+            
+            // Récupérer uniquement les pages "À générer" assignées à cet utilisateur
+            const notionPages = await notionService.getPagesForUser(currentUser.notionId)
 
-            return inertia.render('gmbPosts/stats', {
-                stats: {
-                    total: totalPosts[0].$extras.total,
-                    recent: recentPosts[0].$extras.count,
-                    byStatus: postsByStatus.map((item) => ({
-                        status: item.status,
-                        count: item.$extras.count,
-                    })),
-                    byClient: postsByClient.map((item) => ({
-                        client: item.client,
-                        count: item.$extras.count,
-                    })),
-                },
+            console.log(`${notionPages.length} pages Notion trouvées pour l'utilisateur`)
+
+            let createdCount = 0
+            let updatedCount = 0
+            let skippedCount = 0
+
+            for (const notionPage of notionPages) {
+                try {
+                    // Vérifier si un post existe déjà avec ce notion_id
+                    const existingPost = await GmbPost.query()
+                        .where('notion_id', notionPage.id)
+                        .where('user_id', currentUser.id)
+                        .first()
+
+                    const postData = {
+                        user_id: currentUser.id,
+                        status: 'draft', // Statut par défaut pour les imports Notion
+                        text: notionPage.title || 'Titre depuis Notion',
+                        date: DateTime.now(),
+                        notion_id: notionPage.id,
+                        client: 'Import Notion', // Valeur par défaut
+                        project_name: 'Projet Notion', // Valeur par défaut
+                        location_id: 'notion_import',
+                        account_id: 'notion_account',
+                        keyword: 'notion',
+                    }
+
+                    if (existingPost) {
+                        // Mettre à jour le post existant
+                        await existingPost.merge({
+                            text: notionPage.title || existingPost.text,
+                            // Conserver les autres champs existants
+                        }).save()
+                        updatedCount++
+                        console.log(`Post mis à jour: ${notionPage.title}`)
+                    } else {
+                        // Créer un nouveau post
+                        await GmbPost.create(postData)
+                        createdCount++
+                        console.log(`Nouveau post créé: ${notionPage.title}`)
+                    }
+                } catch (pageError) {
+                    console.error(`Erreur pour la page ${notionPage.id}:`, pageError)
+                    skippedCount++
+                }
+            }
+
+            const message = `Synchronisation terminée: ${createdCount} nouveaux posts, ${updatedCount} mis à jour, ${skippedCount} ignorés`
+            
+            session.flash('notification', {
+                type: 'success',
+                message,
             })
+
+            console.log(message)
+            return response.redirect().toRoute('gmbPosts.index')
+
         } catch (error) {
-            return inertia.render('gmb-posts/stats', {
-                stats: {
-                    total: 0,
-                    recent: 0,
-                    byStatus: [],
-                    byClient: [],
+            console.error('Erreur synchronisation Notion:', error)
+            
+            session.flash('notification', {
+                type: 'error',
+                message: 'Erreur lors de la synchronisation avec Notion: ' + error.message,
+            })
+
+            return response.redirect().back()
+        }
+    }
+
+    /**
+     * Affiche les pages Notion disponibles pour l'utilisateur
+     */
+    async notionPreview({ inertia, auth }: HttpContext) {
+        try {
+            // S'assurer qu'un utilisateur est connecté
+            await auth.check()
+            const currentUser = auth.user!
+
+            if (!currentUser.notionId) {
+                return inertia.render('gmbPosts/notion-preview', {
+                    error: 'Votre compte n\'est pas lié à Notion.',
+                    pages: [],
+                    currentUser: {
+                        id: currentUser.id,
+                        username: currentUser.username,
+                        email: currentUser.email,
+                        notion_id: currentUser.notionId
+                    }
+                })
+            }
+
+            const notionService = new NotionService()
+            const notionPages = await notionService.getPagesForUser(currentUser.notionId)
+
+            return inertia.render('gmbPosts/notion-preview', {
+                pages: notionPages,
+                currentUser: {
+                    id: currentUser.id,
+                    username: currentUser.username,
+                    email: currentUser.email,
+                    notion_id: currentUser.notionId
                 },
+                stats: {
+                    totalPages: notionPages.length,
+                    toGenerate: notionPages.filter(p => p.status === 'À générer').length
+                }
+            })
+
+        } catch (error) {
+            console.error('Erreur prévisualisation Notion:', error)
+            
+            return inertia.render('gmbPosts/notion-preview', {
+                error: 'Erreur lors de la récupération des données Notion: ' + error.message,
+                pages: [],
+                currentUser: {
+                    id: auth.user?.id,
+                    username: auth.user?.username,
+                    email: auth.user?.email,
+                    notion_id: auth.user?.notionId
+                }
             })
         }
     }
