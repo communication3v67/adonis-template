@@ -103,8 +103,154 @@ export default class WebhooksController {
   }
 
   /**
-   * Envoie des données vers n8n et retourne la réponse de Notion
+   * Envoie TOUTES les données vers n8n en une seule fois
    */
+  async sendBulkToN8n({ request, response }: HttpContext) {
+    try {
+      const { pages, total_count } = request.only(['pages', 'total_count'])
+      
+      if (!pages || !Array.isArray(pages) || pages.length === 0) {
+        return response.status(400).json({
+          success: false,
+          message: 'Aucune page fournie pour l\'envoi en lot',
+          error: 'Le paramètre "pages" doit être un tableau non vide',
+        })
+      }
+
+      // URL de votre webhook n8n
+      const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL
+      const n8nAuthToken = process.env.N8N_AUTH_TOKEN
+      
+      if (!n8nWebhookUrl) {
+        throw new Error('URL du webhook n8n non configurée (N8N_WEBHOOK_URL)')
+      }
+      
+      console.log(`📦 Envoi en lot vers n8n: ${pages.length} pages`)
+
+      // Headers d'authentification
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      }
+
+      if (n8nAuthToken) {
+        headers['Authorization'] = `Bearer ${n8nAuthToken}`
+        console.log('🔐 Token d\'authentification ajouté')
+      }
+
+      // Préparer les données optimisées pour n8n
+      const bulkData = {
+        // Métadonnées de la requête
+        source: 'adonis-gmb-bulk',
+        timestamp: new Date().toISOString(),
+        bulk_operation: true,
+        total_pages: pages.length,
+        
+        // Toutes les pages avec leurs données
+        notion_pages: pages.map((page: any) => ({
+          id: page.id,
+          title: page.title,
+          url: page.url,
+          created_time: page.created_time,
+          last_edited_time: page.last_edited_time,
+          properties: page.properties,
+          
+          // Données extraites pour chaque page
+          extracted_data: {
+            entreprise: page.properties?.['Nom de l\'entreprise']?.formula?.string || null,
+            etat: page.properties?.['État']?.status?.name || null,
+            referenceurs: page.properties?.['Référenceurs']?.relation || [],
+            spreadsheet_id: page.properties?.['ID Spreadsheet (GMB)']?.formula?.string || null,
+            nombre_posts: page.properties?.['Nombre de posts à générer']?.number || null,
+            mot_cle_objectif: page.properties?.['Mot-clé objectif']?.formula?.string || null,
+            location_id: page.properties?.['LocationID (GMB)']?.rollup?.array || [],
+          }
+        })),
+        
+        // Statistiques générales
+        summary: {
+          total_pages: pages.length,
+          pages_with_entreprise: pages.filter((p: any) => p.properties?.['Nom de l\'entreprise']?.formula?.string).length,
+          pages_a_generer: pages.filter((p: any) => p.properties?.['État']?.status?.name === 'À générer').length,
+          pages_with_spreadsheet: pages.filter((p: any) => p.properties?.['ID Spreadsheet (GMB)']?.formula?.string).length,
+        }
+      }
+
+      console.log('🎆 Envoi en lot vers n8n:', {
+        url: n8nWebhookUrl,
+        total_pages: bulkData.total_pages,
+        summary: bulkData.summary
+      })
+
+      // Envoi vers n8n
+      const n8nResponse = await fetch(n8nWebhookUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(bulkData),
+      })
+
+      console.log('📡 Statut réponse n8n:', n8nResponse.status)
+
+      if (!n8nResponse.ok) {
+        const errorText = await n8nResponse.text()
+        console.error('❌ Erreur n8n (texte):', errorText.substring(0, 500))
+        throw new Error(`Erreur n8n: ${n8nResponse.status} - ${n8nResponse.statusText}`)
+      }
+
+      // Traitement de la réponse
+      const contentType = n8nResponse.headers.get('content-type')
+      const responseText = await n8nResponse.text()
+      
+      let n8nResult
+      try {
+        if (responseText.trim().startsWith('{') || responseText.trim().startsWith('[')) {
+          n8nResult = JSON.parse(responseText)
+        } else {
+          n8nResult = {
+            success: true,
+            message: 'Envoi en lot réussi (réponse non-JSON)',
+            raw_response: responseText.substring(0, 300),
+            content_type: contentType,
+            notice: 'Ajoutez un nœud "Respond to Webhook" à votre workflow n8n pour une réponse JSON.',
+          }
+        }
+      } catch (parseError) {
+        n8nResult = {
+          success: false,
+          message: 'Envoi en lot effectué mais réponse non parsable',
+          error: parseError.message,
+          raw_response: responseText.substring(0, 300),
+        }
+      }
+      
+      console.log('✅ Réponse n8n pour envoi en lot:', n8nResult)
+      
+      return response.json({
+        success: true,
+        data: n8nResult,
+        message: `${pages.length} pages envoyées avec succès vers n8n`,
+        debug: {
+          webhook_url: n8nWebhookUrl,
+          total_pages_sent: pages.length,
+          response_status: n8nResponse.status,
+          content_type: contentType,
+        },
+      })
+
+    } catch (error) {
+      console.error('🚨 Erreur envoi en lot n8n:', error)
+      
+      return response.status(500).json({
+        success: false,
+        message: 'Erreur lors de l\'envoi en lot vers n8n',
+        error: error.message,
+        debug: {
+          webhook_url: process.env.N8N_WEBHOOK_URL || 'Non configurée',
+          timestamp: new Date().toISOString(),
+        },
+      })
+    }
+  }
   async sendToN8n({ request, response }: HttpContext) {
     try {
       const operationData = request.only(['id', 'title', 'url', 'created_time', 'last_edited_time', 'properties'])

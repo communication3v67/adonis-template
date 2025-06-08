@@ -47,19 +47,23 @@ router
     .prefix('/api')
     .as('api')
 
-// Routes Webhooks (sans CSRF pour les webhooks entrants)
+// Routes Webhooks
 router
     .group(() => [
-        router
-            .get('/test-n8n', [WebhooksController, 'testN8nConnection'])
-            .as('test_n8n'),
+        // Route pour actualiser les données (si besoin)
     ])
     .prefix('/webhook')
     .as('webhook')
     .use(middleware.auth())
 
-// Route webhook POST sans CSRF (pour les appels depuis l'interface)
+// Routes webhook POST sans CSRF (pour les appels depuis l'interface)
 router
     .post('/webhook/n8n', [WebhooksController, 'sendToN8n'])
     .as('webhook.n8n')
+    .use(middleware.auth())
+
+// Route webhook POST BULK pour envoi en lot
+router
+    .post('/webhook/n8n-bulk', [WebhooksController, 'sendBulkToN8n'])
+    .as('webhook.n8n_bulk')
     .use(middleware.auth())

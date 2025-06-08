@@ -1,4 +1,4 @@
-import { Head, Link, router } from '@inertiajs/react'
+import { Head } from '@inertiajs/react'
 import {
     ActionIcon,
     Alert,
@@ -6,29 +6,27 @@ import {
     Box,
     Button,
     Card,
+    Code,
     Flex,
     Group,
     Loader,
+    Modal,
     SimpleGrid,
     Stack,
     Table,
     Text,
     Title,
-    Modal,
-    Code,
 } from '@mantine/core'
 import { useState } from 'react'
 import {
     LuBadgeAlert,
     LuCalendar,
+    LuCheck,
     LuDatabase,
     LuExternalLink,
-    LuFileText,
-    LuPlus,
     LuRefreshCw,
-    LuTrendingUp,
     LuSend,
-    LuCheck,
+    LuTrendingUp,
 } from 'react-icons/lu'
 
 interface NotionPage {
@@ -70,7 +68,8 @@ export default function Home({ notionPages, databaseInfo, stats, error }: Props)
     const [sendingWebhook, setSendingWebhook] = useState<string | null>(null)
     const [webhookResponse, setWebhookResponse] = useState<any>(null)
     const [showResponseModal, setShowResponseModal] = useState(false)
-    const [testingN8n, setTestingN8n] = useState(false)
+    const [processingCount, setProcessingCount] = useState(0)
+    const [sendingBulk, setSendingBulk] = useState(false)
 
     // Fonction pour rafraichir les donnees Notion
     const refreshNotionData = async () => {
@@ -98,28 +97,7 @@ export default function Home({ notionPages, databaseInfo, stats, error }: Props)
         }
     }
 
-    // Fonction pour tester la connexion n8n
-    const testN8nConnection = async () => {
-        setTestingN8n(true)
-        try {
-            const response = await fetch('/webhook/test-n8n')
-            const result = await response.json()
-            
-            if (result.success) {
-                alert('✅ Connexion n8n OK ! Votre webhook fonctionne.')
-            } else {
-                alert(`❌ Erreur n8n: ${result.message}\n\n${result.help || ''}`)
-                console.error('Détails du test n8n:', result)
-            }
-        } catch (error) {
-            console.error('Erreur test:', error)
-            alert('❌ Erreur lors du test de connexion n8n')
-        } finally {
-            setTestingN8n(false)
-        }
-    }
-
-    // Fonction pour envoyer vers n8n
+    // Fonction pour envoyer UNE page vers n8n
     const sendToN8n = async (page: NotionPage) => {
         setSendingWebhook(page.id)
         setWebhookResponse(null)
@@ -199,6 +177,104 @@ export default function Home({ notionPages, databaseInfo, stats, error }: Props)
         }
     }
 
+    // Fonction pour envoyer TOUTES les pages vers n8n
+    const sendAllToN8n = async () => {
+        if (localPages.length === 0) {
+            alert('❌ Aucune page à envoyer')
+            return
+        }
+
+        setSendingBulk(true)
+        setWebhookResponse(null)
+        setProcessingCount(0)
+
+        try {
+            console.log(`🚀 Envoi de ${localPages.length} pages vers n8n`)
+
+            // Récupération du token CSRF
+            const csrfToken = document
+                .querySelector('meta[name="csrf-token"]')
+                ?.getAttribute('content')
+            console.log('🔐 CSRF Token trouvé:', csrfToken ? 'OUI' : 'NON')
+
+            if (!csrfToken) {
+                throw new Error('Token CSRF manquant. Actualisez la page.')
+            }
+
+            // Préparation des données pour l'envoi groupé
+            const allPagesData = localPages.map((page) => ({
+                id: page.id,
+                title: page.title,
+                url: page.url,
+                created_time: page.created_time,
+                last_edited_time: page.last_edited_time,
+                properties: page.properties,
+            }))
+
+            const response = await fetch('/webhook/n8n-bulk', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({
+                    pages: allPagesData,
+                    total_count: allPagesData.length,
+                }),
+            })
+
+            console.log('📡 Statut réponse:', response.status, response.statusText)
+
+            // Vérifier si c'est une redirection ou erreur HTTP
+            if (!response.ok) {
+                const errorText = await response.text()
+                console.error('❌ Erreur HTTP:', response.status, errorText.substring(0, 300))
+                throw new Error(`Erreur HTTP ${response.status}: ${response.statusText}`)
+            }
+
+            // Lire et parser la réponse
+            const responseText = await response.text()
+            console.log('📥 Réponse brute (100 premiers chars):', responseText.substring(0, 100))
+
+            // Vérifier si c'est du HTML (redirection vers accueil)
+            if (responseText.trim().startsWith('<!DOCTYPE')) {
+                throw new Error(
+                    "La requête a été redirigée vers la page d'accueil. Problème d'authentification ou de route."
+                )
+            }
+
+            let result
+            try {
+                result = JSON.parse(responseText)
+            } catch (parseError) {
+                console.error('❌ Erreur parsing JSON:', parseError)
+                throw new Error('Réponse serveur invalide (JSON attendu)')
+            }
+
+            console.log('✅ Résultat parsé:', result)
+
+            // Afficher la réponse
+            setWebhookResponse(result.data || result)
+            setShowResponseModal(true)
+
+            // Message de succès
+            alert(`✅ ${localPages.length} pages envoyées avec succès vers n8n !`)
+        } catch (error) {
+            console.error('🚨 Erreur complète webhook:', error)
+
+            let errorMessage = 'Erreur inconnue'
+            if (error instanceof Error) {
+                errorMessage = error.message
+            }
+
+            alert(`❌ Erreur lors de l'envoi global: ${errorMessage}`)
+        } finally {
+            setSendingBulk(false)
+            setProcessingCount(0)
+        }
+    }
+
     // Formatage des dates
     const formatDate = (dateString: string) => {
         return new Date(dateString).toLocaleDateString('fr-FR', {
@@ -223,22 +299,6 @@ export default function Home({ notionPages, databaseInfo, stats, error }: Props)
                             Gestion des posts GMB et synchronisation avec Notion
                         </Text>
                     </Box>
-                    <Group>
-                        <Button
-                            component={Link}
-                            href="/gmb-posts"
-                            leftSection={<LuFileText size={16} />}
-                        >
-                            Posts GMB
-                        </Button>
-                        <Button
-                            component={Link}
-                            href="/gmb-posts/create"
-                            leftSection={<LuPlus size={16} />}
-                        >
-                            Nouveau post
-                        </Button>
-                    </Group>
                 </Flex>
 
                 {/* Erreur Notion */}
@@ -255,87 +315,23 @@ export default function Home({ notionPages, databaseInfo, stats, error }: Props)
                     </Alert>
                 )}
 
-                {/* Statistiques */}
-                <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="md">
-                    <Card withBorder p="md">
-                        <Group justify="space-between">
-                            <Box>
-                                <Text size="xs" tt="uppercase" fw={700} c="dimmed">
-                                    Pages Notion
-                                </Text>
-                                <Text size="xl" fw={700}>
-                                    {localStats.totalPages}
-                                </Text>
-                            </Box>
-                            <LuDatabase size={24} style={{ color: '#228be6' }} />
-                        </Group>
-                    </Card>
-
-                    <Card withBorder p="md">
-                        <Group justify="space-between">
-                            <Box>
-                                <Text size="xs" tt="uppercase" fw={700} c="dimmed">
-                                    Recentes (7j)
-                                </Text>
-                                <Text size="xl" fw={700}>
-                                    {localStats.recentPages}
-                                </Text>
-                            </Box>
-                            <LuCalendar size={24} style={{ color: '#40c057' }} />
-                        </Group>
-                    </Card>
-
-                    <Card withBorder p="md">
-                        <Group justify="space-between">
-                            <Box>
-                                <Text size="xs" tt="uppercase" fw={700} c="dimmed">
-                                    Base de donnees
-                                </Text>
-                                <Text size="sm" fw={500}>
-                                    {databaseInfo?.title || 'Non connectee'}
-                                </Text>
-                            </Box>
-                            <LuTrendingUp size={24} style={{ color: '#fd7e14' }} />
-                        </Group>
-                    </Card>
-
-                    <Card withBorder p="md">
-                        <Group justify="space-between">
-                            <Box>
-                                <Text size="xs" tt="uppercase" fw={700} c="dimmed">
-                                    Derniere sync
-                                </Text>
-                                <Text size="sm" fw={500}>
-                                    {databaseInfo
-                                        ? formatDate(databaseInfo.last_edited_time)
-                                        : 'N/A'}
-                                </Text>
-                            </Box>
-                            <ActionIcon
-                                variant="light"
-                                size="lg"
-                                onClick={refreshNotionData}
-                                loading={isRefreshing}
-                            >
-                                <LuRefreshCw size={16} />
-                            </ActionIcon>
-                        </Group>
-                    </Card>
-                </SimpleGrid>
-
                 {/* Liste des pages Notion */}
                 <Card withBorder>
                     <Group justify="space-between" mb="md">
                         <Title order={3}>Opérations en attente de génération</Title>
                         <Group>
                             <Button
-                                variant="outline"
+                                variant="filled"
                                 size="sm"
-                                onClick={testN8nConnection}
-                                loading={testingN8n}
-                                color="orange"
+                                onClick={sendAllToN8n}
+                                loading={sendingBulk}
+                                disabled={localPages.length === 0 || sendingBulk || sendingWebhook !== null}
+                                color="blue"
+                                leftSection={<LuSend size={16} />}
                             >
-                                Tester n8n
+                                {sendingBulk
+                                    ? `Envoi en cours...`
+                                    : `Envoyer tout vers n8n (${localPages.length})`}
                             </Button>
                             <ActionIcon
                                 variant="light"
@@ -409,7 +405,7 @@ export default function Home({ notionPages, databaseInfo, stats, error }: Props)
                                                         color="blue"
                                                         size="sm"
                                                         title="Envoyer vers n8n"
-                                                        disabled={sendingWebhook !== null}
+                                                        disabled={sendingWebhook !== null || sendingBulk}
                                                     >
                                                         <LuSend size={14} />
                                                     </ActionIcon>
@@ -428,6 +424,74 @@ export default function Home({ notionPages, databaseInfo, stats, error }: Props)
                         </Box>
                     )}
                 </Card>
+
+                {/* Statistiques */}
+                <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="md">
+                    <Card withBorder p="md">
+                        <Group justify="space-between">
+                            <Box>
+                                <Text size="xs" tt="uppercase" fw={700} c="dimmed">
+                                    Pages Notion
+                                </Text>
+                                <Text size="xl" fw={700}>
+                                    {localStats.totalPages}
+                                </Text>
+                            </Box>
+                            <LuDatabase size={24} style={{ color: '#228be6' }} />
+                        </Group>
+                    </Card>
+
+                    <Card withBorder p="md">
+                        <Group justify="space-between">
+                            <Box>
+                                <Text size="xs" tt="uppercase" fw={700} c="dimmed">
+                                    Recentes (7j)
+                                </Text>
+                                <Text size="xl" fw={700}>
+                                    {localStats.recentPages}
+                                </Text>
+                            </Box>
+                            <LuCalendar size={24} style={{ color: '#40c057' }} />
+                        </Group>
+                    </Card>
+
+                    <Card withBorder p="md">
+                        <Group justify="space-between">
+                            <Box>
+                                <Text size="xs" tt="uppercase" fw={700} c="dimmed">
+                                    Base de donnees
+                                </Text>
+                                <Text size="sm" fw={500}>
+                                    {databaseInfo?.title || 'Non connectee'}
+                                </Text>
+                            </Box>
+                            <LuTrendingUp size={24} style={{ color: '#fd7e14' }} />
+                        </Group>
+                    </Card>
+
+                    <Card withBorder p="md">
+                        <Group justify="space-between">
+                            <Box>
+                                <Text size="xs" tt="uppercase" fw={700} c="dimmed">
+                                    Derniere sync
+                                </Text>
+                                <Text size="sm" fw={500}>
+                                    {databaseInfo
+                                        ? formatDate(databaseInfo.last_edited_time)
+                                        : 'N/A'}
+                                </Text>
+                            </Box>
+                            <ActionIcon
+                                variant="light"
+                                size="lg"
+                                onClick={refreshNotionData}
+                                loading={isRefreshing}
+                            >
+                                <LuRefreshCw size={16} />
+                            </ActionIcon>
+                        </Group>
+                    </Card>
+                </SimpleGrid>
 
                 {/* Informations de la base de donnees Notion */}
                 {databaseInfo && (
@@ -478,28 +542,19 @@ export default function Home({ notionPages, databaseInfo, stats, error }: Props)
                 >
                     {webhookResponse && (
                         <Stack gap="md">
-                            <Alert
-                                icon={<LuCheck size={16} />}
-                                title="Réponse reçue"
-                                color="blue"
-                            >
+                            <Alert icon={<LuCheck size={16} />} title="Réponse reçue" color="blue">
                                 Données traitées par le webhook n8n
                             </Alert>
-                            
+
                             <Box>
                                 <Text size="sm" fw={500} mb="xs">
                                     Réponse complète :
                                 </Text>
-                                <Code block>
-                                    {JSON.stringify(webhookResponse, null, 2)}
-                                </Code>
+                                <Code block>{JSON.stringify(webhookResponse, null, 2)}</Code>
                             </Box>
-                            
+
                             <Group justify="flex-end">
-                                <Button 
-                                    variant="light" 
-                                    onClick={() => setShowResponseModal(false)}
-                                >
+                                <Button variant="light" onClick={() => setShowResponseModal(false)}>
                                     Fermer
                                 </Button>
                             </Group>
