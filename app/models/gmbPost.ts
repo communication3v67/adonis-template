@@ -5,7 +5,7 @@ import { SnakeCaseNamingStrategy } from '../naming_strategies/snake_case_naming_
 export default class GmbPost extends BaseModel {
     // Spécifier explicitement le nom de la table
     public static table = 'gmb_posts'
-    
+
     // Utiliser notre naming strategy personnalisée
     public static namingStrategy = new SnakeCaseNamingStrategy()
 

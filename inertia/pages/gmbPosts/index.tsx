@@ -1,5 +1,3 @@
-import { useState } from 'react'
-import * as React from 'react'
 import { Head, Link, router, useForm } from '@inertiajs/react'
 import {
     ActionIcon,
@@ -23,20 +21,23 @@ import {
     Tooltip,
     rem,
 } from '@mantine/core'
+import { notifications } from '@mantine/notifications'
+import * as React from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
-    LuMoveHorizontal,
-    LuSettings,
-    LuEye,
-    LuPlus,
-    LuSearch,
-    LuTrash,
+    LuCheck,
     LuCopy,
     LuDownload,
-    LuTrendingUp,
+    LuEye,
+    LuMoveHorizontal,
+    LuPlus,
     LuSave,
-    LuX,
+    LuSearch,
+    LuSettings,
+    LuTrash,
+    LuTrendingUp,
+    LuX
 } from 'react-icons/lu'
-import { notifications } from '@mantine/notifications'
 import AppLayout from '../../layouts/app-layout/app-layout'
 
 interface GmbPost {
@@ -81,6 +82,237 @@ interface Props {
         projects: string[]
         statuses: string[]
     }
+}
+
+// Composant pour l'édition inline d'une cellule
+function InlineEditCell({ 
+    value, 
+    field, 
+    post, 
+    type = 'text',
+    options = [],
+    filterOptions,
+    onSave 
+}: {
+    value: string
+    field: string
+    post: GmbPost
+    type?: 'text' | 'textarea' | 'select' | 'datetime-local'
+    options?: { value: string, label: string }[]
+    filterOptions?: Props['filterOptions']
+    onSave: (postId: number, field: string, value: string) => void
+}) {
+    const [isEditing, setIsEditing] = useState(false)
+    const [editValue, setEditValue] = useState(() => {
+        // Formatage spécial pour les dates en mode édition
+        if (field === 'date' && value) {
+            const date = new Date(value)
+            return date.toISOString().slice(0, 16) // Format YYYY-MM-DDTHH:MM
+        }
+        return value || ''
+    })
+    const [isSaving, setIsSaving] = useState(false)
+    const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(null)
+
+    useEffect(() => {
+        if (isEditing && inputRef.current) {
+            inputRef.current.focus()
+            if (type === 'text' || type === 'textarea') {
+                inputRef.current.select()
+            }
+        }
+    }, [isEditing, type])
+
+    const handleSave = async () => {
+        if (editValue === value) {
+            setIsEditing(false)
+            return
+        }
+
+        setIsSaving(true)
+        try {
+            // Formatage spécial pour les dates
+            let valueToSave = editValue
+            if (field === 'date' && editValue) {
+                // Convertir la date au format ISO pour l'envoi au serveur
+                const date = new Date(editValue)
+                valueToSave = date.toISOString()
+            }
+            
+            await onSave(post.id, field, valueToSave)
+            setIsEditing(false)
+        } catch (error) {
+            console.error('Erreur lors de la sauvegarde:', error)
+        } finally {
+            setIsSaving(false)
+        }
+    }
+
+    const handleCancel = () => {
+        // Remettre la valeur originale avec formatage pour les dates
+        if (field === 'date' && value) {
+            const date = new Date(value)
+            setEditValue(date.toISOString().slice(0, 16))
+        } else {
+            setEditValue(value || '')
+        }
+        setIsEditing(false)
+    }
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            handleSave()
+        } else if (e.key === 'Escape') {
+            handleCancel()
+        }
+    }
+
+    // Fonction pour obtenir les options selon le champ
+    const getSelectOptions = () => {
+        switch (field) {
+            case 'status':
+                return [
+                    { value: 'Futur', label: 'Futur' },
+                    { value: 'À générer', label: 'À générer' },
+                    { value: 'Titre généré', label: 'Titre généré' },
+                    { value: 'Post à générer', label: 'Post à générer' },
+                    { value: 'Post généré', label: 'Post généré' },
+                    { value: 'Post à publier', label: 'Post à publier' },
+                    { value: 'Publié', label: 'Publié' },
+                    { value: 'failed', label: 'Échec' },
+                ]
+            case 'client':
+                return filterOptions?.clients.map(client => ({ value: client, label: client })) || []
+            case 'project_name':
+                return filterOptions?.projects.map(project => ({ value: project, label: project })) || []
+            default:
+                return options
+        }
+    }
+
+    if (!isEditing) {
+        return (
+            <Group gap={4} wrap="nowrap">
+                <Box flex={1}>
+                    {field === 'status' ? (
+                        getStatusBadgeInline(value)
+                    ) : field === 'keyword' && value ? (
+                        <Badge variant="outline" size="sm">{value}</Badge>
+                    ) : field === 'text' ? (
+                        <Tooltip label={value}>
+                            <Text size="sm">{truncateTextInline(value)}</Text>
+                        </Tooltip>
+                    ) : field === 'date' ? (
+                        <Text size="sm">{formatDateInline(value)}</Text>
+                    ) : (
+                        <Text size="sm">{value || '-'}</Text>
+                    )}
+                </Box>
+                <ActionIcon
+                    size="xs"
+                    variant="subtle"
+                    color="gray"
+                    onClick={() => setIsEditing(true)}
+                    title={`Modifier ${field}`}
+                >
+                    <LuSettings size={12} />
+                </ActionIcon>
+            </Group>
+        )
+    }
+
+    return (
+        <Group gap={4} wrap="nowrap">
+            <Box flex={1}>
+                {type === 'select' ? (
+                    <Select
+                        ref={inputRef as any}
+                        value={editValue}
+                        onChange={(val) => setEditValue(val || '')}
+                        data={getSelectOptions()}
+                        size="xs"
+                        searchable={field === 'client' || field === 'project_name'}
+                        onKeyDown={handleKeyDown}
+                    />
+                ) : type === 'textarea' ? (
+                    <Textarea
+                        ref={inputRef as any}
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        size="xs"
+                        autosize
+                        minRows={1}
+                        maxRows={3}
+                        onKeyDown={handleKeyDown}
+                    />
+                ) : (
+                    <TextInput
+                        ref={inputRef as any}
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        size="xs"
+                        type={type}
+                        onKeyDown={handleKeyDown}
+                    />
+                )}
+            </Box>
+            <ActionIcon
+                size="xs"
+                variant="subtle"
+                color="green"
+                onClick={handleSave}
+                loading={isSaving}
+                title="Sauvegarder"
+            >
+                <LuCheck size={12} />
+            </ActionIcon>
+            <ActionIcon
+                size="xs"
+                variant="subtle"
+                color="red"
+                onClick={handleCancel}
+                title="Annuler"
+            >
+                <LuX size={12} />
+            </ActionIcon>
+        </Group>
+    )
+}
+
+// Fonctions utilitaires pour l'édition inline
+const getStatusBadgeInline = (status: string) => {
+    const colors: Record<string, string> = {
+        'Futur': 'gray',
+        'À générer': 'yellow',
+        'Titre généré': 'orange',
+        'Post à générer': 'blue',
+        'Post généré': 'cyan',
+        'Post à publier': 'violet',
+        'Publié': 'green',
+        'failed': 'red',
+    }
+    return (
+        <Badge color={colors[status] || 'gray'} variant="light" size="sm">
+            {status}
+        </Badge>
+    )
+}
+
+const truncateTextInline = (text: string, maxLength: number = 50) => {
+    return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text
+}
+
+const formatDateInline = (dateString: string) => {
+    if (!dateString) return '-'
+    const date = new Date(dateString)
+    return date.toLocaleDateString('fr-FR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    })
 }
 
 // Composant pour l'édition en modal
@@ -234,9 +466,13 @@ function EditPostModal({ post, opened, onClose, filterOptions }: {
                             label="Statut"
                             placeholder="Sélectionner un statut"
                             data={[
-                                { value: 'draft', label: 'Brouillon' },
-                                { value: 'published', label: 'Publié' },
-                                { value: 'scheduled', label: 'Programmé' },
+                                { value: 'Futur', label: 'Futur' },
+                                { value: 'À générer', label: 'À générer' },
+                                { value: 'Titre généré', label: 'Titre généré' },
+                                { value: 'Post à générer', label: 'Post à générer' },
+                                { value: 'Post généré', label: 'Post généré' },
+                                { value: 'Post à publier', label: 'Post à publier' },
+                                { value: 'Publié', label: 'Publié' },
                                 { value: 'failed', label: 'Échec' },
                             ]}
                             value={data.status}
@@ -267,6 +503,7 @@ function EditPostModal({ post, opened, onClose, filterOptions }: {
                     <Textarea
                         label="Texte du post"
                         placeholder="Contenu du post..."
+                        resize="vertical"
                         value={data.text}
                         onChange={(e) => setData('text', e.target.value)}
                         error={errors.text}
@@ -470,6 +707,44 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
         setEditingPost(null)
     }
 
+    // Gestion de l'édition inline
+    const handleInlineEdit = async (postId: number, field: string, value: string) => {
+        return new Promise((resolve, reject) => {
+            const updateData = { [field]: value }
+            
+            console.log('=== ÉDITION INLINE ===')            
+            console.log('Post ID:', postId)
+            console.log('Champ:', field)
+            console.log('Nouvelle valeur:', value)
+            console.log('========================')
+
+            router.put(`/gmb-posts/${postId}`, updateData, {
+                onSuccess: (page) => {
+                    console.log('=== SUCCÈS INLINE ===')                    
+                    console.log('Page reçue:', page)
+                    console.log('========================')
+                    notifications.show({
+                        title: 'Succès',
+                        message: `${field} mis à jour avec succès !`,
+                        color: 'green',
+                    })
+                    resolve(page)
+                },
+                onError: (errors) => {
+                    console.log('=== ERREUR INLINE ===')                    
+                    console.log('Erreurs reçues:', errors)
+                    console.log('========================')
+                    notifications.show({
+                        title: 'Erreur',
+                        message: `Erreur lors de la mise à jour de ${field}`,
+                        color: 'red',
+                    })
+                    reject(errors)
+                },
+            })
+        })
+    }
+
     // Gestion des filtres
     const applyFilters = () => {
         router.get('/gmb-posts', localFilters, {
@@ -554,27 +829,6 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
         })
     }
 
-    // Badge de statut
-    const getStatusBadge = (status: string) => {
-        const colors: Record<string, string> = {
-            draft: 'gray',
-            published: 'green',
-            scheduled: 'blue',
-            failed: 'red',
-        }
-        const labels: Record<string, string> = {
-            draft: 'Brouillon',
-            published: 'Publié',
-            scheduled: 'Programmé',
-            failed: 'Échec',
-        }
-        return (
-            <Badge color={colors[status] || 'gray'} variant="light">
-                {labels[status] || status}
-            </Badge>
-        )
-    }
-
     // Formatage de la date (compatible SSR/Client)
     const formatDate = (dateString: string) => {
         const date = new Date(dateString)
@@ -599,11 +853,6 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
             hour: '2-digit',
             minute: '2-digit',
         })
-    }
-
-    // Tronquer le texte
-    const truncateText = (text: string, maxLength: number = 50) => {
-        return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text
     }
 
     return (
@@ -769,36 +1018,64 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
                                             />
                                         </Table.Td>
                                         <Table.Td>
-                                            {getStatusBadge(post.status)}
+                                            <InlineEditCell
+                                                value={post.status}
+                                                field="status"
+                                                post={post}
+                                                type="select"
+                                                filterOptions={filterOptions}
+                                                onSave={handleInlineEdit}
+                                            />
                                         </Table.Td>
                                         <Table.Td>
-                                            <Tooltip label={post.text}>
-                                                <Text size="sm">
-                                                    {truncateText(post.text)}
-                                                </Text>
-                                            </Tooltip>
+                                            <InlineEditCell
+                                                value={post.text}
+                                                field="text"
+                                                post={post}
+                                                type="textarea"
+                                                filterOptions={filterOptions}
+                                                onSave={handleInlineEdit}
+                                            />
                                         </Table.Td>
                                         <Table.Td>
-                                            <Text size="sm" fw={500}>
-                                                {post.client}
-                                            </Text>
+                                            <InlineEditCell
+                                                value={post.client}
+                                                field="client"
+                                                post={post}
+                                                type="select"
+                                                filterOptions={filterOptions}
+                                                onSave={handleInlineEdit}
+                                            />
                                         </Table.Td>
                                         <Table.Td>
-                                            <Text size="sm">
-                                                {post.project_name}
-                                            </Text>
+                                            <InlineEditCell
+                                                value={post.project_name}
+                                                field="project_name"
+                                                post={post}
+                                                type="select"
+                                                filterOptions={filterOptions}
+                                                onSave={handleInlineEdit}
+                                            />
                                         </Table.Td>
                                         <Table.Td>
-                                            <Text size="sm">
-                                                {formatDate(post.date)}
-                                            </Text>
+                                            <InlineEditCell
+                                                value={post.date}
+                                                field="date"
+                                                post={post}
+                                                type="datetime-local"
+                                                filterOptions={filterOptions}
+                                                onSave={handleInlineEdit}
+                                            />
                                         </Table.Td>
                                         <Table.Td>
-                                            {post.keyword && (
-                                                <Badge variant="outline" size="sm">
-                                                    {post.keyword}
-                                                </Badge>
-                                            )}
+                                            <InlineEditCell
+                                                value={post.keyword || ''}
+                                                field="keyword"
+                                                post={post}
+                                                type="text"
+                                                filterOptions={filterOptions}
+                                                onSave={handleInlineEdit}
+                                            />
                                         </Table.Td>
                                         <Table.Td>
                                             <Group gap={4}>

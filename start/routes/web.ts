@@ -20,7 +20,7 @@ router
                 router.get('/:id/edit', [GmbPostsController, 'edit']).as('edit'),
                 router.put('/:id', [GmbPostsController, 'update']).as('update'),
                 router.delete('/:id', [GmbPostsController, 'destroy']).as('destroy'),
-                
+
                 // Actions spéciales
                 router.post('/:id/duplicate', [GmbPostsController, 'duplicate']).as('duplicate'),
                 router.delete('/', [GmbPostsController, 'bulkDestroy']).as('bulk_destroy'),
@@ -33,7 +33,9 @@ router
 // Routes API (sans middleware auth si nécessaire, ou avec middleware API)
 router
     .group(() => [
-        router.get('/projects-by-client', [GmbPostsController, 'getProjectsByClient']).as('projects_by_client'),
+        router
+            .get('/projects-by-client', [GmbPostsController, 'getProjectsByClient'])
+            .as('projects_by_client'),
     ])
     .prefix('/api')
     .as('api')

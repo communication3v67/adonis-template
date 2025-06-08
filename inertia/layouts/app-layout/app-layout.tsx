@@ -17,7 +17,7 @@ import {
 } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
 import { PropsWithChildren } from 'react'
-import { LuLayoutDashboard, LuLogOut } from 'react-icons/lu'
+import { LuLayoutDashboard, LuLogOut, LuNewspaper } from 'react-icons/lu'
 import classes from './app-layout.module.css'
 
 export default function AppLayout(props: PropsWithChildren<SharedProps>) {
@@ -52,7 +52,7 @@ export default function AppLayout(props: PropsWithChildren<SharedProps>) {
                                 <ThemeIcon variant="light" size={30}>
                                     <LuLayoutDashboard size={18} />
                                 </ThemeIcon>
-                                <Box ml="md">{`Accueil`}</Box>
+                                <Box ml="md">{`Tableau de bord`}</Box>
                             </Box>
                         </Group>
                     </UnstyledButton>
@@ -60,9 +60,9 @@ export default function AppLayout(props: PropsWithChildren<SharedProps>) {
                         <Group justify="space-between" gap={0}>
                             <Box style={{ display: 'flex', alignItems: 'center' }}>
                                 <ThemeIcon variant="light" size={30}>
-                                    <LuLayoutDashboard size={18} />
+                                    <LuNewspaper size={18} />
                                 </ThemeIcon>
-                                <Box ml="md">{`Posts`}</Box>
+                                <Box ml="md">{`Mes posts`}</Box>
                             </Box>
                         </Group>
                     </UnstyledButton>
