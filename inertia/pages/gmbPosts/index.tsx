@@ -1,4 +1,75 @@
-import { Head, Link, router, useForm } from '@inertiajs/react'
+    // Gestion du tri
+    const handleSort = (sortBy: string, sortOrder: string) => {
+        console.log('=== CHANGEMENT DE TRI ===')
+        console.log('Nouveau tri:', sortBy, sortOrder)
+        console.log('=========================')
+        
+        setLocalFilters(prev => ({
+            ...prev,
+            sortBy,
+            sortOrder
+        }))
+    }// Composant pour les en-têtes de colonnes avec tri
+function SortableHeader({ 
+    label, 
+    sortKey, 
+    currentSortBy, 
+    currentSortOrder, 
+    onSort 
+}: {
+    label: string
+    sortKey: string
+    currentSortBy: string
+    currentSortOrder: string
+    onSort: (sortBy: string, sortOrder: string) => void
+}) {
+    const isActive = currentSortBy === sortKey
+    const isAsc = isActive && currentSortOrder === 'asc'
+    const isDesc = isActive && currentSortOrder === 'desc'
+    
+    const handleClick = () => {
+        if (!isActive) {
+            // Si la colonne n'est pas active, commencer par desc
+            onSort(sortKey, 'desc')
+        } else if (isDesc) {
+            // Si desc, passer à asc
+            onSort(sortKey, 'asc')
+        } else {
+            // Si asc, passer à desc
+            onSort(sortKey, 'desc')
+        }
+    }
+    
+    return (
+        <Group 
+            gap={4} 
+            style={{ cursor: 'pointer', userSelect: 'none' }}
+            onClick={handleClick}
+        >
+            <Text fw={500} size="sm">{label}</Text>
+            <Box>
+                {isActive ? (
+                    isDesc ? (
+                        <LuArrowDown 
+                            size={14} 
+                            style={{ color: '#228be6' }}
+                        />
+                    ) : (
+                        <LuArrowUp 
+                            size={14} 
+                            style={{ color: '#228be6' }}
+                        />
+                    )
+                ) : (
+                    <LuMoveHorizontal 
+                        size={14} 
+                        style={{ color: '#adb5bd', opacity: 0.6 }}
+                    />
+                )}
+            </Box>
+        </Group>
+    )
+}import { Head, Link, router, useForm } from '@inertiajs/react'
 import {
     ActionIcon,
     Badge,
@@ -23,6 +94,8 @@ import { notifications } from '@mantine/notifications'
 import * as React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import {
+    LuArrowDown,
+    LuArrowUp,
     LuCheck,
     LuCopy,
     LuDownload,
@@ -709,6 +782,7 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
     const [localFilters, setLocalFilters] = useState(filters)
     const [editingPost, setEditingPost] = useState<GmbPost | null>(null)
     const [editModalOpened, setEditModalOpened] = useState(false)
+    const [isApplyingFilters, setIsApplyingFilters] = useState(false)
     
     // État pour l'édition en masse
     const [bulkEditData, setBulkEditData] = useState({
@@ -735,6 +809,46 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
         }
         console.log('=====================')
     }, [])
+    
+    // Synchroniser les filtres locaux avec les filtres props quand ils changent
+    React.useEffect(() => {
+        console.log('=== SYNCHRONISATION FILTRES ===')
+        console.log('Filtres props:', filters)
+        console.log('Filtres locaux avant:', localFilters)
+        
+        setLocalFilters(filters)
+        
+        console.log('Filtres locaux après:', filters)
+        console.log('================================')
+    }, [filters])
+    
+    // Application automatique des filtres avec debounce pour la recherche
+    React.useEffect(() => {
+        // Si c'est juste un changement de texte de recherche, on debounce
+        if (localFilters.search !== filters.search && localFilters.search.length > 0) {
+            const timeoutId = setTimeout(() => {
+                console.log('=== AUTO-APPLICATION FILTRES (SEARCH) ===')
+                console.log('Recherche auto-appliquée:', localFilters.search)
+                console.log('==========================================')
+                applyFilters()
+            }, 800) // Délai de 800ms pour la recherche
+            
+            return () => clearTimeout(timeoutId)
+        }
+        // Pour les autres filtres, application immédiate si différents des props
+        else if (
+            localFilters.status !== filters.status ||
+            localFilters.client !== filters.client ||
+            localFilters.project !== filters.project ||
+            localFilters.sortBy !== filters.sortBy ||
+            localFilters.sortOrder !== filters.sortOrder
+        ) {
+            console.log('=== AUTO-APPLICATION FILTRES ===')
+            console.log('Filtres auto-appliqués:', localFilters)
+            console.log('================================')
+            applyFilters()
+        }
+    }, [localFilters.search, localFilters.status, localFilters.client, localFilters.project, localFilters.sortBy, localFilters.sortOrder])
 
     // Gestion de la sélection multiple
     const toggleSelectAll = () => {
@@ -804,14 +918,23 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
 
     // Gestion des filtres
     const applyFilters = () => {
+        console.log('=== APPLICATION DES FILTRES ===')
+        console.log('Filtres locaux:', localFilters)
+        console.log('================================')
+        
+        setIsApplyingFilters(true)
+        
         router.get('/gmb-posts', localFilters, {
-        preserveState: true,
-        replace: true,
+            preserveState: true,
+            replace: true,
+            onFinish: () => {
+                setIsApplyingFilters(false)
+            }
         })
     }
 
     const resetFilters = () => {
-        const resetFilters = {
+        const resetFiltersData = {
             search: '',
             status: '',
             client: '',
@@ -819,8 +942,12 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
             sortBy: 'date',
             sortOrder: 'desc',
         }
-        setLocalFilters(resetFilters)
-        router.get('/gmb-posts', resetFilters, {
+        console.log('=== RÉINITIALISATION DES FILTRES ===')
+        console.log('Données de réinitialisation:', resetFiltersData)
+        console.log('======================================')
+        
+        setLocalFilters(resetFiltersData)
+        router.get('/gmb-posts', resetFiltersData, {
             preserveState: true,
             replace: true,
         })
@@ -1023,7 +1150,116 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
             <Stack gap="md">
                 {/* En-tête */}
                 <Flex justify="space-between" align="center">
-                    <Title order={2}>Posts GMB</Title>
+                    <Box>
+                        <Title order={2}>Posts GMB</Title>
+                        <Group gap="xs" mt="xs">
+                            <Text size="sm" c="dimmed">
+                                {posts.meta.total} post{posts.meta.total > 1 ? 's' : ''} trouvé{posts.meta.total > 1 ? 's' : ''}
+                            </Text>
+                            {/* Indicateurs de filtres actifs */}
+                            {(localFilters.search || localFilters.status || localFilters.client || localFilters.project) && (
+                                <>
+                                    <Text size="sm" c="dimmed">•</Text>
+                                    <Group gap={4}>
+                                        {localFilters.search && (
+                                            <Badge 
+                                                variant="outline" 
+                                                size="xs" 
+                                                color="blue"
+                                                style={{ cursor: 'pointer' }}
+                                                rightSection={
+                                                    <LuX 
+                                                        size={10} 
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            setLocalFilters(prev => ({ ...prev, search: '' }))
+                                                        }}
+                                                    />
+                                                }
+                                                onClick={() => {
+                                                    setLocalFilters(prev => ({ ...prev, search: '' }))
+                                                }}
+                                            >
+                                                📝 "{localFilters.search.length > 15 ? localFilters.search.substring(0, 15) + '...' : localFilters.search}"
+                                            </Badge>
+                                        )}
+                                        {localFilters.status && (
+                                            <Badge 
+                                                variant="outline" 
+                                                size="xs" 
+                                                color="green"
+                                                style={{ cursor: 'pointer' }}
+                                                rightSection={
+                                                    <LuX 
+                                                        size={10} 
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            setLocalFilters(prev => ({ ...prev, status: '' }))
+                                                        }}
+                                                    />
+                                                }
+                                                onClick={() => {
+                                                    setLocalFilters(prev => ({ ...prev, status: '' }))
+                                                }}
+                                            >
+                                                🔄 {localFilters.status}
+                                            </Badge>
+                                        )}
+                                        {localFilters.client && (
+                                            <Badge 
+                                                variant="outline" 
+                                                size="xs" 
+                                                color="orange"
+                                                style={{ cursor: 'pointer' }}
+                                                rightSection={
+                                                    <LuX 
+                                                        size={10} 
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            setLocalFilters(prev => ({ ...prev, client: '' }))
+                                                        }}
+                                                    />
+                                                }
+                                                onClick={() => {
+                                                    setLocalFilters(prev => ({ ...prev, client: '' }))
+                                                }}
+                                            >
+                                                👤 {localFilters.client}
+                                            </Badge>
+                                        )}
+                                        {localFilters.project && (
+                                            <Badge 
+                                                variant="outline" 
+                                                size="xs" 
+                                                color="violet"
+                                                style={{ cursor: 'pointer' }}
+                                                rightSection={
+                                                    <LuX 
+                                                        size={10} 
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            setLocalFilters(prev => ({ ...prev, project: '' }))
+                                                        }}
+                                                    />
+                                                }
+                                                onClick={() => {
+                                                    setLocalFilters(prev => ({ ...prev, project: '' }))
+                                                }}
+                                            >
+                                                📁 {localFilters.project}
+                                            </Badge>
+                                        )}
+                                    </Group>
+                                </>
+                            )}
+                            {isApplyingFilters && (
+                                <>
+                                    <Text size="sm" c="dimmed">•</Text>
+                                    <Text size="sm" c="blue">Filtrage en cours...</Text>
+                                </>
+                            )}
+                        </Group>
+                    </Box>
                     <Group>
                         <Button
                             component={Link}
@@ -1054,19 +1290,58 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
                 {/* Filtres */}
                 <Card withBorder p="md">
                     <Stack gap="md">
-                        <Text fw={500}>Filtres</Text>
+                        <Group justify="space-between">
+                            <Text fw={500}>Filtres</Text>
+                            <Group gap="xs">
+                                {/* Badges des filtres actifs */}
+                                {localFilters.search && (
+                                    <Badge variant="light" color="blue" size="sm">
+                                        Recherche: "{localFilters.search.length > 20 ? localFilters.search.substring(0, 20) + '...' : localFilters.search}"
+                                    </Badge>
+                                )}
+                                {localFilters.status && (
+                                    <Badge variant="light" color="green" size="sm">
+                                        Statut: {localFilters.status}
+                                    </Badge>
+                                )}
+                                {localFilters.client && (
+                                    <Badge variant="light" color="orange" size="sm">
+                                        Client: {localFilters.client}
+                                    </Badge>
+                                )}
+                                {localFilters.project && (
+                                    <Badge variant="light" color="violet" size="sm">
+                                        Projet: {localFilters.project}
+                                    </Badge>
+                                )}
+                                {(localFilters.sortBy !== 'date' || localFilters.sortOrder !== 'desc') && (
+                                    <Badge variant="light" color="gray" size="sm">
+                                        📊 Tri: {getSortLabel(localFilters.sortBy)} ({localFilters.sortOrder === 'desc' ? '↓' : '↑'})
+                                    </Badge>
+                                )}
+                            </Group>
+                        </Group>
                         <Group grow>
                             <TextInput
-                                placeholder="Rechercher..."
+                                placeholder="Rechercher dans le texte, mots-clés, clients, projets..."
                                 leftSection={<LuSearch size={16} />}
                                 value={localFilters.search}
-                                onChange={(e) => setLocalFilters(prev => ({
-                                    ...prev,
-                                    search: e.target.value
-                                }))}
+                                onChange={(e) => {
+                                    const newValue = e.target.value
+                                    console.log('Recherche changée:', newValue)
+                                    setLocalFilters(prev => ({
+                                        ...prev,
+                                        search: newValue
+                                    }))
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        applyFilters()
+                                    }
+                                }}
                             />
                             <Select
-                                placeholder="Statut"
+                                placeholder="Filtrer par statut"
                                 data={[
                                     { value: '', label: 'Tous les statuts' },
                                     ...filterOptions.statuses.map(status => ({
@@ -1075,13 +1350,17 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
                                     }))
                                 ]}
                                 value={localFilters.status}
-                                onChange={(value) => setLocalFilters(prev => ({
-                                    ...prev,
-                                    status: value || ''
-                                }))}
+                                onChange={(value) => {
+                                    console.log('Statut changé:', value)
+                                    setLocalFilters(prev => ({
+                                        ...prev,
+                                        status: value || ''
+                                    }))
+                                }}
+                                clearable
                             />
                             <Select
-                                placeholder="Client"
+                                placeholder="Filtrer par client"
                                 data={[
                                     { value: '', label: 'Tous les clients' },
                                     ...filterOptions.clients.map(client => ({
@@ -1090,13 +1369,18 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
                                     }))
                                 ]}
                                 value={localFilters.client}
-                                onChange={(value) => setLocalFilters(prev => ({
-                                    ...prev,
-                                    client: value || ''
-                                }))}
+                                onChange={(value) => {
+                                    console.log('Client changé:', value)
+                                    setLocalFilters(prev => ({
+                                        ...prev,
+                                        client: value || ''
+                                    }))
+                                }}
+                                searchable
+                                clearable
                             />
                             <Select
-                                placeholder="Projet"
+                                placeholder="Filtrer par projet"
                                 data={[
                                     { value: '', label: 'Tous les projets' },
                                     ...filterOptions.projects.map(project => ({
@@ -1105,17 +1389,95 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
                                     }))
                                 ]}
                                 value={localFilters.project}
-                                onChange={(value) => setLocalFilters(prev => ({
-                                    ...prev,
-                                    project: value || ''
-                                }))}
+                                onChange={(value) => {
+                                    console.log('Projet changé:', value)
+                                    setLocalFilters(prev => ({
+                                        ...prev,
+                                        project: value || ''
+                                    }))
+                                }}
+                                searchable
+                                clearable
                             />
                         </Group>
+                        
+                        {/* Options de tri - Remplacées par les en-têtes cliquables */}
                         <Group>
-                            <Button onClick={applyFilters}>Appliquer</Button>
-                            <Button variant="light" onClick={resetFilters}>
+                            <Text size="sm" c="dimmed">
+                                {posts.meta.total} résultat{posts.meta.total > 1 ? 's' : ''}
+                            </Text>
+                            <Text size="xs" c="dimmed" style={{ fontStyle: 'italic' }}>
+                                💡 Cliquez sur les en-têtes de colonnes pour trier
+                            </Text>
+                        </Group>
+                        
+                        <Group>
+                            <Button 
+                                onClick={applyFilters}
+                                leftSection={<LuSearch size={16} />}
+                                variant="filled"
+                                loading={isApplyingFilters}
+                            >
+                                {isApplyingFilters ? 'Application...' : 'Appliquer manuellement'}
+                            </Button>
+                            <Button 
+                                variant="light" 
+                                onClick={resetFilters}
+                                leftSection={<LuX size={16} />}
+                            >
                                 Réinitialiser
                             </Button>
+                            
+                            {/* Filtres rapides */}
+                            <Flex justify="space-between" align="center" wrap="wrap" gap="md">
+                                <Group gap="xs">
+                                    <Text size="sm" fw={500} c="dimmed">Filtres rapides :</Text>
+                                    <Button
+                                        size="xs"
+                                        variant="light"
+                                        color="yellow"
+                                        onClick={() => {
+                                            setLocalFilters(prev => ({ ...prev, status: 'À générer' }))
+                                        }}
+                                    >
+                                        À générer
+                                    </Button>
+                                    <Button
+                                        size="xs"
+                                        variant="light"
+                                        color="violet"
+                                        onClick={() => {
+                                            setLocalFilters(prev => ({ ...prev, status: 'Post à publier' }))
+                                        }}
+                                    >
+                                        À publier
+                                    </Button>
+                                    <Button
+                                        size="xs"
+                                        variant="light"
+                                        color="green"
+                                        onClick={() => {
+                                            setLocalFilters(prev => ({ ...prev, status: 'Publié' }))
+                                        }}
+                                    >
+                                        Publiés
+                                    </Button>
+                                    <Button
+                                        size="xs"
+                                        variant="light"
+                                        color="red"
+                                        onClick={() => {
+                                            setLocalFilters(prev => ({ ...prev, status: 'failed' }))
+                                        }}
+                                    >
+                                        Échecs
+                                    </Button>
+                                </Group>
+                                
+                                <Text size="xs" c="dimmed" style={{ fontStyle: 'italic' }}>
+                                    💡 Les filtres s'appliquent automatiquement (recherche : 0.8s)
+                                </Text>
+                            </Flex>
                         </Group>
                     </Stack>
                 </Card>
@@ -1236,18 +1598,96 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
                                         onChange={toggleSelectAll}
                                     />
                                 </Table.Th>
-                                <Table.Th w={160}>Statut</Table.Th>
-                                <Table.Th w={400}>Texte</Table.Th>
-                                <Table.Th w={180}>Client</Table.Th>
-                                <Table.Th w={180}>Projet</Table.Th>
-                                <Table.Th w={160}>Date</Table.Th>
-                                <Table.Th w={160}>Mot-clé</Table.Th>
-                                <Table.Th w={140}>URL Image</Table.Th>
-                                <Table.Th w={140}>URL Lien</Table.Th>
-                                <Table.Th w={160}>Location ID</Table.Th>
-                                <Table.Th w={160}>Account ID</Table.Th>
-                                <Table.Th w={140}>Notion ID</Table.Th>
-                                <Table.Th w={140}>Actions</Table.Th>
+                                <Table.Th w={160}>
+                                    <SortableHeader
+                                        label="Statut"
+                                        sortKey="status"
+                                        currentSortBy={localFilters.sortBy}
+                                        currentSortOrder={localFilters.sortOrder}
+                                        onSort={handleSort}
+                                    />
+                                </Table.Th>
+                                <Table.Th w={400}>
+                                    <SortableHeader
+                                        label="Texte"
+                                        sortKey="text"
+                                        currentSortBy={localFilters.sortBy}
+                                        currentSortOrder={localFilters.sortOrder}
+                                        onSort={handleSort}
+                                    />
+                                </Table.Th>
+                                <Table.Th w={180}>
+                                    <SortableHeader
+                                        label="Client"
+                                        sortKey="client"
+                                        currentSortBy={localFilters.sortBy}
+                                        currentSortOrder={localFilters.sortOrder}
+                                        onSort={handleSort}
+                                    />
+                                </Table.Th>
+                                <Table.Th w={180}>
+                                    <SortableHeader
+                                        label="Projet"
+                                        sortKey="project_name"
+                                        currentSortBy={localFilters.sortBy}
+                                        currentSortOrder={localFilters.sortOrder}
+                                        onSort={handleSort}
+                                    />
+                                </Table.Th>
+                                <Table.Th w={160}>
+                                    <SortableHeader
+                                        label="Date"
+                                        sortKey="date"
+                                        currentSortBy={localFilters.sortBy}
+                                        currentSortOrder={localFilters.sortOrder}
+                                        onSort={handleSort}
+                                    />
+                                </Table.Th>
+                                <Table.Th w={160}>
+                                    <SortableHeader
+                                        label="Mot-clé"
+                                        sortKey="keyword"
+                                        currentSortBy={localFilters.sortBy}
+                                        currentSortOrder={localFilters.sortOrder}
+                                        onSort={handleSort}
+                                    />
+                                </Table.Th>
+                                <Table.Th w={140}>
+                                    <Text fw={500} size="sm">URL Image</Text>
+                                </Table.Th>
+                                <Table.Th w={140}>
+                                    <Text fw={500} size="sm">URL Lien</Text>
+                                </Table.Th>
+                                <Table.Th w={160}>
+                                    <SortableHeader
+                                        label="Location ID"
+                                        sortKey="location_id"
+                                        currentSortBy={localFilters.sortBy}
+                                        currentSortOrder={localFilters.sortOrder}
+                                        onSort={handleSort}
+                                    />
+                                </Table.Th>
+                                <Table.Th w={160}>
+                                    <SortableHeader
+                                        label="Account ID"
+                                        sortKey="account_id"
+                                        currentSortBy={localFilters.sortBy}
+                                        currentSortOrder={localFilters.sortOrder}
+                                        onSort={handleSort}
+                                    />
+                                </Table.Th>
+                                <Table.Th w={140}>
+                                    <SortableHeader
+                                        label="Notion ID"
+                                        sortKey="notion_id"
+                                        currentSortBy={localFilters.sortBy}
+                                        currentSortOrder={localFilters.sortOrder}
+                                        onSort={handleSort}
+                                    />
+                                </Table.Th>
+                                <Table.Th w={140}>
+                                    <Text fw={500} size="sm">Actions</Text>
+                                </Table.Th>
                             </Table.Tr>
                         </Table.Thead>
                         <Table.Tbody>
@@ -1431,12 +1871,17 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
                                     total={posts.meta.last_page}
                                     value={posts.meta.current_page}
                                     onChange={(page) => {
+                                        console.log('=== CHANGEMENT DE PAGE ===')
+                                        console.log('Nouvelle page:', page)
+                                        console.log('Filtres actuels:', localFilters)
+                                        console.log('==========================')
+                                        
                                         router.get('/gmb-posts', {
-                                        ...localFilters,
-                                        page
+                                            ...localFilters,
+                                            page
                                         }, {
-                                        preserveState: true,
-                                        replace: true,
+                                            preserveState: true,
+                                            replace: true,
                                         })
                                     }}
                                 />

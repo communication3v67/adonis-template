@@ -115,34 +115,47 @@ export default class GmbPostsController {
         const sortBy = request.input('sortBy', 'date')
         const sortOrder = request.input('sortOrder', 'desc')
 
+        console.log('=== FILTRES REÇUS ===')
+        console.log('Recherche:', search)
+        console.log('Statut:', status)
+        console.log('Client:', client)
+        console.log('Projet:', project)
+        console.log('Tri:', sortBy, sortOrder)
+        console.log('=====================')
+
         const query = GmbPost.query()
 
-        // Recherche textuelle
+        // Recherche textuelle (compatible MySQL avec LOWER pour insensibilité à la casse)
         if (search) {
+            const searchLower = search.toLowerCase()
             query.where((builder) => {
                 builder
-                    .where('text', 'ILIKE', `%${search}%`)
-                    .orWhere('keyword', 'ILIKE', `%${search}%`)
-                    .orWhere('client', 'ILIKE', `%${search}%`)
-                    .orWhere('project_name', 'ILIKE', `%${search}%`)
+                    .whereRaw('LOWER(text) LIKE ?', [`%${searchLower}%`])
+                    .orWhereRaw('LOWER(keyword) LIKE ?', [`%${searchLower}%`])
+                    .orWhereRaw('LOWER(client) LIKE ?', [`%${searchLower}%`])
+                    .orWhereRaw('LOWER(project_name) LIKE ?', [`%${searchLower}%`])
             })
         }
 
-        // Filtres
+        // Filtres (compatible MySQL)
         if (status) {
             query.where('status', status)
         }
 
         if (client) {
-            query.where('client', 'ILIKE', `%${client}%`)
+            const clientLower = client.toLowerCase()
+            query.whereRaw('LOWER(client) LIKE ?', [`%${clientLower}%`])
         }
 
         if (project) {
-            query.where('project_name', 'ILIKE', `%${project}%`)
+            const projectLower = project.toLowerCase()
+            query.whereRaw('LOWER(project_name) LIKE ?', [`%${projectLower}%`])
         }
 
         // Tri
         query.orderBy(sortBy, sortOrder)
+
+        console.log('Requête SQL générée:', query.toQuery())
 
         // Pagination
         const posts = await query.paginate(page, limit)
