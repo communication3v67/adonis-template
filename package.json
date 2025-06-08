@@ -80,6 +80,7 @@
         "@mantine/hooks": "^7.17.0",
         "@mantine/modals": "^7.17.0",
         "@mantine/notifications": "^7.17.0",
+        "@notionhq/client": "^2.3.0",
         "@vinejs/vine": "^3.0.0",
         "clsx": "^2.1.1",
         "edge.js": "^6.2.1",

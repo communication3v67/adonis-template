@@ -38,62 +38,68 @@ const updateGmbPostValidator = vine.compile(
 
 export default class GmbPostsController {
     /**
-     * Met à jour plusieurs posts en une fois
-     */
-    async bulkUpdate({ request, response, session }: HttpContext) {
-        try {
-            const { ids, updateData } = request.only(['ids', 'updateData'])
+    * Met à jour plusieurs posts en une fois
+    */
+    async bulkUpdate({ request, response, session, auth }: HttpContext) {
+    try {
+    // S'assurer qu'un utilisateur est connecté
+            await auth.check()
+    const currentUser = auth.user!
 
-            console.log('=== MÉTHODE BULK UPDATE ===')            
-            console.log('IDs reçus:', ids)
-            console.log('Données de mise à jour:', updateData)
-            console.log('========================')
+    const { ids, updateData } = request.only(['ids', 'updateData'])
 
-            if (!ids || !Array.isArray(ids) || ids.length === 0) {
-                session.flash('notification', {
+            console.log('=== MÉTHODE BULK UPDATE ===')
+    console.log('Utilisateur:', currentUser.id)
+    console.log('IDs reçus:', ids)
+    console.log('Données de mise à jour:', updateData)
+    console.log('========================')
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        session.flash('notification', {
                     type: 'error',
-                    message: 'Aucun post sélectionné pour la mise à jour.',
-                })
-                return response.redirect().back()
-            }
+            message: 'Aucun post sélectionné pour la mise à jour.',
+    })
+    return response.redirect().back()
+    }
 
-            if (!updateData || Object.keys(updateData).length === 0) {
-                session.flash('notification', {
+    if (!updateData || Object.keys(updateData).length === 0) {
+        session.flash('notification', {
                     type: 'error',
-                    message: 'Aucune donnée de mise à jour fournie.',
-                })
-                return response.redirect().back()
-            }
+            message: 'Aucune donnée de mise à jour fournie.',
+        })
+        return response.redirect().back()
+    }
 
-            // Nettoyer les données pour éviter les valeurs vides
-            const cleanUpdateData: any = {}
+    // Nettoyer les données pour éviter les valeurs vides
+    const cleanUpdateData: any = {}
             Object.entries(updateData).forEach(([key, value]) => {
-                if (value && String(value).trim() !== '') {
+        if (value && String(value).trim() !== '') {
                     cleanUpdateData[key] = value
-                }
-            })
+        }
+    })
 
-            console.log('Données nettoyées:', cleanUpdateData)
+    console.log('Données nettoyées:', cleanUpdateData)
 
-            // Exécuter la mise à jour en masse
+    // Exécuter la mise à jour en masse SEULEMENT pour les posts de l'utilisateur connecté
             const updatedCount = await GmbPost.query()
-                .whereIn('id', ids)
-                .update(cleanUpdateData)
+        .whereIn('id', ids)
+    .where('user_id', currentUser.id) // Sécurité : seulement les posts de l'utilisateur
+    .update(cleanUpdateData)
 
             console.log(`${updatedCount} post(s) mis à jour`)
 
             session.flash('notification', {
-                type: 'success',
-                message: `${updatedCount} post(s) mis à jour avec succès !`,
-            })
+            type: 'success',
+        message: `${updatedCount} post(s) mis à jour avec succès !`,
+    })
 
-            return response.redirect().toRoute('gmbPosts.index')
+    return response.redirect().toRoute('gmbPosts.index')
 
-        } catch (error) {
-            console.error('Erreur mise à jour en masse:', error)
+    } catch (error) {
+    console.error('Erreur mise à jour en masse:', error)
             console.error('Stack trace:', error.stack)
 
-            session.flash('notification', {
+        session.flash('notification', {
                 type: 'error',
                 message: 'Erreur lors de la mise à jour en masse.',
             })
@@ -103,9 +109,9 @@ export default class GmbPostsController {
     }
 
     /**
-     * Affiche la liste des posts GMB avec pagination et filtres
+     * Affiche la liste des posts GMB avec pagination et filtres pour l'utilisateur connecté
      */
-    async index({ inertia, request }: HttpContext) {
+    async index({ inertia, request, auth }: HttpContext) {
         const page = request.input('page', 1)
         const limit = request.input('limit', 15)
         const search = request.input('search', '')
@@ -116,6 +122,7 @@ export default class GmbPostsController {
         const sortOrder = request.input('sortOrder', 'desc')
 
         console.log('=== FILTRES REÇUS ===')
+        console.log('Utilisateur connecté:', auth.user?.id)
         console.log('Recherche:', search)
         console.log('Statut:', status)
         console.log('Client:', client)
@@ -123,7 +130,11 @@ export default class GmbPostsController {
         console.log('Tri:', sortBy, sortOrder)
         console.log('=====================')
 
-        const query = GmbPost.query()
+        // S'assurer qu'un utilisateur est connecté
+        await auth.check()
+        const currentUser = auth.user!
+
+        const query = GmbPost.query().where('user_id', currentUser.id)
 
         // Recherche textuelle (compatible MySQL avec LOWER pour insensibilité à la casse)
         if (search) {
@@ -162,22 +173,31 @@ export default class GmbPostsController {
 
         // Debug : vérifier la sérialisation avec naming strategy
         const serializedPosts = posts.serialize()
-        console.log('Posts sérialisés avec naming strategy:', serializedPosts)
+        console.log('Posts sérialisés pour utilisateur', currentUser.id, ':', serializedPosts.data.length)
         
         if (serializedPosts.data && serializedPosts.data.length > 0) {
             console.log('Premier post:', serializedPosts.data[0])
             console.log('Clés disponibles:', Object.keys(serializedPosts.data[0]))
         }
 
-        // Données pour les filtres
-        const clients = await GmbPost.query().select('client').groupBy('client').orderBy('client')
+        // Données pour les filtres (limitées à l'utilisateur connecté)
+        const clients = await GmbPost.query()
+            .where('user_id', currentUser.id)
+            .select('client')
+            .groupBy('client')
+            .orderBy('client')
 
         const projects = await GmbPost.query()
+            .where('user_id', currentUser.id)
             .select('project_name')
             .groupBy('project_name')
             .orderBy('project_name')
 
-        const statuses = await GmbPost.query().select('status').groupBy('status').orderBy('status')
+        const statuses = await GmbPost.query()
+            .where('user_id', currentUser.id)
+            .select('status')
+            .groupBy('status')
+            .orderBy('status')
 
         return inertia.render('gmbPosts/index', {
             posts: serializedPosts,
@@ -194,17 +214,32 @@ export default class GmbPostsController {
                 projects: projects.map((p) => p.project_name),
                 statuses: statuses.map((s) => s.status),
             },
+            currentUser: {
+                id: currentUser.id,
+                username: currentUser.username,
+                email: currentUser.email,
+                notion_id: currentUser.notion_id
+            }
         })
     }
 
     /**
      * Affiche le formulaire de création d'un nouveau post
      */
-    async create({ inertia }: HttpContext) {
-        // Récupération des options pour les selects
-        const clients = await GmbPost.query().select('client').groupBy('client').orderBy('client')
+    async create({ inertia, auth }: HttpContext) {
+        // S'assurer qu'un utilisateur est connecté
+        await auth.check()
+        const currentUser = auth.user!
+
+        // Récupération des options pour les selects (limitées à l'utilisateur)
+        const clients = await GmbPost.query()
+            .where('user_id', currentUser.id)
+            .select('client')
+            .groupBy('client')
+            .orderBy('client')
 
         const projects = await GmbPost.query()
+            .where('user_id', currentUser.id)
             .select('project_name', 'client')
             .groupBy('project_name', 'client')
             .orderBy('project_name')
@@ -212,19 +247,30 @@ export default class GmbPostsController {
         return inertia.render('gmbPosts/create', {
             clients: clients.map((c) => c.client),
             projects: projects,
+            currentUser: {
+                id: currentUser.id,
+                username: currentUser.username,
+                email: currentUser.email,
+                notion_id: currentUser.notion_id
+            }
         })
     }
 
     /**
      * Stocke un nouveau post en base de données
      */
-    async store({ request, response, session }: HttpContext) {
+    async store({ request, response, session, auth }: HttpContext) {
         try {
+            // S'assurer qu'un utilisateur est connecté
+            await auth.check()
+            const currentUser = auth.user!
+
             const payload = await request.validateUsing(createGmbPostValidator)
 
             // Conversion de la date si nécessaire
             const postData = {
                 ...payload,
+                user_id: currentUser.id, // Associer le post à l'utilisateur connecté
                 date: DateTime.fromJSDate(new Date(payload.date)),
             }
 
@@ -281,7 +327,7 @@ export default class GmbPostsController {
     /**
      * Met à jour un post existant
      */
-    async update({ params, request, response, session }: HttpContext) {
+    async update({ params, request, response, session, auth }: HttpContext) {
         console.log('=== MÉTHODE UPDATE APPELÉE ===')
         console.log('Paramètres de l\'URL:', params)
         console.log('Méthode HTTP:', request.method())
@@ -289,7 +335,21 @@ export default class GmbPostsController {
         console.log('================================')
         
         try {
+            // S'assurer qu'un utilisateur est connecté
+            await auth.check()
+            const currentUser = auth.user!
+
             const post = await GmbPost.findOrFail(params.id)
+            
+            // Vérifier que le post appartient à l'utilisateur connecté
+            if (post.user_id !== currentUser.id) {
+                session.flash('notification', {
+                    type: 'error',
+                    message: 'Vous n\'avez pas l\'autorisation de modifier ce post.',
+                })
+                return response.redirect().toRoute('gmbPosts.index')
+            }
+
             const payload = request.all()
 
             console.log('Payload reçu:', payload)
@@ -354,9 +414,23 @@ export default class GmbPostsController {
     /**
      * Supprime un post
      */
-    async destroy({ params, response, session }: HttpContext) {
+    async destroy({ params, response, session, auth }: HttpContext) {
         try {
+            // S'assurer qu'un utilisateur est connecté
+            await auth.check()
+            const currentUser = auth.user!
+
             const post = await GmbPost.findOrFail(params.id)
+            
+            // Vérifier que le post appartient à l'utilisateur connecté
+            if (post.user_id !== currentUser.id) {
+                session.flash('notification', {
+                    type: 'error',
+                    message: 'Vous n\'avez pas l\'autorisation de supprimer ce post.',
+                })
+                return response.redirect().toRoute('gmbPosts.index')
+            }
+
             await post.delete()
 
             session.flash('notification', {
@@ -411,12 +485,26 @@ export default class GmbPostsController {
     /**
      * Duplique un post existant
      */
-    async duplicate({ params, response, session }: HttpContext) {
+    async duplicate({ params, response, session, auth }: HttpContext) {
         try {
+            // S'assurer qu'un utilisateur est connecté
+            await auth.check()
+            const currentUser = auth.user!
+
             const originalPost = await GmbPost.findOrFail(params.id)
+            
+            // Vérifier que le post appartient à l'utilisateur connecté
+            if (originalPost.user_id !== currentUser.id) {
+                session.flash('notification', {
+                    type: 'error',
+                    message: 'Vous n\'avez pas l\'autorisation de dupliquer ce post.',
+                })
+                return response.redirect().toRoute('gmbPosts.index')
+            }
 
             const duplicatedData = {
-                status: originalPost.status, // 🔴 Copier le statut original
+                user_id: currentUser.id, // Maintenir la propriété de l'utilisateur
+                status: originalPost.status,
                 text: originalPost.text,
                 date: DateTime.now(), // Nouvelle date
                 image_url: originalPost.image_url,
@@ -426,7 +514,7 @@ export default class GmbPostsController {
                 project_name: originalPost.project_name,
                 location_id: originalPost.location_id,
                 account_id: originalPost.account_id,
-                notion_id: originalPost.notion_id, // 🔴 Copier le notion_id aussi
+                notion_id: originalPost.notion_id,
             }
 
             await GmbPost.create(duplicatedData)
@@ -436,7 +524,7 @@ export default class GmbPostsController {
                 message: 'Post dupliqué avec succès !',
             })
 
-            return response.redirect().toRoute('gmbPosts.index') // 🔴 Retourner à l'index
+            return response.redirect().toRoute('gmbPosts.index')
         } catch (error) {
             session.flash('notification', {
                 type: 'error',

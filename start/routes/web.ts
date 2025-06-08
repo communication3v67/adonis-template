@@ -1,13 +1,14 @@
 import { middleware } from '#start/kernel'
 import router from '@adonisjs/core/services/router'
 const GmbPostsController = () => import('#controllers/gmbPostsController')
+const HomeController = () => import('#controllers/home_controller')
 
 /* ignore formmating, as I find it easier to scan single line route definitions */
 /* prettier-ignore-start */
 
 router
     .group(() => [
-        router.on('/').renderInertia('home').as('home'),
+        router.get('/', [HomeController, 'index']).as('home'),
         router
             .group(() => [
                 // Routes principales CRUD
@@ -37,6 +38,10 @@ router
         router
             .get('/projects-by-client', [GmbPostsController, 'getProjectsByClient'])
             .as('projects_by_client'),
+        // Route API pour les pages Notion
+        router
+            .get('/notion-pages', [HomeController, 'getNotionPages'])
+            .as('notion_pages'),
     ])
     .prefix('/api')
     .as('api')

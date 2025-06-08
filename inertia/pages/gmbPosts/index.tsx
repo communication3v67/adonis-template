@@ -151,6 +151,12 @@ interface Props {
         projects: string[]
         statuses: string[]
     }
+    currentUser: {
+        id: number
+        username: string
+        email: string
+        notion_id: string | null
+    }
 }
 
 // Composant pour l'édition inline d'une cellule
@@ -777,7 +783,7 @@ function EditPostModal({ post, opened, onClose, filterOptions }: {
     )
 }
 
-export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) {
+export default function GmbPostsIndex({ posts, filters, filterOptions, currentUser }: Props) {
     const [selectedPosts, setSelectedPosts] = useState<number[]>([])
     const [localFilters, setLocalFilters] = useState(filters)
     const [editingPost, setEditingPost] = useState<GmbPost | null>(null)
@@ -1156,6 +1162,15 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
                             <Text size="sm" c="dimmed">
                                 {posts.meta.total} post{posts.meta.total > 1 ? 's' : ''} trouvé{posts.meta.total > 1 ? 's' : ''}
                             </Text>
+                            <Text size="sm" c="dimmed">•</Text>
+                            <Badge variant="outline" color="blue" size="sm">
+                                👤 {currentUser.username}
+                            </Badge>
+                            {currentUser.notion_id && (
+                                <Badge variant="outline" color="violet" size="sm">
+                                    🔗 Notion
+                                </Badge>
+                            )}
                             {/* Indicateurs de filtres actifs */}
                             {(localFilters.search || localFilters.status || localFilters.client || localFilters.project) && (
                                 <>
