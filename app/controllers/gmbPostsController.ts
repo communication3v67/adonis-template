@@ -38,6 +38,71 @@ const updateGmbPostValidator = vine.compile(
 
 export default class GmbPostsController {
     /**
+     * Met à jour plusieurs posts en une fois
+     */
+    async bulkUpdate({ request, response, session }: HttpContext) {
+        try {
+            const { ids, updateData } = request.only(['ids', 'updateData'])
+
+            console.log('=== MÉTHODE BULK UPDATE ===')            
+            console.log('IDs reçus:', ids)
+            console.log('Données de mise à jour:', updateData)
+            console.log('========================')
+
+            if (!ids || !Array.isArray(ids) || ids.length === 0) {
+                session.flash('notification', {
+                    type: 'error',
+                    message: 'Aucun post sélectionné pour la mise à jour.',
+                })
+                return response.redirect().back()
+            }
+
+            if (!updateData || Object.keys(updateData).length === 0) {
+                session.flash('notification', {
+                    type: 'error',
+                    message: 'Aucune donnée de mise à jour fournie.',
+                })
+                return response.redirect().back()
+            }
+
+            // Nettoyer les données pour éviter les valeurs vides
+            const cleanUpdateData: any = {}
+            Object.entries(updateData).forEach(([key, value]) => {
+                if (value && String(value).trim() !== '') {
+                    cleanUpdateData[key] = value
+                }
+            })
+
+            console.log('Données nettoyées:', cleanUpdateData)
+
+            // Exécuter la mise à jour en masse
+            const updatedCount = await GmbPost.query()
+                .whereIn('id', ids)
+                .update(cleanUpdateData)
+
+            console.log(`${updatedCount} post(s) mis à jour`)
+
+            session.flash('notification', {
+                type: 'success',
+                message: `${updatedCount} post(s) mis à jour avec succès !`,
+            })
+
+            return response.redirect().toRoute('gmbPosts.index')
+
+        } catch (error) {
+            console.error('Erreur mise à jour en masse:', error)
+            console.error('Stack trace:', error.stack)
+
+            session.flash('notification', {
+                type: 'error',
+                message: 'Erreur lors de la mise à jour en masse.',
+            })
+
+            return response.redirect().back()
+        }
+    }
+
+    /**
      * Affiche la liste des posts GMB avec pagination et filtres
      */
     async index({ inertia, request }: HttpContext) {

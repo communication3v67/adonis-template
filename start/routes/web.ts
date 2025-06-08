@@ -24,6 +24,7 @@ router
                 // Actions spéciales
                 router.post('/:id/duplicate', [GmbPostsController, 'duplicate']).as('duplicate'),
                 router.delete('/', [GmbPostsController, 'bulkDestroy']).as('bulk_destroy'),
+                router.post('/bulk-update', [GmbPostsController, 'bulkUpdate']).as('bulk_update'),
             ])
             .as('gmbPosts')
             .prefix('/gmb-posts'),

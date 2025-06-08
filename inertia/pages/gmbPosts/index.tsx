@@ -254,71 +254,74 @@ function InlineEditCell({
                     )}
                 </Box>
                 <ActionIcon
-                    size="xs"
+                    size="sm"
                     variant="subtle"
                     color="gray"
                     onClick={() => setIsEditing(true)}
                     title={`Modifier ${field}`}
                 >
-                    <LuSettings size={12} />
+                    <LuSettings size={14} />
                 </ActionIcon>
             </Group>
         )
     }
 
     return (
-        <Group gap={4} wrap="nowrap">
-            <Box flex={1}>
+        <Group gap={4} wrap="nowrap" style={{ minWidth: '100%' }}>
+            <Box flex={1} style={{ minWidth: '200px' }}>
                 {type === 'select' ? (
                     <Select
                         ref={inputRef as any}
                         value={editValue}
                         onChange={(val) => setEditValue(val || '')}
                         data={getSelectOptions()}
-                        size="xs"
+                        size="sm"
                         searchable={field === 'client' || field === 'project_name'}
                         onKeyDown={handleKeyDown}
+                        style={{ minWidth: '180px' }}
                     />
                 ) : type === 'textarea' ? (
                     <Textarea
                         ref={inputRef as any}
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
-                        size="xs"
+                        size="sm"
                         autosize
-                        minRows={1}
-                        maxRows={3}
+                        minRows={2}
+                        maxRows={4}
                         onKeyDown={handleKeyDown}
+                        style={{ minWidth: '300px' }}
                     />
                 ) : (
                     <TextInput
                         ref={inputRef as any}
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
-                        size="xs"
+                        size="sm"
                         type={type}
                         onKeyDown={handleKeyDown}
+                        style={{ minWidth: '150px' }}
                     />
                 )}
             </Box>
             <ActionIcon
-                size="xs"
+                size="sm"
                 variant="subtle"
                 color="green"
                 onClick={handleSave}
                 loading={isSaving}
                 title="Sauvegarder"
             >
-                <LuCheck size={12} />
+                <LuCheck size={14} />
             </ActionIcon>
             <ActionIcon
-                size="xs"
+                size="sm"
                 variant="subtle"
                 color="red"
                 onClick={handleCancel}
                 title="Annuler"
             >
-                <LuX size={12} />
+                <LuX size={14} />
             </ActionIcon>
         </Group>
     )
@@ -707,6 +710,16 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
     const [editingPost, setEditingPost] = useState<GmbPost | null>(null)
     const [editModalOpened, setEditModalOpened] = useState(false)
     
+    // État pour l'édition en masse
+    const [bulkEditData, setBulkEditData] = useState({
+        status: '',
+        client: '',
+        project_name: '',
+        location_id: '',
+        account_id: '',
+        notion_id: '',
+    })
+    
     // Hook pour gérer l'hydratation
     const [isClient, setIsClient] = useState(false)
     
@@ -832,6 +845,82 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
                     notifications.show({
                         title: 'Erreur',
                         message: 'Erreur lors de la suppression',
+                        color: 'red',
+                    })
+                },
+            })
+        }
+    }
+
+    // Vérifier s'il y a des modifications en masse
+    const hasAnyBulkChanges = () => {
+        return Object.values(bulkEditData).some(value => value.trim() !== '')
+    }
+
+    // Réinitialiser les données d'édition en masse
+    const resetBulkEdit = () => {
+        setBulkEditData({
+            status: '',
+            client: '',
+            project_name: '',
+            location_id: '',
+            account_id: '',
+            notion_id: '',
+        })
+    }
+
+    // Gérer l'édition en masse
+    const handleBulkEdit = () => {
+        if (selectedPosts.length === 0) return
+        if (!hasAnyBulkChanges()) {
+            notifications.show({
+                title: 'Information',
+                message: 'Aucune modification sélectionnée',
+                color: 'blue',
+            })
+            return
+        }
+
+        // Préparer les données à envoyer (seulement les champs modifiés)
+        const updateData: any = {}
+        Object.entries(bulkEditData).forEach(([key, value]) => {
+            if (value.trim() !== '') {
+                updateData[key] = value
+            }
+        })
+
+        const fieldsToUpdate = Object.keys(updateData)
+        const confirmMessage = `Êtes-vous sûr de vouloir modifier ${fieldsToUpdate.join(', ')} pour ${selectedPosts.length} post(s) ?`
+        
+        if (confirm(confirmMessage)) {
+            console.log('=== ÉDITION EN MASSE ===')            
+            console.log('Posts sélectionnés:', selectedPosts)
+            console.log('Données à mettre à jour:', updateData)
+            console.log('========================')
+
+            router.post('/gmb-posts/bulk-update', {
+                ids: selectedPosts,
+                updateData: updateData
+            }, {
+                onSuccess: () => {
+                    console.log('=== SUCCÈS ÉDITION MASSE ===')                    
+                    console.log('Modifications appliquées avec succès')
+                    console.log('========================')
+                    setSelectedPosts([])
+                    resetBulkEdit()
+                    notifications.show({
+                        title: 'Succès',
+                        message: `${selectedPosts.length} post(s) modifié(s) avec succès !`,
+                        color: 'green',
+                    })
+                },
+                onError: (errors) => {
+                    console.log('=== ERREUR ÉDITION MASSE ===')                    
+                    console.log('Erreurs reçues:', errors)
+                    console.log('========================')
+                    notifications.show({
+                        title: 'Erreur',
+                        message: 'Erreur lors de la modification en masse',
                         color: 'red',
                     })
                 },
@@ -1034,26 +1123,110 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
                 {/* Actions en masse */}
                 {selectedPosts.length > 0 && (
                     <Card withBorder p="md" bg="blue.0">
-                        <Group justify="space-between">
-                            <Text>
-                                {selectedPosts.length} post(s) sélectionné(s)
-                            </Text>
-                            <Button
-                                color="red"
-                                variant="light"
-                                size="sm"
-                                onClick={handleBulkDelete}
-                            >
-                                Supprimer la sélection
-                            </Button>
-                        </Group>
+                        <Stack gap="md">
+                            <Group justify="space-between">
+                                <Text fw={500}>
+                                    {selectedPosts.length} post(s) sélectionné(s)
+                                </Text>
+                                <Button
+                                    color="red"
+                                    variant="light"
+                                    size="sm"
+                                    onClick={handleBulkDelete}
+                                >
+                                    Supprimer la sélection
+                                </Button>
+                            </Group>
+                            
+                            <Text size="sm" fw={500}>Modifier en masse :</Text>
+                            
+                            <Group grow>
+                                <Select
+                                    placeholder="Nouveau statut"
+                                    data={[
+                                        { value: '', label: 'Conserver le statut actuel' },
+                                        { value: 'Futur', label: 'Futur' },
+                                        { value: 'À générer', label: 'À générer' },
+                                        { value: 'Titre généré', label: 'Titre généré' },
+                                        { value: 'Post à générer', label: 'Post à générer' },
+                                        { value: 'Post généré', label: 'Post généré' },
+                                        { value: 'Post à publier', label: 'Post à publier' },
+                                        { value: 'Publié', label: 'Publié' },
+                                        { value: 'failed', label: 'Échec' },
+                                    ]}
+                                    value={bulkEditData.status}
+                                    onChange={(value) => setBulkEditData(prev => ({ ...prev, status: value || '' }))}
+                                    size="sm"
+                                />
+                                <Select
+                                    placeholder="Nouveau client"
+                                    data={[
+                                        { value: '', label: 'Conserver le client actuel' },
+                                        ...filterOptions.clients.map(client => ({ value: client, label: client }))
+                                    ]}
+                                    value={bulkEditData.client}
+                                    onChange={(value) => setBulkEditData(prev => ({ ...prev, client: value || '' }))}
+                                    size="sm"
+                                    searchable
+                                />
+                                <Select
+                                    placeholder="Nouveau projet"
+                                    data={[
+                                        { value: '', label: 'Conserver le projet actuel' },
+                                        ...filterOptions.projects.map(project => ({ value: project, label: project }))
+                                    ]}
+                                    value={bulkEditData.project_name}
+                                    onChange={(value) => setBulkEditData(prev => ({ ...prev, project_name: value || '' }))}
+                                    size="sm"
+                                    searchable
+                                />
+                            </Group>
+                            
+                            <Group grow>
+                                <TextInput
+                                    placeholder="Nouveau Location ID"
+                                    value={bulkEditData.location_id}
+                                    onChange={(e) => setBulkEditData(prev => ({ ...prev, location_id: e.target.value }))}
+                                    size="sm"
+                                />
+                                <TextInput
+                                    placeholder="Nouveau Account ID"
+                                    value={bulkEditData.account_id}
+                                    onChange={(e) => setBulkEditData(prev => ({ ...prev, account_id: e.target.value }))}
+                                    size="sm"
+                                />
+                                <TextInput
+                                    placeholder="Nouveau Notion ID"
+                                    value={bulkEditData.notion_id}
+                                    onChange={(e) => setBulkEditData(prev => ({ ...prev, notion_id: e.target.value }))}
+                                    size="sm"
+                                />
+                            </Group>
+                            
+                            <Group>
+                                <Button
+                                    onClick={handleBulkEdit}
+                                    size="sm"
+                                    disabled={!hasAnyBulkChanges()}
+                                >
+                                    Appliquer les modifications
+                                </Button>
+                                <Button
+                                    variant="light"
+                                    onClick={resetBulkEdit}
+                                    size="sm"
+                                >
+                                    Réinitialiser
+                                </Button>
+                            </Group>
+                        </Stack>
                     </Card>
                 )}
 
                 {/* Tableau */}
                 <Card withBorder>
                     <Box style={{ overflowX: 'auto' }}>
-                        <Table striped highlightOnHover style={{ minWidth: '1200px' }}>
+                        <Table striped highlightOnHover style={{ minWidth: '2200px' }}>
                         <Table.Thead>
                             <Table.Tr>
                                 <Table.Th w={40}>
@@ -1063,17 +1236,17 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
                                         onChange={toggleSelectAll}
                                     />
                                 </Table.Th>
-                                <Table.Th w={120}>Statut</Table.Th>
-                                <Table.Th w={200}>Texte</Table.Th>
-                                <Table.Th w={120}>Client</Table.Th>
-                                <Table.Th w={120}>Projet</Table.Th>
-                                <Table.Th w={130}>Date</Table.Th>
-                                <Table.Th w={100}>Mot-clé</Table.Th>
-                                <Table.Th w={80}>URL Image</Table.Th>
-                                <Table.Th w={80}>URL Lien</Table.Th>
-                                <Table.Th w={100}>Location ID</Table.Th>
-                                <Table.Th w={100}>Account ID</Table.Th>
-                                <Table.Th w={100}>Notion ID</Table.Th>
+                                <Table.Th w={160}>Statut</Table.Th>
+                                <Table.Th w={400}>Texte</Table.Th>
+                                <Table.Th w={180}>Client</Table.Th>
+                                <Table.Th w={180}>Projet</Table.Th>
+                                <Table.Th w={160}>Date</Table.Th>
+                                <Table.Th w={160}>Mot-clé</Table.Th>
+                                <Table.Th w={140}>URL Image</Table.Th>
+                                <Table.Th w={140}>URL Lien</Table.Th>
+                                <Table.Th w={160}>Location ID</Table.Th>
+                                <Table.Th w={160}>Account ID</Table.Th>
+                                <Table.Th w={140}>Notion ID</Table.Th>
                                 <Table.Th w={140}>Actions</Table.Th>
                             </Table.Tr>
                         </Table.Thead>
