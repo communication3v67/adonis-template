@@ -19,6 +19,8 @@ const dbConfig = defineConfig({
             },
         },
     },
+    // Configuration globale pour préserver les noms de colonnes
+    prettyPrintDebugQueries: true,
 })
 
 export default dbConfig

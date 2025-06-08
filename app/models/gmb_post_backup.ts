@@ -2,6 +2,9 @@ import { BaseModel, column } from '@adonisjs/lucid/orm'
 import { DateTime } from 'luxon'
 
 export default class GmbPost extends BaseModel {
+    // Spécifier explicitement le nom de la table
+    public static table = 'gmb_posts'
+
     @column({ isPrimary: true })
     declare id: number
 
@@ -14,10 +17,10 @@ export default class GmbPost extends BaseModel {
     @column.dateTime()
     declare date: DateTime // Date du post (attention: pas createdAt !)
 
-    @column()
+    @column({ columnName: 'image_url' })
     declare image_url: string // URL de l'image
 
-    @column()
+    @column({ columnName: 'link_url' })
     declare link_url: string // URL du lien
 
     @column()
@@ -26,16 +29,16 @@ export default class GmbPost extends BaseModel {
     @column()
     declare client: string // Client
 
-    @column()
+    @column({ columnName: 'project_name' })
     declare project_name: string // Nom du projet
 
-    @column()
+    @column({ columnName: 'location_id' })
     declare location_id: string // ou number si c'est un entier
 
-    @column()
+    @column({ columnName: 'account_id' })
     declare account_id: string // ou number si c'est un entier
 
-    @column()
+    @column({ columnName: 'notion_id' })
     declare notion_id: string // Notion ID
 
     @column.dateTime({ autoCreate: true })

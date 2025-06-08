@@ -1,4 +1,4 @@
-import GmbPost from '#models/gmb_post'
+import GmbPost from '#models/gmbPost'
 import { BaseSeeder } from '@adonisjs/lucid/seeders'
 import { DateTime } from 'luxon'
 

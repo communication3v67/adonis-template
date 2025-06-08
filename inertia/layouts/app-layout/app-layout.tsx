@@ -56,7 +56,7 @@ export default function AppLayout(props: PropsWithChildren<SharedProps>) {
                             </Box>
                         </Group>
                     </UnstyledButton>
-                    <UnstyledButton className={classes.navItem} component={Link} href="/gmb_posts">
+                    <UnstyledButton className={classes.navItem} component={Link} href="/gmb-posts">
                         <Group justify="space-between" gap={0}>
                             <Box style={{ display: 'flex', alignItems: 'center' }}>
                                 <ThemeIcon variant="light" size={30}>
