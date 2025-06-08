@@ -338,7 +338,7 @@ export default class GmbPostsController {
             const originalPost = await GmbPost.findOrFail(params.id)
 
             const duplicatedData = {
-                status: 'draft', // Nouveau post en brouillon
+                status: originalPost.status, // 🔴 Copier le statut original
                 text: originalPost.text,
                 date: DateTime.now(), // Nouvelle date
                 image_url: originalPost.image_url,
@@ -348,17 +348,17 @@ export default class GmbPostsController {
                 project_name: originalPost.project_name,
                 location_id: originalPost.location_id,
                 account_id: originalPost.account_id,
-                notion_id: null, // Pas de notion_id pour la copie
+                notion_id: originalPost.notion_id, // 🔴 Copier le notion_id aussi
             }
 
-            const newPost = await GmbPost.create(duplicatedData)
+            await GmbPost.create(duplicatedData)
 
             session.flash('notification', {
                 type: 'success',
                 message: 'Post dupliqué avec succès !',
             })
 
-            return response.redirect().toRoute('gmbPosts.edit', { id: newPost.id })
+            return response.redirect().toRoute('gmbPosts.index') // 🔴 Retourner à l'index
         } catch (error) {
             session.flash('notification', {
                 type: 'error',

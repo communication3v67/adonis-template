@@ -27,9 +27,15 @@ createInertiaApp({
 
         page.default.layout =
             page.default.layout ??
-            ((page: React.JSX.Element) => (
-                <AppLayout {...(page.props as SharedProps)}>{page}</AppLayout>
-            ))
+            ((page: React.JSX.Element) => {
+                // Ouvrir la sidebar par défaut pour la page GMB Posts
+                const sidebarOpened = name === 'gmbPosts/index'
+                return (
+                    <AppLayout {...(page.props as SharedProps)} sidebarOpened={sidebarOpened}>
+                        {page}
+                    </AppLayout>
+                )
+            })
 
         return page
     },

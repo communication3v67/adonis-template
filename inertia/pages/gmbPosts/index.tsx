@@ -8,7 +8,6 @@ import {
     Checkbox,
     Flex,
     Group,
-    Menu,
     Modal,
     Pagination,
     Select,
@@ -19,7 +18,6 @@ import {
     Textarea,
     Title,
     Tooltip,
-    rem,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import * as React from 'react'
@@ -28,7 +26,6 @@ import {
     LuCheck,
     LuCopy,
     LuDownload,
-    LuEye,
     LuMoveHorizontal,
     LuPlus,
     LuSave,
@@ -38,7 +35,6 @@ import {
     LuTrendingUp,
     LuX
 } from 'react-icons/lu'
-import AppLayout from '../../layouts/app-layout/app-layout'
 
 interface GmbPost {
     id: number
@@ -200,11 +196,59 @@ function InlineEditCell({
                     ) : field === 'keyword' && value ? (
                         <Badge variant="outline" size="sm">{value}</Badge>
                     ) : field === 'text' ? (
-                        <Tooltip label={value}>
+                        <Tooltip 
+                            label={value}
+                            multiline
+                            styles={{
+                                tooltip: {
+                                    maxWidth: '90vw', // Mobile: 90% de l'écran
+                                    wordWrap: 'break-word',
+                                    whiteSpace: 'pre-wrap',
+                                    '@media (min-width: 768px)': {
+                                        maxWidth: '50vw', // Tablette: 50% de l'écran
+                                    },
+                                    '@media (min-width: 1024px)': {
+                                        maxWidth: '33vw', // Desktop: 33% de l'écran
+                                    },
+                                }
+                            }}
+                        >
                             <Text size="sm">{truncateTextInline(value)}</Text>
                         </Tooltip>
                     ) : field === 'date' ? (
                         <Text size="sm">{formatDateInline(value)}</Text>
+                    ) : (field === 'image_url' || field === 'link_url') && value ? (
+                        <Tooltip label={value}>
+                            <Text 
+                                size="sm" 
+                                component="a" 
+                                href={value} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                style={{ 
+                                    textDecoration: 'none',
+                                    color: '#868e96',
+                                    backgroundColor: '#f8f9fa',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #e9ecef',
+                                    display: 'inline-block',
+                                    transition: 'all 0.15s ease',
+                                    fontSize: '11px',
+                                    fontWeight: 400
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.target.style.color = '#495057'
+                                    e.target.style.borderColor = '#ced4da'
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.target.style.color = '#868e96'
+                                    e.target.style.borderColor = '#e9ecef'
+                                }}
+                            >
+                                {field === 'image_url' ? '📷' : '🔗'}
+                            </Text>
+                        </Tooltip>
                     ) : (
                         <Text size="sm">{value || '-'}</Text>
                     )}
@@ -797,19 +841,29 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
 
     // Actions individuelles
     const handleDelete = (postId: number) => {
-        if (confirm('Êtes-vous sûr de vouloir supprimer ce post ?')) {
+        if (confirm('Êtes-vous sûr de vouloir supprimer ce post ? Cette action est irréversible.')) {
+            console.log('=== SUPPRESSION POST ===')            
+            console.log('Post ID:', postId)
+            console.log('========================')
+            
             router.delete(`/gmb-posts/${postId}`, {
                 onSuccess: () => {
+                    console.log('=== SUCCÈS SUPPRESSION ===')                    
+                    console.log('Post supprimé avec succès')
+                    console.log('========================')
                     notifications.show({
                         title: 'Succès',
                         message: 'Post supprimé avec succès',
                         color: 'green',
                     })
                 },
-                onError: () => {
+                onError: (errors) => {
+                    console.log('=== ERREUR SUPPRESSION ===')                    
+                    console.log('Erreurs reçues:', errors)
+                    console.log('========================')
                     notifications.show({
                         title: 'Erreur',
-                        message: 'Erreur lors de la suppression',
+                        message: 'Erreur lors de la suppression du post',
                         color: 'red',
                     })
                 },
@@ -818,12 +872,30 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
     }
 
     const handleDuplicate = (postId: number) => {
+        console.log('=== DUPLICATION POST ===')            
+        console.log('Post ID:', postId)
+        console.log('========================')
+        
         router.post(`/gmb-posts/${postId}/duplicate`, {}, {
             onSuccess: () => {
+                console.log('=== SUCCÈS DUPLICATION ===')                    
+                console.log('Post dupliqué avec succès')
+                console.log('========================')
                 notifications.show({
                     title: 'Succès',
                     message: 'Post dupliqué avec succès',
                     color: 'green',
+                })
+                // La redirection est gérée par le backend
+            },
+            onError: (errors) => {
+                console.log('=== ERREUR DUPLICATION ===')                    
+                console.log('Erreurs reçues:', errors)
+                console.log('========================')
+                notifications.show({
+                    title: 'Erreur',
+                    message: 'Erreur lors de la duplication du post',
+                    color: 'red',
                 })
             },
         })
@@ -856,7 +928,7 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
     }
 
     return (
-        <AppLayout>
+        <>
             <Head title="Posts GMB" />
 
             <Stack gap="md">
@@ -980,7 +1052,8 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
 
                 {/* Tableau */}
                 <Card withBorder>
-                    <Table striped highlightOnHover>
+                    <Box style={{ overflowX: 'auto' }}>
+                        <Table striped highlightOnHover style={{ minWidth: '1200px' }}>
                         <Table.Thead>
                             <Table.Tr>
                                 <Table.Th w={40}>
@@ -990,19 +1063,24 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
                                         onChange={toggleSelectAll}
                                     />
                                 </Table.Th>
-                                <Table.Th>Statut</Table.Th>
-                                <Table.Th>Texte</Table.Th>
-                                <Table.Th>Client</Table.Th>
-                                <Table.Th>Projet</Table.Th>
-                                <Table.Th>Date</Table.Th>
-                                <Table.Th>Mot-clé</Table.Th>
-                                <Table.Th w={120}>Actions</Table.Th>
+                                <Table.Th w={120}>Statut</Table.Th>
+                                <Table.Th w={200}>Texte</Table.Th>
+                                <Table.Th w={120}>Client</Table.Th>
+                                <Table.Th w={120}>Projet</Table.Th>
+                                <Table.Th w={130}>Date</Table.Th>
+                                <Table.Th w={100}>Mot-clé</Table.Th>
+                                <Table.Th w={80}>URL Image</Table.Th>
+                                <Table.Th w={80}>URL Lien</Table.Th>
+                                <Table.Th w={100}>Location ID</Table.Th>
+                                <Table.Th w={100}>Account ID</Table.Th>
+                                <Table.Th w={100}>Notion ID</Table.Th>
+                                <Table.Th w={140}>Actions</Table.Th>
                             </Table.Tr>
                         </Table.Thead>
                         <Table.Tbody>
                             {posts.data.length === 0 ? (
                                 <Table.Tr>
-                                    <Table.Td colSpan={8}>
+                                    <Table.Td colSpan={13}>
                                         <Text ta="center" py="xl" c="dimmed">
                                             Aucun post trouvé
                                         </Text>
@@ -1078,17 +1156,57 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
                                             />
                                         </Table.Td>
                                         <Table.Td>
+                                            <InlineEditCell
+                                                value={post.image_url || ''}
+                                                field="image_url"
+                                                post={post}
+                                                type="text"
+                                                filterOptions={filterOptions}
+                                                onSave={handleInlineEdit}
+                                            />
+                                        </Table.Td>
+                                        <Table.Td>
+                                            <InlineEditCell
+                                                value={post.link_url || ''}
+                                                field="link_url"
+                                                post={post}
+                                                type="text"
+                                                filterOptions={filterOptions}
+                                                onSave={handleInlineEdit}
+                                            />
+                                        </Table.Td>
+                                        <Table.Td>
+                                            <InlineEditCell
+                                                value={post.location_id || ''}
+                                                field="location_id"
+                                                post={post}
+                                                type="text"
+                                                filterOptions={filterOptions}
+                                                onSave={handleInlineEdit}
+                                            />
+                                        </Table.Td>
+                                        <Table.Td>
+                                            <InlineEditCell
+                                                value={post.account_id || ''}
+                                                field="account_id"
+                                                post={post}
+                                                type="text"
+                                                filterOptions={filterOptions}
+                                                onSave={handleInlineEdit}
+                                            />
+                                        </Table.Td>
+                                        <Table.Td>
+                                            <InlineEditCell
+                                                value={post.notion_id || ''}
+                                                field="notion_id"
+                                                post={post}
+                                                type="text"
+                                                filterOptions={filterOptions}
+                                                onSave={handleInlineEdit}
+                                            />
+                                        </Table.Td>
+                                        <Table.Td>
                                             <Group gap={4}>
-                                                <Tooltip label="Voir">
-                                                    <ActionIcon
-                                                        component={Link}
-                                                        href={`/gmb-posts/${post.id}`}
-                                                        variant="light"
-                                                        size="sm"
-                                                    >
-                                                        <LuEye size={16} />
-                                                    </ActionIcon>
-                                                </Tooltip>
                                                 <Tooltip label="Modifier">
                                                     <ActionIcon
                                                         variant="light"
@@ -1098,36 +1216,34 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
                                                         <LuSettings size={16} />
                                                     </ActionIcon>
                                                 </Tooltip>
-                                                <Menu position="bottom-end">
-                                                    <Menu.Target>
-                                                        <ActionIcon variant="light" size="sm">
-                                                            <LuMoveHorizontal size={16} />
-                                                        </ActionIcon>
-                                                    </Menu.Target>
-                                                    <Menu.Dropdown>
-                                                        <Menu.Item
-                                                            leftSection={<LuCopy style={{ width: rem(14), height: rem(14) }} />}
-                                                            onClick={() => handleDuplicate(post.id)}
-                                                        >
-                                                            Dupliquer
-                                                        </Menu.Item>
-                                                        <Menu.Divider />
-                                                        <Menu.Item
-                                                            color="red"
-                                                            leftSection={<LuTrash style={{ width: rem(14), height: rem(14) }} />}
-                                                            onClick={() => handleDelete(post.id)}
-                                                        >
-                                                            Supprimer
-                                                        </Menu.Item>
-                                                    </Menu.Dropdown>
-                                                </Menu>
+                                                <Tooltip label="Dupliquer">
+                                                    <ActionIcon
+                                                        variant="light"
+                                                        size="sm"
+                                                        color="blue"
+                                                        onClick={() => handleDuplicate(post.id)}
+                                                    >
+                                                        <LuCopy size={16} />
+                                                    </ActionIcon>
+                                                </Tooltip>
+                                                <Tooltip label="Supprimer">
+                                                    <ActionIcon
+                                                        variant="light"
+                                                        size="sm"
+                                                        color="red"
+                                                        onClick={() => handleDelete(post.id)}
+                                                    >
+                                                        <LuTrash size={16} />
+                                                    </ActionIcon>
+                                                </Tooltip>
                                             </Group>
                                         </Table.Td>
                                     </Table.Tr>
                                 ))
                             )}
                         </Table.Tbody>
-                    </Table>
+                        </Table>
+                    </Box>
 
                     {/* Pagination */}
                     {posts.meta.last_page > 1 && (
@@ -1155,7 +1271,7 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
                         </Box>
                     )}
                 </Card>
-            </Stack>
+                </Stack>
 
             {/* Modal d'édition */}
             <EditPostModal
@@ -1164,6 +1280,6 @@ export default function GmbPostsIndex({ posts, filters, filterOptions }: Props) 
                 onClose={closeEditModal}
                 filterOptions={filterOptions}
             />
-        </AppLayout>
+        </>
     )
 }

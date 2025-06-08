@@ -15,24 +15,30 @@ import {
     ThemeIcon,
     UnstyledButton,
 } from '@mantine/core'
-import { useDisclosure } from '@mantine/hooks'
+import { useLocalStorage } from '@mantine/hooks'
 import { PropsWithChildren } from 'react'
 import { LuLayoutDashboard, LuLogOut, LuNewspaper } from 'react-icons/lu'
 import classes from './app-layout.module.css'
 
-export default function AppLayout(props: PropsWithChildren<SharedProps>) {
-    const [opened, { toggle }] = useDisclosure()
+export default function AppLayout(props: PropsWithChildren<SharedProps & { sidebarOpened?: boolean }>) {
+    // Utiliser directement useLocalStorage pour gérer l'état
+    const [opened, setOpened] = useLocalStorage({
+        key: 'sidebar-opened',
+        defaultValue: props.sidebarOpened ?? false,
+    })
+    
+    const toggle = () => setOpened(!opened)
 
     return (
         <MantineProvider>
             <AppShell
                 header={{ height: 60 }}
                 navbar={{
-                    width: 300,
+                    width: 250,
                     breakpoint: 'sm',
                     collapsed: { desktop: !opened, mobile: !opened },
                 }}
-                padding="md"
+                padding={{ base: 16, sm: 16 }}
             >
                 <AppShellHeader>
                     <Group h="100%" justify="space-between">
