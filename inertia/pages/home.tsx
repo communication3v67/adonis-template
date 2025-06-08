@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react'
+import { Head, Link, router } from '@inertiajs/react'
 import {
     ActionIcon,
     Alert,
@@ -14,6 +14,8 @@ import {
     Table,
     Text,
     Title,
+    Modal,
+    Code,
 } from '@mantine/core'
 import { useState } from 'react'
 import {
@@ -25,7 +27,10 @@ import {
     LuPlus,
     LuRefreshCw,
     LuTrendingUp,
+    LuSend,
+    LuCheck,
 } from 'react-icons/lu'
+
 interface NotionPage {
     id: string
     title: string
@@ -34,6 +39,7 @@ interface NotionPage {
     last_edited_time: string
     properties: any
 }
+
 interface DatabaseInfo {
     title: string
     id: string
@@ -41,10 +47,12 @@ interface DatabaseInfo {
     created_time: string
     last_edited_time: string
 }
+
 interface Stats {
     totalPages: number
     recentPages: number
 }
+
 interface Props {
     notionPages: NotionPage[]
     databaseInfo: DatabaseInfo | null
@@ -54,10 +62,15 @@ interface Props {
         details: string
     }
 }
+
 export default function Home({ notionPages, databaseInfo, stats, error }: Props) {
     const [isRefreshing, setIsRefreshing] = useState(false)
     const [localPages, setLocalPages] = useState(notionPages)
     const [localStats, setLocalStats] = useState(stats)
+    const [sendingWebhook, setSendingWebhook] = useState<string | null>(null)
+    const [webhookResponse, setWebhookResponse] = useState<any>(null)
+    const [showResponseModal, setShowResponseModal] = useState(false)
+    const [testingN8n, setTestingN8n] = useState(false)
 
     // Fonction pour rafraichir les donnees Notion
     const refreshNotionData = async () => {
@@ -82,6 +95,107 @@ export default function Home({ notionPages, databaseInfo, stats, error }: Props)
             console.error('Erreur lors du rafraichissement:', error)
         } finally {
             setIsRefreshing(false)
+        }
+    }
+
+    // Fonction pour tester la connexion n8n
+    const testN8nConnection = async () => {
+        setTestingN8n(true)
+        try {
+            const response = await fetch('/webhook/test-n8n')
+            const result = await response.json()
+            
+            if (result.success) {
+                alert('✅ Connexion n8n OK ! Votre webhook fonctionne.')
+            } else {
+                alert(`❌ Erreur n8n: ${result.message}\n\n${result.help || ''}`)
+                console.error('Détails du test n8n:', result)
+            }
+        } catch (error) {
+            console.error('Erreur test:', error)
+            alert('❌ Erreur lors du test de connexion n8n')
+        } finally {
+            setTestingN8n(false)
+        }
+    }
+
+    // Fonction pour envoyer vers n8n
+    const sendToN8n = async (page: NotionPage) => {
+        setSendingWebhook(page.id)
+        setWebhookResponse(null)
+
+        try {
+            console.log('🚀 Envoi webhook pour:', page.title)
+
+            // Récupération du token CSRF
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+            console.log('🔐 CSRF Token trouvé:', csrfToken ? 'OUI' : 'NON')
+
+            if (!csrfToken) {
+                throw new Error('Token CSRF manquant. Actualisez la page.')
+            }
+
+            const response = await fetch('/webhook/n8n', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({
+                    id: page.id,
+                    title: page.title,
+                    url: page.url,
+                    created_time: page.created_time,
+                    last_edited_time: page.last_edited_time,
+                    properties: page.properties,
+                }),
+            })
+
+            console.log('📡 Statut réponse:', response.status, response.statusText)
+
+            // Vérifier si c'est une redirection ou erreur HTTP
+            if (!response.ok) {
+                const errorText = await response.text()
+                console.error('❌ Erreur HTTP:', response.status, errorText.substring(0, 300))
+                throw new Error(`Erreur HTTP ${response.status}: ${response.statusText}`)
+            }
+
+            // Lire et parser la réponse
+            const responseText = await response.text()
+            console.log('📥 Réponse brute (100 premiers chars):', responseText.substring(0, 100))
+
+            // Vérifier si c'est du HTML (redirection vers accueil)
+            if (responseText.trim().startsWith('<!DOCTYPE')) {
+                throw new Error('La requête a été redirigée vers la page d\'accueil. Problème d\'authentification ou de route.')
+            }
+
+            let result
+            try {
+                result = JSON.parse(responseText)
+            } catch (parseError) {
+                console.error('❌ Erreur parsing JSON:', parseError)
+                throw new Error('Réponse serveur invalide (JSON attendu)')
+            }
+
+            console.log('✅ Résultat parsé:', result)
+
+            // Afficher la réponse
+            setWebhookResponse(result.data || result)
+            setShowResponseModal(true)
+
+        } catch (error) {
+            console.error('🚨 Erreur complète webhook:', error)
+            
+            let errorMessage = 'Erreur inconnue'
+            if (error instanceof Error) {
+                errorMessage = error.message
+            }
+            
+            alert(`❌ Erreur: ${errorMessage}`)
+            
+        } finally {
+            setSendingWebhook(null)
         }
     }
 
@@ -208,11 +322,21 @@ export default function Home({ notionPages, databaseInfo, stats, error }: Props)
                         </Group>
                     </Card>
                 </SimpleGrid>
+
                 {/* Liste des pages Notion */}
                 <Card withBorder>
                     <Group justify="space-between" mb="md">
                         <Title order={3}>Opérations en attente de génération</Title>
                         <Group>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={testN8nConnection}
+                                loading={testingN8n}
+                                color="orange"
+                            >
+                                Tester n8n
+                            </Button>
                             <ActionIcon
                                 variant="light"
                                 onClick={refreshNotionData}
@@ -266,17 +390,30 @@ export default function Home({ notionPages, databaseInfo, stats, error }: Props)
                                                 </Text>
                                             </Table.Td>
                                             <Table.Td>
-                                                <ActionIcon
-                                                    component="a"
-                                                    href={page.url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    variant="light"
-                                                    size="sm"
-                                                    title="Ouvrir dans Notion"
-                                                >
-                                                    <LuExternalLink size={14} />
-                                                </ActionIcon>
+                                                <Group gap="xs">
+                                                    <ActionIcon
+                                                        component="a"
+                                                        href={page.url}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        variant="light"
+                                                        size="sm"
+                                                        title="Ouvrir dans Notion"
+                                                    >
+                                                        <LuExternalLink size={14} />
+                                                    </ActionIcon>
+                                                    <ActionIcon
+                                                        onClick={() => sendToN8n(page)}
+                                                        loading={sendingWebhook === page.id}
+                                                        variant="light"
+                                                        color="blue"
+                                                        size="sm"
+                                                        title="Envoyer vers n8n"
+                                                        disabled={sendingWebhook !== null}
+                                                    >
+                                                        <LuSend size={14} />
+                                                    </ActionIcon>
+                                                </Group>
                                             </Table.Td>
                                         </Table.Tr>
                                     ))}
@@ -331,6 +468,44 @@ export default function Home({ notionPages, databaseInfo, stats, error }: Props)
                         </SimpleGrid>
                     </Card>
                 )}
+
+                {/* Modal pour afficher la réponse de Notion */}
+                <Modal
+                    opened={showResponseModal}
+                    onClose={() => setShowResponseModal(false)}
+                    title="Réponse de n8n/Notion"
+                    size="lg"
+                >
+                    {webhookResponse && (
+                        <Stack gap="md">
+                            <Alert
+                                icon={<LuCheck size={16} />}
+                                title="Réponse reçue"
+                                color="blue"
+                            >
+                                Données traitées par le webhook n8n
+                            </Alert>
+                            
+                            <Box>
+                                <Text size="sm" fw={500} mb="xs">
+                                    Réponse complète :
+                                </Text>
+                                <Code block>
+                                    {JSON.stringify(webhookResponse, null, 2)}
+                                </Code>
+                            </Box>
+                            
+                            <Group justify="flex-end">
+                                <Button 
+                                    variant="light" 
+                                    onClick={() => setShowResponseModal(false)}
+                                >
+                                    Fermer
+                                </Button>
+                            </Group>
+                        </Stack>
+                    )}
+                </Modal>
             </Stack>
         </>
     )

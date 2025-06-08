@@ -2,6 +2,7 @@ import { middleware } from '#start/kernel'
 import router from '@adonisjs/core/services/router'
 const GmbPostsController = () => import('#controllers/gmbPostsController')
 const HomeController = () => import('#controllers/home_controller')
+const WebhooksController = () => import('#controllers/webhooks_controller')
 
 /* ignore formmating, as I find it easier to scan single line route definitions */
 /* prettier-ignore-start */
@@ -45,3 +46,20 @@ router
     ])
     .prefix('/api')
     .as('api')
+
+// Routes Webhooks (sans CSRF pour les webhooks entrants)
+router
+    .group(() => [
+        router
+            .get('/test-n8n', [WebhooksController, 'testN8nConnection'])
+            .as('test_n8n'),
+    ])
+    .prefix('/webhook')
+    .as('webhook')
+    .use(middleware.auth())
+
+// Route webhook POST sans CSRF (pour les appels depuis l'interface)
+router
+    .post('/webhook/n8n', [WebhooksController, 'sendToN8n'])
+    .as('webhook.n8n')
+    .use(middleware.auth())
