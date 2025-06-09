@@ -200,6 +200,21 @@ export default class GmbPostsController {
             .groupBy('status')
             .orderBy('status')
 
+        // Compter les posts "Post à générer" pour l'utilisateur connecté
+        const postsToGenerateCount = await GmbPost.query()
+            .where('user_id', currentUser.id)
+            .where('status', 'Post à générer')
+            .count('* as total')
+        
+        const postsToGenerate = Number(postsToGenerateCount[0].$extras.total)
+        
+        console.log(`=== COMPTEUR POSTS A GENERER ===`)
+        console.log(`Utilisateur ID: ${currentUser.id}`)
+        console.log(`Requête count: ${JSON.stringify(postsToGenerateCount)}`)
+        console.log(`Posts "Post à générer" pour l'utilisateur ${currentUser.id}:`, postsToGenerate)
+        console.log(`Notion ID de l'utilisateur:`, currentUser.notionId)
+        console.log(`===============================`)
+
         return inertia.render('gmbPosts/index', {
             posts: serializedPosts,
             filters: {
@@ -219,8 +234,9 @@ export default class GmbPostsController {
                 id: currentUser.id,
                 username: currentUser.username,
                 email: currentUser.email,
-                notion_id: currentUser.notion_id
-            }
+                notion_id: currentUser.notionId  // Convertir notionId en notion_id pour le frontend
+            },
+            postsToGenerateCount: postsToGenerate
         })
     }
 
@@ -252,7 +268,7 @@ export default class GmbPostsController {
                 id: currentUser.id,
                 username: currentUser.username,
                 email: currentUser.email,
-                notion_id: currentUser.notion_id
+                notion_id: currentUser.notionId  // Convertir notionId en notion_id pour le frontend
             }
         })
     }
@@ -699,7 +715,7 @@ export default class GmbPostsController {
                         id: currentUser.id,
                         username: currentUser.username,
                         email: currentUser.email,
-                        notion_id: currentUser.notionId
+                        notion_id: currentUser.notionId  // Convertir pour le frontend
                     }
                 })
             }
@@ -713,7 +729,7 @@ export default class GmbPostsController {
                     id: currentUser.id,
                     username: currentUser.username,
                     email: currentUser.email,
-                    notion_id: currentUser.notionId
+                    notion_id: currentUser.notionId  // Convertir pour le frontend
                 },
                 stats: {
                     totalPages: notionPages.length,
@@ -731,8 +747,203 @@ export default class GmbPostsController {
                     id: auth.user?.id,
                     username: auth.user?.username,
                     email: auth.user?.email,
-                    notion_id: auth.user?.notionId
+                    notion_id: auth.user?.notionId  // Convertir pour le frontend
                 }
+            })
+        }
+    }
+
+    /**
+     * Envoie tous les posts "Post à générer" de l'utilisateur connecté vers le webhook n8n
+     */
+    async sendPostsToN8n({ response, auth }: HttpContext) {
+        try {
+            // S'assurer qu'un utilisateur est connecté
+            await auth.check()
+            const currentUser = auth.user!
+
+            // Vérifier que l'utilisateur a un notion_id
+            if (!currentUser.notionId) {
+                return response.status(400).json({
+                    success: false,
+                    message: 'Votre compte n\'est pas lié à Notion. Veuillez configurer votre notion_id.',
+                })
+            }
+
+            // Récupérer tous les posts "Post à générer" pour l'utilisateur connecté
+            const postsToGenerate = await GmbPost.query()
+                .where('user_id', currentUser.id)
+                .where('status', 'Post à générer')
+                .orderBy('date', 'desc')
+
+            if (postsToGenerate.length === 0) {
+                return response.status(400).json({
+                    success: false,
+                    message: 'Aucun post "Post à générer" trouvé pour votre compte.',
+                })
+            }
+
+            console.log(`🚀 Envoi de ${postsToGenerate.length} posts GMB vers n8n pour l'utilisateur ${currentUser.username}`)
+
+            // Préparer les données au même format que home.tsx mais avec les données GMB
+            const gmbPostsData = postsToGenerate.map((post) => ({
+                // Identifiants
+                id: post.id,
+                gmb_post_id: post.id, // ID spécifique GMB
+                notion_id: post.notion_id,
+                
+                // Informations principales
+                title: post.text || `Post GMB - ${post.client}`,
+                text: post.text,
+                status: post.status,
+                
+                // Dates
+                date: post.date?.toISO(),
+                created_time: post.createdAt?.toISO(),
+                last_edited_time: post.updatedAt?.toISO(),
+                
+                // Métadonnées GMB
+                client: post.client,
+                project_name: post.project_name,
+                keyword: post.keyword,
+                location_id: post.location_id,
+                account_id: post.account_id,
+                
+                // URLs
+                image_url: post.image_url,
+                link_url: post.link_url,
+                
+                // Utilisateur
+                user_id: post.user_id,
+                user_notion_id: currentUser.notionId,  // Utiliser notionId
+            }))
+
+            // URL du webhook n8n (réutiliser le même que home.tsx)
+            const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL
+            const n8nAuthToken = process.env.N8N_AUTH_TOKEN
+            
+            if (!n8nWebhookUrl) {
+                throw new Error('URL du webhook n8n non configurée (N8N_WEBHOOK_URL)')
+            }
+
+            // Headers avec authentification
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            }
+
+            if (n8nAuthToken) {
+                headers['Authorization'] = `Bearer ${n8nAuthToken}`
+                console.log('🔐 Token d\'authentification ajouté')
+            }
+
+            // Préparer les données pour n8n (même structure que home.tsx)
+            const webhookData = {
+                // Métadonnées de la requête
+                source: 'adonis-gmb-posts',
+                timestamp: new Date().toISOString(),
+                bulk_operation: true,
+                total_posts: gmbPostsData.length,
+                
+                // Données utilisateur
+                user: {
+                    id: currentUser.id,
+                    username: currentUser.username,
+                    email: currentUser.email,
+                    notion_id: currentUser.notionId,  // Utiliser notionId
+                },
+                
+                // Posts GMB (utiliser la même clé que home.tsx pour compatibilité)
+                notion_pages: gmbPostsData, // Garder le même nom pour compatibilité avec le workflow n8n
+                gmb_posts: gmbPostsData, // Version alternative plus explicite
+                
+                // Statistiques
+                summary: {
+                    total_posts: gmbPostsData.length,
+                    posts_with_text: gmbPostsData.filter(p => p.text && p.text.trim() !== '').length,
+                    posts_with_keyword: gmbPostsData.filter(p => p.keyword).length,
+                    posts_with_images: gmbPostsData.filter(p => p.image_url).length,
+                    posts_with_links: gmbPostsData.filter(p => p.link_url).length,
+                    unique_clients: [...new Set(gmbPostsData.map(p => p.client))].length,
+                    unique_projects: [...new Set(gmbPostsData.map(p => p.project_name))].length,
+                }
+            }
+
+            console.log('🎆 Envoi vers n8n:', {
+                url: n8nWebhookUrl,
+                total_posts: webhookData.total_posts,
+                user: currentUser.username,
+                summary: webhookData.summary
+            })
+
+            // Envoi vers n8n
+            const n8nResponse = await fetch(n8nWebhookUrl, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(webhookData),
+            })
+
+            console.log('📡 Statut réponse n8n:', n8nResponse.status)
+
+            if (!n8nResponse.ok) {
+                const errorText = await n8nResponse.text()
+                console.error('❌ Erreur n8n (texte):', errorText.substring(0, 500))
+                throw new Error(`Erreur n8n: ${n8nResponse.status} - ${n8nResponse.statusText}`)
+            }
+
+            // Traitement de la réponse
+            const contentType = n8nResponse.headers.get('content-type')
+            const responseText = await n8nResponse.text()
+            
+            let n8nResult
+            try {
+                if (responseText.trim().startsWith('{') || responseText.trim().startsWith('[')) {
+                    n8nResult = JSON.parse(responseText)
+                } else {
+                    n8nResult = {
+                        success: true,
+                        message: 'Envoi des posts GMB réussi (réponse non-JSON)',
+                        raw_response: responseText.substring(0, 300),
+                        content_type: contentType,
+                        notice: 'Ajoutez un nœud "Respond to Webhook" à votre workflow n8n pour une réponse JSON.',
+                    }
+                }
+            } catch (parseError) {
+                n8nResult = {
+                    success: false,
+                    message: 'Envoi des posts GMB effectué mais réponse non parsable',
+                    error: parseError.message,
+                    raw_response: responseText.substring(0, 300),
+                }
+            }
+            
+            console.log('✅ Réponse n8n pour posts GMB:', n8nResult)
+            
+            return response.json({
+                success: true,
+                data: n8nResult,
+                message: `${gmbPostsData.length} posts GMB envoyés avec succès vers n8n`,
+                posts_sent: gmbPostsData.length,
+                user_notion_id: currentUser.notionId,  // Utiliser notionId
+                debug: {
+                    webhook_url: n8nWebhookUrl,
+                    total_posts_sent: gmbPostsData.length,
+                    response_status: n8nResponse.status,
+                    content_type: contentType,
+                },
+            })
+
+        } catch (error) {
+            console.error('🚨 Erreur envoi posts GMB vers n8n:', error)
+            
+            return response.status(500).json({
+                success: false,
+                message: 'Erreur lors de l\'envoi des posts GMB vers n8n',
+                error: error.message,
+                debug: {
+                    webhook_url: process.env.N8N_WEBHOOK_URL || 'Non configurée',
+                    timestamp: new Date().toISOString(),
+                },
             })
         }
     }

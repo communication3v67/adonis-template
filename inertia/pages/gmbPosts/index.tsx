@@ -1,21 +1,21 @@
-    // Gestion du tri
-    const handleSort = (sortBy: string, sortOrder: string) => {
-        console.log('=== CHANGEMENT DE TRI ===')
-        console.log('Nouveau tri:', sortBy, sortOrder)
-        console.log('=========================')
-        
-        setLocalFilters(prev => ({
-            ...prev,
-            sortBy,
-            sortOrder
-        }))
-    }// Composant pour les en-têtes de colonnes avec tri
-function SortableHeader({ 
-    label, 
-    sortKey, 
-    currentSortBy, 
-    currentSortOrder, 
-    onSort 
+// Gestion du tri
+const handleSort = (sortBy: string, sortOrder: string) => {
+    console.log('=== CHANGEMENT DE TRI ===')
+    console.log('Nouveau tri:', sortBy, sortOrder)
+    console.log('=========================')
+
+    setLocalFilters((prev) => ({
+        ...prev,
+        sortBy,
+        sortOrder,
+    }))
+} // Composant pour les en-têtes de colonnes avec tri
+function SortableHeader({
+    label,
+    sortKey,
+    currentSortBy,
+    currentSortOrder,
+    onSort,
 }: {
     label: string
     sortKey: string
@@ -26,7 +26,7 @@ function SortableHeader({
     const isActive = currentSortBy === sortKey
     const isAsc = isActive && currentSortOrder === 'asc'
     const isDesc = isActive && currentSortOrder === 'desc'
-    
+
     const handleClick = () => {
         if (!isActive) {
             // Si la colonne n'est pas active, commencer par desc
@@ -39,44 +39,36 @@ function SortableHeader({
             onSort(sortKey, 'desc')
         }
     }
-    
+
     return (
-        <Group 
-            gap={4} 
-            style={{ cursor: 'pointer', userSelect: 'none' }}
-            onClick={handleClick}
-        >
-            <Text fw={500} size="sm">{label}</Text>
+        <Group gap={4} style={{ cursor: 'pointer', userSelect: 'none' }} onClick={handleClick}>
+            <Text fw={500} size="sm">
+                {label}
+            </Text>
             <Box>
                 {isActive ? (
                     isDesc ? (
-                        <LuArrowDown 
-                            size={14} 
-                            style={{ color: '#228be6' }}
-                        />
+                        <LuArrowDown size={14} style={{ color: '#228be6' }} />
                     ) : (
-                        <LuArrowUp 
-                            size={14} 
-                            style={{ color: '#228be6' }}
-                        />
+                        <LuArrowUp size={14} style={{ color: '#228be6' }} />
                     )
                 ) : (
-                    <LuMoveHorizontal 
-                        size={14} 
-                        style={{ color: '#adb5bd', opacity: 0.6 }}
-                    />
+                    <LuMoveHorizontal size={14} style={{ color: '#adb5bd', opacity: 0.6 }} />
                 )}
             </Box>
         </Group>
     )
-}import { Head, Link, router, useForm } from '@inertiajs/react'
+}
+import { Head, Link, router, useForm } from '@inertiajs/react'
 import {
     ActionIcon,
+    Alert,
     Badge,
     Box,
     Button,
     Card,
     Checkbox,
+    Code,
     Flex,
     Group,
     Modal,
@@ -103,10 +95,10 @@ import {
     LuPlus,
     LuSave,
     LuSearch,
+    LuSend,
     LuSettings,
     LuTrash,
-    LuTrendingUp,
-    LuX
+    LuX,
 } from 'react-icons/lu'
 
 interface GmbPost {
@@ -157,23 +149,24 @@ interface Props {
         email: string
         notion_id: string | null
     }
+    postsToGenerateCount: number
 }
 
 // Composant pour l'édition inline d'une cellule
-function InlineEditCell({ 
-    value, 
-    field, 
-    post, 
+function InlineEditCell({
+    value,
+    field,
+    post,
     type = 'text',
     options = [],
     filterOptions,
-    onSave 
+    onSave,
 }: {
     value: string
     field: string
     post: GmbPost
     type?: 'text' | 'textarea' | 'select' | 'datetime-local'
-    options?: { value: string, label: string }[]
+    options?: { value: string; label: string }[]
     filterOptions?: Props['filterOptions']
     onSave: (postId: number, field: string, value: string) => void
 }) {
@@ -213,7 +206,7 @@ function InlineEditCell({
                 const date = new Date(editValue)
                 valueToSave = date.toISOString()
             }
-            
+
             await onSave(post.id, field, valueToSave)
             setIsEditing(false)
         } catch (error) {
@@ -258,9 +251,16 @@ function InlineEditCell({
                     { value: 'failed', label: 'Échec' },
                 ]
             case 'client':
-                return filterOptions?.clients.map(client => ({ value: client, label: client })) || []
+                return (
+                    filterOptions?.clients.map((client) => ({ value: client, label: client })) || []
+                )
             case 'project_name':
-                return filterOptions?.projects.map(project => ({ value: project, label: project })) || []
+                return (
+                    filterOptions?.projects.map((project) => ({
+                        value: project,
+                        label: project,
+                    })) || []
+                )
             default:
                 return options
         }
@@ -273,23 +273,25 @@ function InlineEditCell({
                     {field === 'status' ? (
                         getStatusBadgeInline(value)
                     ) : field === 'keyword' && value ? (
-                        <Badge variant="outline" size="sm">{value}</Badge>
+                        <Badge variant="outline" size="sm">
+                            {value}
+                        </Badge>
                     ) : field === 'text' ? (
-                        <Tooltip 
+                        <Tooltip
                             label={value}
                             multiline
                             styles={{
                                 tooltip: {
-                                    maxWidth: '90vw', // Mobile: 90% de l'écran
-                                    wordWrap: 'break-word',
-                                    whiteSpace: 'pre-wrap',
+                                    'maxWidth': '90vw', // Mobile: 90% de l'écran
+                                    'wordWrap': 'break-word',
+                                    'whiteSpace': 'pre-wrap',
                                     '@media (min-width: 768px)': {
                                         maxWidth: '50vw', // Tablette: 50% de l'écran
                                     },
                                     '@media (min-width: 1024px)': {
                                         maxWidth: '33vw', // Desktop: 33% de l'écran
                                     },
-                                }
+                                },
                             }}
                         >
                             <Text size="sm">{truncateTextInline(value)}</Text>
@@ -298,13 +300,13 @@ function InlineEditCell({
                         <Text size="sm">{formatDateInline(value)}</Text>
                     ) : (field === 'image_url' || field === 'link_url') && value ? (
                         <Tooltip label={value}>
-                            <Text 
-                                size="sm" 
-                                component="a" 
-                                href={value} 
-                                target="_blank" 
+                            <Text
+                                size="sm"
+                                component="a"
+                                href={value}
+                                target="_blank"
                                 rel="noopener noreferrer"
-                                style={{ 
+                                style={{
                                     textDecoration: 'none',
                                     color: '#868e96',
                                     backgroundColor: '#f8f9fa',
@@ -314,7 +316,7 @@ function InlineEditCell({
                                     display: 'inline-block',
                                     transition: 'all 0.15s ease',
                                     fontSize: '11px',
-                                    fontWeight: 400
+                                    fontWeight: 400,
                                 }}
                                 onMouseEnter={(e) => {
                                     e.target.style.color = '#495057'
@@ -442,7 +444,12 @@ const formatDateInline = (dateString: string) => {
 }
 
 // Composant pour l'édition en modal
-function EditPostModal({ post, opened, onClose, filterOptions }: { 
+function EditPostModal({
+    post,
+    opened,
+    onClose,
+    filterOptions,
+}: {
     post: GmbPost | null
     opened: boolean
     onClose: () => void
@@ -471,7 +478,7 @@ function EditPostModal({ post, opened, onClose, filterOptions }: {
             console.log('=== DEBUG MODAL ===')
             console.log('Post reçu dans modal:', post)
             console.log('Clés disponibles:', Object.keys(post))
-            
+
             const initialData = {
                 status: post.status || '',
                 text: post.text || '',
@@ -485,10 +492,10 @@ function EditPostModal({ post, opened, onClose, filterOptions }: {
                 account_id: post.account_id || '',
                 notion_id: post.notion_id || '',
             }
-            
+
             console.log('Données form initiales:', initialData)
             console.log('====================')
-            
+
             setData(initialData)
             setOriginalData(initialData) // Sauvegarder les valeurs originales
         } else if (!opened) {
@@ -504,7 +511,7 @@ function EditPostModal({ post, opened, onClose, filterOptions }: {
     }
 
     // Compter le nombre de champs modifiés
-    const changedFieldsCount = Object.keys(data).filter(key => isFieldChanged(key)).length
+    const changedFieldsCount = Object.keys(data).filter((key) => isFieldChanged(key)).length
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault()
@@ -512,7 +519,7 @@ function EditPostModal({ post, opened, onClose, filterOptions }: {
 
         // Comparer les données actuelles avec les originales
         const changedFields: any = {}
-        Object.keys(data).forEach(key => {
+        Object.keys(data).forEach((key) => {
             if (data[key] !== originalData[key]) {
                 changedFields[key] = data[key]
             }
@@ -563,7 +570,7 @@ function EditPostModal({ post, opened, onClose, filterOptions }: {
             },
             onFinish: () => {
                 console.log('=== FIN REQUÊTE ===')
-            }
+            },
         })
     }
 
@@ -573,7 +580,7 @@ function EditPostModal({ post, opened, onClose, filterOptions }: {
         <Modal
             opened={opened}
             onClose={onClose}
-            title={(
+            title={
                 <Group>
                     <Text>Modifier le post</Text>
                     {changedFieldsCount > 0 && (
@@ -582,7 +589,7 @@ function EditPostModal({ post, opened, onClose, filterOptions }: {
                         </Badge>
                     )}
                 </Group>
-            )}
+            }
             size="lg"
         >
             <form onSubmit={handleSubmit}>
@@ -607,8 +614,10 @@ function EditPostModal({ post, opened, onClose, filterOptions }: {
                             styles={{
                                 input: {
                                     borderColor: isFieldChanged('status') ? '#fd7e14' : undefined,
-                                    backgroundColor: isFieldChanged('status') ? '#fff4e6' : undefined
-                                }
+                                    backgroundColor: isFieldChanged('status')
+                                        ? '#fff4e6'
+                                        : undefined,
+                                },
                             }}
                         />
                         <TextInput
@@ -620,8 +629,8 @@ function EditPostModal({ post, opened, onClose, filterOptions }: {
                             styles={{
                                 input: {
                                     borderColor: isFieldChanged('date') ? '#fd7e14' : undefined,
-                                    backgroundColor: isFieldChanged('date') ? '#fff4e6' : undefined
-                                }
+                                    backgroundColor: isFieldChanged('date') ? '#fff4e6' : undefined,
+                                },
                             }}
                         />
                     </Group>
@@ -637,8 +646,8 @@ function EditPostModal({ post, opened, onClose, filterOptions }: {
                         styles={{
                             input: {
                                 borderColor: isFieldChanged('text') ? '#fd7e14' : undefined,
-                                backgroundColor: isFieldChanged('text') ? '#fff4e6' : undefined
-                            }
+                                backgroundColor: isFieldChanged('text') ? '#fff4e6' : undefined,
+                            },
                         }}
                     />
 
@@ -646,7 +655,10 @@ function EditPostModal({ post, opened, onClose, filterOptions }: {
                         <Select
                             label="Client"
                             placeholder="Sélectionner un client"
-                            data={filterOptions.clients.map(client => ({ value: client, label: client }))}
+                            data={filterOptions.clients.map((client) => ({
+                                value: client,
+                                label: client,
+                            }))}
                             value={data.client}
                             onChange={(value) => setData('client', value || '')}
                             error={errors.client}
@@ -654,8 +666,10 @@ function EditPostModal({ post, opened, onClose, filterOptions }: {
                             styles={{
                                 input: {
                                     borderColor: isFieldChanged('client') ? '#fd7e14' : undefined,
-                                    backgroundColor: isFieldChanged('client') ? '#fff4e6' : undefined
-                                }
+                                    backgroundColor: isFieldChanged('client')
+                                        ? '#fff4e6'
+                                        : undefined,
+                                },
                             }}
                         />
                         <TextInput
@@ -666,9 +680,13 @@ function EditPostModal({ post, opened, onClose, filterOptions }: {
                             error={errors.project_name}
                             styles={{
                                 input: {
-                                    borderColor: isFieldChanged('project_name') ? '#fd7e14' : undefined,
-                                    backgroundColor: isFieldChanged('project_name') ? '#fff4e6' : undefined
-                                }
+                                    borderColor: isFieldChanged('project_name')
+                                        ? '#fd7e14'
+                                        : undefined,
+                                    backgroundColor: isFieldChanged('project_name')
+                                        ? '#fff4e6'
+                                        : undefined,
+                                },
                             }}
                         />
                     </Group>
@@ -683,8 +701,10 @@ function EditPostModal({ post, opened, onClose, filterOptions }: {
                             styles={{
                                 input: {
                                     borderColor: isFieldChanged('keyword') ? '#fd7e14' : undefined,
-                                    backgroundColor: isFieldChanged('keyword') ? '#fff4e6' : undefined
-                                }
+                                    backgroundColor: isFieldChanged('keyword')
+                                        ? '#fff4e6'
+                                        : undefined,
+                                },
                             }}
                         />
                         <TextInput
@@ -695,9 +715,13 @@ function EditPostModal({ post, opened, onClose, filterOptions }: {
                             error={errors.image_url}
                             styles={{
                                 input: {
-                                    borderColor: isFieldChanged('image_url') ? '#fd7e14' : undefined,
-                                    backgroundColor: isFieldChanged('image_url') ? '#fff4e6' : undefined
-                                }
+                                    borderColor: isFieldChanged('image_url')
+                                        ? '#fd7e14'
+                                        : undefined,
+                                    backgroundColor: isFieldChanged('image_url')
+                                        ? '#fff4e6'
+                                        : undefined,
+                                },
                             }}
                         />
                     </Group>
@@ -712,8 +736,10 @@ function EditPostModal({ post, opened, onClose, filterOptions }: {
                             styles={{
                                 input: {
                                     borderColor: isFieldChanged('link_url') ? '#fd7e14' : undefined,
-                                    backgroundColor: isFieldChanged('link_url') ? '#fff4e6' : undefined
-                                }
+                                    backgroundColor: isFieldChanged('link_url')
+                                        ? '#fff4e6'
+                                        : undefined,
+                                },
                             }}
                         />
                         <TextInput
@@ -724,9 +750,13 @@ function EditPostModal({ post, opened, onClose, filterOptions }: {
                             error={errors.location_id}
                             styles={{
                                 input: {
-                                    borderColor: isFieldChanged('location_id') ? '#fd7e14' : undefined,
-                                    backgroundColor: isFieldChanged('location_id') ? '#fff4e6' : undefined
-                                }
+                                    borderColor: isFieldChanged('location_id')
+                                        ? '#fd7e14'
+                                        : undefined,
+                                    backgroundColor: isFieldChanged('location_id')
+                                        ? '#fff4e6'
+                                        : undefined,
+                                },
                             }}
                         />
                     </Group>
@@ -740,9 +770,13 @@ function EditPostModal({ post, opened, onClose, filterOptions }: {
                             error={errors.account_id}
                             styles={{
                                 input: {
-                                    borderColor: isFieldChanged('account_id') ? '#fd7e14' : undefined,
-                                    backgroundColor: isFieldChanged('account_id') ? '#fff4e6' : undefined
-                                }
+                                    borderColor: isFieldChanged('account_id')
+                                        ? '#fd7e14'
+                                        : undefined,
+                                    backgroundColor: isFieldChanged('account_id')
+                                        ? '#fff4e6'
+                                        : undefined,
+                                },
                             }}
                         />
                         <TextInput
@@ -753,19 +787,19 @@ function EditPostModal({ post, opened, onClose, filterOptions }: {
                             error={errors.notion_id}
                             styles={{
                                 input: {
-                                    borderColor: isFieldChanged('notion_id') ? '#fd7e14' : undefined,
-                                    backgroundColor: isFieldChanged('notion_id') ? '#fff4e6' : undefined
-                                }
+                                    borderColor: isFieldChanged('notion_id')
+                                        ? '#fd7e14'
+                                        : undefined,
+                                    backgroundColor: isFieldChanged('notion_id')
+                                        ? '#fff4e6'
+                                        : undefined,
+                                },
                             }}
                         />
                     </Group>
 
                     <Group justify="flex-end" mt="md">
-                        <Button
-                            variant="light"
-                            onClick={onClose}
-                            leftSection={<LuX size={16} />}
-                        >
+                        <Button variant="light" onClick={onClose} leftSection={<LuX size={16} />}>
                             Annuler
                         </Button>
                         <Button
@@ -783,13 +817,19 @@ function EditPostModal({ post, opened, onClose, filterOptions }: {
     )
 }
 
-export default function GmbPostsIndex({ posts, filters, filterOptions, currentUser }: Props) {
+export default function GmbPostsIndex({
+    posts,
+    filters,
+    filterOptions,
+    currentUser,
+    postsToGenerateCount,
+}: Props) {
     const [selectedPosts, setSelectedPosts] = useState<number[]>([])
     const [localFilters, setLocalFilters] = useState(filters)
     const [editingPost, setEditingPost] = useState<GmbPost | null>(null)
     const [editModalOpened, setEditModalOpened] = useState(false)
     const [isApplyingFilters, setIsApplyingFilters] = useState(false)
-    
+
     // État pour l'édition en masse
     const [bulkEditData, setBulkEditData] = useState({
         status: '',
@@ -799,35 +839,43 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
         account_id: '',
         notion_id: '',
     })
-    
+
+    // États pour le webhook n8n
+    const [sendingToN8n, setSendingToN8n] = useState(false)
+    const [webhookResponse, setWebhookResponse] = useState<any>(null)
+    const [showWebhookModal, setShowWebhookModal] = useState(false)
+
     // Hook pour gérer l'hydratation
     const [isClient, setIsClient] = useState(false)
-    
+
     React.useEffect(() => {
         setIsClient(true)
-        
+
         // Debug temporaire
         console.log('=== DEBUG FRONTEND ===')
         console.log('Posts reçus:', posts)
+        console.log('postsToGenerateCount reçu:', postsToGenerateCount)
+        console.log('currentUser.notion_id:', currentUser.notion_id)
+        console.log('Condition bouton:', postsToGenerateCount > 0 && currentUser.notion_id)
         if (posts.data && posts.data.length > 0) {
             console.log('Premier post:', posts.data[0])
             console.log('Clés du premier post:', Object.keys(posts.data[0]))
         }
         console.log('=====================')
     }, [])
-    
+
     // Synchroniser les filtres locaux avec les filtres props quand ils changent
     React.useEffect(() => {
         console.log('=== SYNCHRONISATION FILTRES ===')
         console.log('Filtres props:', filters)
         console.log('Filtres locaux avant:', localFilters)
-        
+
         setLocalFilters(filters)
-        
+
         console.log('Filtres locaux après:', filters)
         console.log('================================')
     }, [filters])
-    
+
     // Application automatique des filtres avec debounce pour la recherche
     React.useEffect(() => {
         // Si c'est juste un changement de texte de recherche, on debounce
@@ -838,7 +886,7 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
                 console.log('==========================================')
                 applyFilters()
             }, 800) // Délai de 800ms pour la recherche
-            
+
             return () => clearTimeout(timeoutId)
         }
         // Pour les autres filtres, application immédiate si différents des props
@@ -854,22 +902,27 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
             console.log('================================')
             applyFilters()
         }
-    }, [localFilters.search, localFilters.status, localFilters.client, localFilters.project, localFilters.sortBy, localFilters.sortOrder])
+    }, [
+        localFilters.search,
+        localFilters.status,
+        localFilters.client,
+        localFilters.project,
+        localFilters.sortBy,
+        localFilters.sortOrder,
+    ])
 
     // Gestion de la sélection multiple
     const toggleSelectAll = () => {
         if (selectedPosts.length === posts.data.length) {
             setSelectedPosts([])
         } else {
-            setSelectedPosts(posts.data.map(post => post.id))
+            setSelectedPosts(posts.data.map((post) => post.id))
         }
     }
 
     const toggleSelectPost = (postId: number) => {
-        setSelectedPosts(prev =>
-            prev.includes(postId)
-                ? prev.filter(id => id !== postId)
-                : [...prev, postId]
+        setSelectedPosts((prev) =>
+            prev.includes(postId) ? prev.filter((id) => id !== postId) : [...prev, postId]
         )
     }
 
@@ -888,8 +941,8 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
     const handleInlineEdit = async (postId: number, field: string, value: string) => {
         return new Promise((resolve, reject) => {
             const updateData = { [field]: value }
-            
-            console.log('=== ÉDITION INLINE ===')            
+
+            console.log('=== ÉDITION INLINE ===')
             console.log('Post ID:', postId)
             console.log('Champ:', field)
             console.log('Nouvelle valeur:', value)
@@ -897,7 +950,7 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
 
             router.put(`/gmb-posts/${postId}`, updateData, {
                 onSuccess: (page) => {
-                    console.log('=== SUCCÈS INLINE ===')                    
+                    console.log('=== SUCCÈS INLINE ===')
                     console.log('Page reçue:', page)
                     console.log('========================')
                     notifications.show({
@@ -908,7 +961,7 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
                     resolve(page)
                 },
                 onError: (errors) => {
-                    console.log('=== ERREUR INLINE ===')                    
+                    console.log('=== ERREUR INLINE ===')
                     console.log('Erreurs reçues:', errors)
                     console.log('========================')
                     notifications.show({
@@ -927,15 +980,15 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
         console.log('=== APPLICATION DES FILTRES ===')
         console.log('Filtres locaux:', localFilters)
         console.log('================================')
-        
+
         setIsApplyingFilters(true)
-        
+
         router.get('/gmb-posts', localFilters, {
             preserveState: true,
             replace: true,
             onFinish: () => {
                 setIsApplyingFilters(false)
-            }
+            },
         })
     }
 
@@ -951,7 +1004,7 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
         console.log('=== RÉINITIALISATION DES FILTRES ===')
         console.log('Données de réinitialisation:', resetFiltersData)
         console.log('======================================')
-        
+
         setLocalFilters(resetFiltersData)
         router.get('/gmb-posts', resetFiltersData, {
             preserveState: true,
@@ -987,7 +1040,7 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
 
     // Vérifier s'il y a des modifications en masse
     const hasAnyBulkChanges = () => {
-        return Object.values(bulkEditData).some(value => value.trim() !== '')
+        return Object.values(bulkEditData).some((value) => value.trim() !== '')
     }
 
     // Réinitialiser les données d'édition en masse
@@ -1024,53 +1077,59 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
 
         const fieldsToUpdate = Object.keys(updateData)
         const confirmMessage = `Êtes-vous sûr de vouloir modifier ${fieldsToUpdate.join(', ')} pour ${selectedPosts.length} post(s) ?`
-        
+
         if (confirm(confirmMessage)) {
-            console.log('=== ÉDITION EN MASSE ===')            
+            console.log('=== ÉDITION EN MASSE ===')
             console.log('Posts sélectionnés:', selectedPosts)
             console.log('Données à mettre à jour:', updateData)
             console.log('========================')
 
-            router.post('/gmb-posts/bulk-update', {
-                ids: selectedPosts,
-                updateData: updateData
-            }, {
-                onSuccess: () => {
-                    console.log('=== SUCCÈS ÉDITION MASSE ===')                    
-                    console.log('Modifications appliquées avec succès')
-                    console.log('========================')
-                    setSelectedPosts([])
-                    resetBulkEdit()
-                    notifications.show({
-                        title: 'Succès',
-                        message: `${selectedPosts.length} post(s) modifié(s) avec succès !`,
-                        color: 'green',
-                    })
+            router.post(
+                '/gmb-posts/bulk-update',
+                {
+                    ids: selectedPosts,
+                    updateData: updateData,
                 },
-                onError: (errors) => {
-                    console.log('=== ERREUR ÉDITION MASSE ===')                    
-                    console.log('Erreurs reçues:', errors)
-                    console.log('========================')
-                    notifications.show({
-                        title: 'Erreur',
-                        message: 'Erreur lors de la modification en masse',
-                        color: 'red',
-                    })
-                },
-            })
+                {
+                    onSuccess: () => {
+                        console.log('=== SUCCÈS ÉDITION MASSE ===')
+                        console.log('Modifications appliquées avec succès')
+                        console.log('========================')
+                        setSelectedPosts([])
+                        resetBulkEdit()
+                        notifications.show({
+                            title: 'Succès',
+                            message: `${selectedPosts.length} post(s) modifié(s) avec succès !`,
+                            color: 'green',
+                        })
+                    },
+                    onError: (errors) => {
+                        console.log('=== ERREUR ÉDITION MASSE ===')
+                        console.log('Erreurs reçues:', errors)
+                        console.log('========================')
+                        notifications.show({
+                            title: 'Erreur',
+                            message: 'Erreur lors de la modification en masse',
+                            color: 'red',
+                        })
+                    },
+                }
+            )
         }
     }
 
     // Actions individuelles
     const handleDelete = (postId: number) => {
-        if (confirm('Êtes-vous sûr de vouloir supprimer ce post ? Cette action est irréversible.')) {
-            console.log('=== SUPPRESSION POST ===')            
+        if (
+            confirm('Êtes-vous sûr de vouloir supprimer ce post ? Cette action est irréversible.')
+        ) {
+            console.log('=== SUPPRESSION POST ===')
             console.log('Post ID:', postId)
             console.log('========================')
-            
+
             router.delete(`/gmb-posts/${postId}`, {
                 onSuccess: () => {
-                    console.log('=== SUCCÈS SUPPRESSION ===')                    
+                    console.log('=== SUCCÈS SUPPRESSION ===')
                     console.log('Post supprimé avec succès')
                     console.log('========================')
                     notifications.show({
@@ -1080,7 +1139,7 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
                     })
                 },
                 onError: (errors) => {
-                    console.log('=== ERREUR SUPPRESSION ===')                    
+                    console.log('=== ERREUR SUPPRESSION ===')
                     console.log('Erreurs reçues:', errors)
                     console.log('========================')
                     notifications.show({
@@ -1094,51 +1153,137 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
     }
 
     const handleDuplicate = (postId: number) => {
-        console.log('=== DUPLICATION POST ===')            
+        console.log('=== DUPLICATION POST ===')
         console.log('Post ID:', postId)
         console.log('========================')
-        
-        router.post(`/gmb-posts/${postId}/duplicate`, {}, {
-            onSuccess: () => {
-                console.log('=== SUCCÈS DUPLICATION ===')                    
-                console.log('Post dupliqué avec succès')
-                console.log('========================')
-                notifications.show({
-                    title: 'Succès',
-                    message: 'Post dupliqué avec succès',
-                    color: 'green',
-                })
-                // La redirection est gérée par le backend
-            },
-            onError: (errors) => {
-                console.log('=== ERREUR DUPLICATION ===')                    
-                console.log('Erreurs reçues:', errors)
-                console.log('========================')
-                notifications.show({
-                    title: 'Erreur',
-                    message: 'Erreur lors de la duplication du post',
-                    color: 'red',
-                })
-            },
-        })
+
+        router.post(
+            `/gmb-posts/${postId}/duplicate`,
+            {},
+            {
+                onSuccess: () => {
+                    console.log('=== SUCCÈS DUPLICATION ===')
+                    console.log('Post dupliqué avec succès')
+                    console.log('========================')
+                    notifications.show({
+                        title: 'Succès',
+                        message: 'Post dupliqué avec succès',
+                        color: 'green',
+                    })
+                    // La redirection est gérée par le backend
+                },
+                onError: (errors) => {
+                    console.log('=== ERREUR DUPLICATION ===')
+                    console.log('Erreurs reçues:', errors)
+                    console.log('========================')
+                    notifications.show({
+                        title: 'Erreur',
+                        message: 'Erreur lors de la duplication du post',
+                        color: 'red',
+                    })
+                },
+            }
+        )
+    }
+
+    // Fonction pour envoyer les posts GMB vers n8n
+    const sendPostsToN8n = async () => {
+        if (postsToGenerateCount === 0) {
+            alert('❌ Aucun post "Post à générer" à envoyer')
+            return
+        }
+
+        setSendingToN8n(true)
+        setWebhookResponse(null)
+
+        try {
+            console.log(`🚀 Envoi de ${postsToGenerateCount} posts GMB vers n8n`)
+
+            // Récupération du token CSRF
+            const csrfToken = document
+                .querySelector('meta[name="csrf-token"]')
+                ?.getAttribute('content')
+            console.log('🔐 CSRF Token trouvé:', csrfToken ? 'OUI' : 'NON')
+
+            if (!csrfToken) {
+                throw new Error('Token CSRF manquant. Actualisez la page.')
+            }
+
+            const response = await fetch('/gmb-posts/send-to-n8n', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json',
+                },
+            })
+
+            console.log('📡 Statut réponse:', response.status, response.statusText)
+
+            // Vérifier si c'est une redirection ou erreur HTTP
+            if (!response.ok) {
+                const errorText = await response.text()
+                console.error('❌ Erreur HTTP:', response.status, errorText.substring(0, 300))
+                throw new Error(`Erreur HTTP ${response.status}: ${response.statusText}`)
+            }
+
+            // Lire et parser la réponse
+            const responseText = await response.text()
+            console.log('📥 Réponse brute (100 premiers chars):', responseText.substring(0, 100))
+
+            // Vérifier si c'est du HTML (redirection vers accueil)
+            if (responseText.trim().startsWith('<!DOCTYPE')) {
+                throw new Error(
+                    "La requête a été redirigée vers la page d'accueil. Problème d'authentification ou de route."
+                )
+            }
+
+            let result
+            try {
+                result = JSON.parse(responseText)
+            } catch (parseError) {
+                console.error('❌ Erreur parsing JSON:', parseError)
+                throw new Error('Réponse serveur invalide (JSON attendu)')
+            }
+
+            console.log('✅ Résultat parsé:', result)
+
+            // Afficher la réponse
+            setWebhookResponse(result.data || result)
+            setShowWebhookModal(true)
+
+            // Message de succès
+            alert(`✅ ${postsToGenerateCount} posts GMB envoyés avec succès vers n8n !`)
+        } catch (error) {
+            console.error('🚨 Erreur complète webhook:', error)
+
+            let errorMessage = 'Erreur inconnue'
+            if (error instanceof Error) {
+                errorMessage = error.message
+            }
+
+            alert(`❌ Erreur: ${errorMessage}`)
+        } finally {
+            setSendingToN8n(false)
+        }
     }
 
     // Formatage de la date (compatible SSR/Client)
     const formatDate = (dateString: string) => {
         const date = new Date(dateString)
-        
+
         // Pendant l'hydratation, utiliser un format déterministe
         if (!isClient) {
             // Format ISO simplifié pour éviter les différences de fuseau horaire
             const isoString = date.toISOString()
             const datePart = isoString.split('T')[0]
             const timePart = isoString.split('T')[1].substring(0, 5)
-            
+
             // Convertir au format DD/MM/YYYY HH:MM
             const [year, month, day] = datePart.split('-')
             return `${day}/${month}/${year} ${timePart}`
         }
-        
+
         // Après hydratation, utiliser le format localisé
         return date.toLocaleDateString('fr-FR', {
             day: '2-digit',
@@ -1160,9 +1305,12 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
                         <Title order={2}>Posts GMB</Title>
                         <Group gap="xs" mt="xs">
                             <Text size="sm" c="dimmed">
-                                {posts.meta.total} post{posts.meta.total > 1 ? 's' : ''} trouvé{posts.meta.total > 1 ? 's' : ''}
+                                {posts.meta.total} post{posts.meta.total > 1 ? 's' : ''} trouvé
+                                {posts.meta.total > 1 ? 's' : ''}
                             </Text>
-                            <Text size="sm" c="dimmed">•</Text>
+                            <Text size="sm" c="dimmed">
+                                •
+                            </Text>
                             <Badge variant="outline" color="blue" size="sm">
                                 👤 {currentUser.username}
                             </Badge>
@@ -1172,93 +1320,126 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
                                 </Badge>
                             )}
                             {/* Indicateurs de filtres actifs */}
-                            {(localFilters.search || localFilters.status || localFilters.client || localFilters.project) && (
+                            {(localFilters.search ||
+                                localFilters.status ||
+                                localFilters.client ||
+                                localFilters.project) && (
                                 <>
-                                    <Text size="sm" c="dimmed">•</Text>
+                                    <Text size="sm" c="dimmed">
+                                        •
+                                    </Text>
                                     <Group gap={4}>
                                         {localFilters.search && (
-                                            <Badge 
-                                                variant="outline" 
-                                                size="xs" 
+                                            <Badge
+                                                variant="outline"
+                                                size="xs"
                                                 color="blue"
                                                 style={{ cursor: 'pointer' }}
                                                 rightSection={
-                                                    <LuX 
-                                                        size={10} 
+                                                    <LuX
+                                                        size={10}
                                                         onClick={(e) => {
                                                             e.stopPropagation()
-                                                            setLocalFilters(prev => ({ ...prev, search: '' }))
+                                                            setLocalFilters((prev) => ({
+                                                                ...prev,
+                                                                search: '',
+                                                            }))
                                                         }}
                                                     />
                                                 }
                                                 onClick={() => {
-                                                    setLocalFilters(prev => ({ ...prev, search: '' }))
+                                                    setLocalFilters((prev) => ({
+                                                        ...prev,
+                                                        search: '',
+                                                    }))
                                                 }}
                                             >
-                                                📝 "{localFilters.search.length > 15 ? localFilters.search.substring(0, 15) + '...' : localFilters.search}"
+                                                📝 "
+                                                {localFilters.search.length > 15
+                                                    ? localFilters.search.substring(0, 15) + '...'
+                                                    : localFilters.search}
+                                                "
                                             </Badge>
                                         )}
                                         {localFilters.status && (
-                                            <Badge 
-                                                variant="outline" 
-                                                size="xs" 
+                                            <Badge
+                                                variant="outline"
+                                                size="xs"
                                                 color="green"
                                                 style={{ cursor: 'pointer' }}
                                                 rightSection={
-                                                    <LuX 
-                                                        size={10} 
+                                                    <LuX
+                                                        size={10}
                                                         onClick={(e) => {
                                                             e.stopPropagation()
-                                                            setLocalFilters(prev => ({ ...prev, status: '' }))
+                                                            setLocalFilters((prev) => ({
+                                                                ...prev,
+                                                                status: '',
+                                                            }))
                                                         }}
                                                     />
                                                 }
                                                 onClick={() => {
-                                                    setLocalFilters(prev => ({ ...prev, status: '' }))
+                                                    setLocalFilters((prev) => ({
+                                                        ...prev,
+                                                        status: '',
+                                                    }))
                                                 }}
                                             >
                                                 🔄 {localFilters.status}
                                             </Badge>
                                         )}
                                         {localFilters.client && (
-                                            <Badge 
-                                                variant="outline" 
-                                                size="xs" 
+                                            <Badge
+                                                variant="outline"
+                                                size="xs"
                                                 color="orange"
                                                 style={{ cursor: 'pointer' }}
                                                 rightSection={
-                                                    <LuX 
-                                                        size={10} 
+                                                    <LuX
+                                                        size={10}
                                                         onClick={(e) => {
                                                             e.stopPropagation()
-                                                            setLocalFilters(prev => ({ ...prev, client: '' }))
+                                                            setLocalFilters((prev) => ({
+                                                                ...prev,
+                                                                client: '',
+                                                            }))
                                                         }}
                                                     />
                                                 }
                                                 onClick={() => {
-                                                    setLocalFilters(prev => ({ ...prev, client: '' }))
+                                                    setLocalFilters((prev) => ({
+                                                        ...prev,
+                                                        client: '',
+                                                    }))
                                                 }}
                                             >
                                                 👤 {localFilters.client}
                                             </Badge>
                                         )}
                                         {localFilters.project && (
-                                            <Badge 
-                                                variant="outline" 
-                                                size="xs" 
+                                            <Badge
+                                                variant="outline"
+                                                size="xs"
                                                 color="violet"
                                                 style={{ cursor: 'pointer' }}
                                                 rightSection={
-                                                    <LuX 
-                                                        size={10} 
+                                                    <LuX
+                                                        size={10}
                                                         onClick={(e) => {
                                                             e.stopPropagation()
-                                                            setLocalFilters(prev => ({ ...prev, project: '' }))
+                                                            setLocalFilters((prev) => ({
+                                                                ...prev,
+                                                                project: '',
+                                                            }))
                                                         }}
                                                     />
                                                 }
                                                 onClick={() => {
-                                                    setLocalFilters(prev => ({ ...prev, project: '' }))
+                                                    setLocalFilters((prev) => ({
+                                                        ...prev,
+                                                        project: '',
+                                                    }))
                                                 }}
                                             >
                                                 📁 {localFilters.project}
@@ -1269,21 +1450,37 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
                             )}
                             {isApplyingFilters && (
                                 <>
-                                    <Text size="sm" c="dimmed">•</Text>
-                                    <Text size="sm" c="blue">Filtrage en cours...</Text>
+                                    <Text size="sm" c="dimmed">
+                                        •
+                                    </Text>
+                                    <Text size="sm" c="blue">
+                                        Filtrage en cours...
+                                    </Text>
                                 </>
                             )}
                         </Group>
                     </Box>
                     <Group>
-                        <Button
-                            component={Link}
-                            href="/gmb-posts/stats"
-                            variant="light"
-                            leftSection={<LuTrendingUp size={16} />}
-                        >
-                            Statistiques
-                        </Button>
+                        {/* DEBUG: Affichage des valeurs
+                        <Badge variant="outline" color="red">
+                            Debug: Count={postsToGenerateCount}, NotionId={currentUser.notion_id ? 'OUI' : 'NON'}
+                        </Badge>
+                         */}
+                        {/* Bouton pour envoyer les posts vers n8n */}
+                        {postsToGenerateCount > 0 && currentUser.notion_id && (
+                            <Button
+                                variant="filled"
+                                onClick={sendPostsToN8n}
+                                loading={sendingToN8n}
+                                disabled={sendingToN8n}
+                                leftSection={<LuSend size={16} />}
+                            >
+                                {sendingToN8n
+                                    ? 'Envoi en cours...'
+                                    : `Envoyer vers n8n (${postsToGenerateCount})`}
+                            </Button>
+                        )}
+
                         <Button
                             component={Link}
                             href="/gmb-posts/export"
@@ -1311,7 +1508,11 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
                                 {/* Badges des filtres actifs */}
                                 {localFilters.search && (
                                     <Badge variant="light" color="blue" size="sm">
-                                        Recherche: "{localFilters.search.length > 20 ? localFilters.search.substring(0, 20) + '...' : localFilters.search}"
+                                        Recherche: "
+                                        {localFilters.search.length > 20
+                                            ? localFilters.search.substring(0, 20) + '...'
+                                            : localFilters.search}
+                                        "
                                     </Badge>
                                 )}
                                 {localFilters.status && (
@@ -1329,9 +1530,11 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
                                         Projet: {localFilters.project}
                                     </Badge>
                                 )}
-                                {(localFilters.sortBy !== 'date' || localFilters.sortOrder !== 'desc') && (
+                                {(localFilters.sortBy !== 'date' ||
+                                    localFilters.sortOrder !== 'desc') && (
                                     <Badge variant="light" color="gray" size="sm">
-                                        📊 Tri: {getSortLabel(localFilters.sortBy)} ({localFilters.sortOrder === 'desc' ? '↓' : '↑'})
+                                        📊 Tri: {getSortLabel(localFilters.sortBy)} (
+                                        {localFilters.sortOrder === 'desc' ? '↓' : '↑'})
                                     </Badge>
                                 )}
                             </Group>
@@ -1344,9 +1547,9 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
                                 onChange={(e) => {
                                     const newValue = e.target.value
                                     console.log('Recherche changée:', newValue)
-                                    setLocalFilters(prev => ({
+                                    setLocalFilters((prev) => ({
                                         ...prev,
-                                        search: newValue
+                                        search: newValue,
                                     }))
                                 }}
                                 onKeyDown={(e) => {
@@ -1359,17 +1562,17 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
                                 placeholder="Filtrer par statut"
                                 data={[
                                     { value: '', label: 'Tous les statuts' },
-                                    ...filterOptions.statuses.map(status => ({
+                                    ...filterOptions.statuses.map((status) => ({
                                         value: status,
-                                        label: status
-                                    }))
+                                        label: status,
+                                    })),
                                 ]}
                                 value={localFilters.status}
                                 onChange={(value) => {
                                     console.log('Statut changé:', value)
-                                    setLocalFilters(prev => ({
+                                    setLocalFilters((prev) => ({
                                         ...prev,
-                                        status: value || ''
+                                        status: value || '',
                                     }))
                                 }}
                                 clearable
@@ -1378,17 +1581,17 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
                                 placeholder="Filtrer par client"
                                 data={[
                                     { value: '', label: 'Tous les clients' },
-                                    ...filterOptions.clients.map(client => ({
+                                    ...filterOptions.clients.map((client) => ({
                                         value: client,
-                                        label: client
-                                    }))
+                                        label: client,
+                                    })),
                                 ]}
                                 value={localFilters.client}
                                 onChange={(value) => {
                                     console.log('Client changé:', value)
-                                    setLocalFilters(prev => ({
+                                    setLocalFilters((prev) => ({
                                         ...prev,
-                                        client: value || ''
+                                        client: value || '',
                                     }))
                                 }}
                                 searchable
@@ -1398,24 +1601,24 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
                                 placeholder="Filtrer par projet"
                                 data={[
                                     { value: '', label: 'Tous les projets' },
-                                    ...filterOptions.projects.map(project => ({
+                                    ...filterOptions.projects.map((project) => ({
                                         value: project,
-                                        label: project
-                                    }))
+                                        label: project,
+                                    })),
                                 ]}
                                 value={localFilters.project}
                                 onChange={(value) => {
                                     console.log('Projet changé:', value)
-                                    setLocalFilters(prev => ({
+                                    setLocalFilters((prev) => ({
                                         ...prev,
-                                        project: value || ''
+                                        project: value || '',
                                     }))
                                 }}
                                 searchable
                                 clearable
                             />
                         </Group>
-                        
+
                         {/* Options de tri - Remplacées par les en-têtes cliquables */}
                         <Group>
                             <Text size="sm" c="dimmed">
@@ -1425,9 +1628,9 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
                                 💡 Cliquez sur les en-têtes de colonnes pour trier
                             </Text>
                         </Group>
-                        
+
                         <Group>
-                            <Button 
+                            <Button
                                 onClick={applyFilters}
                                 leftSection={<LuSearch size={16} />}
                                 variant="filled"
@@ -1435,24 +1638,42 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
                             >
                                 {isApplyingFilters ? 'Application...' : 'Appliquer manuellement'}
                             </Button>
-                            <Button 
-                                variant="light" 
+                            <Button
+                                variant="light"
                                 onClick={resetFilters}
                                 leftSection={<LuX size={16} />}
                             >
                                 Réinitialiser
                             </Button>
-                            
+
                             {/* Filtres rapides */}
                             <Flex justify="space-between" align="center" wrap="wrap" gap="md">
                                 <Group gap="xs">
-                                    <Text size="sm" fw={500} c="dimmed">Filtres rapides :</Text>
+                                    <Text size="sm" fw={500} c="dimmed">
+                                        Filtres rapides :
+                                    </Text>
+                                    <Button
+                                        size="xs"
+                                        variant="light"
+                                        color="grey"
+                                        onClick={() => {
+                                            setLocalFilters((prev) => ({
+                                                ...prev,
+                                                status: 'Futur',
+                                            }))
+                                        }}
+                                    >
+                                        Futur
+                                    </Button>
                                     <Button
                                         size="xs"
                                         variant="light"
                                         color="yellow"
                                         onClick={() => {
-                                            setLocalFilters(prev => ({ ...prev, status: 'À générer' }))
+                                            setLocalFilters((prev) => ({
+                                                ...prev,
+                                                status: 'À générer',
+                                            }))
                                         }}
                                     >
                                         À générer
@@ -1460,35 +1681,58 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
                                     <Button
                                         size="xs"
                                         variant="light"
-                                        color="violet"
+                                        color="blue"
                                         onClick={() => {
-                                            setLocalFilters(prev => ({ ...prev, status: 'Post à publier' }))
+                                            setLocalFilters((prev) => ({
+                                                ...prev,
+                                                status: 'Titres générés',
+                                            }))
                                         }}
                                     >
-                                        À publier
+                                        Titre généré
                                     </Button>
+                                    <Button
+                                        size="xs"
+                                        variant="light"
+                                        color="yellow"
+                                        onClick={() => {
+                                            setLocalFilters((prev) => ({
+                                                ...prev,
+                                                status: 'Post à générer',
+                                            }))
+                                        }}
+                                    >
+                                        Post à générer
+                                    </Button>
+                                    <Button
+                                        size="xs"
+                                        variant="light"
+                                        color="violet"
+                                        onClick={() => {
+                                            setLocalFilters((prev) => ({
+                                                ...prev,
+                                                status: 'Post à publier',
+                                            }))
+                                        }}
+                                    >
+                                        Post à publier
+                                    </Button>
+
                                     <Button
                                         size="xs"
                                         variant="light"
                                         color="green"
                                         onClick={() => {
-                                            setLocalFilters(prev => ({ ...prev, status: 'Publié' }))
+                                            setLocalFilters((prev) => ({
+                                                ...prev,
+                                                status: 'Publié',
+                                            }))
                                         }}
                                     >
-                                        Publiés
-                                    </Button>
-                                    <Button
-                                        size="xs"
-                                        variant="light"
-                                        color="red"
-                                        onClick={() => {
-                                            setLocalFilters(prev => ({ ...prev, status: 'failed' }))
-                                        }}
-                                    >
-                                        Échecs
+                                        Publié
                                     </Button>
                                 </Group>
-                                
+
                                 <Text size="xs" c="dimmed" style={{ fontStyle: 'italic' }}>
                                     💡 Les filtres s'appliquent automatiquement (recherche : 0.8s)
                                 </Text>
@@ -1502,9 +1746,7 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
                     <Card withBorder p="md" bg="blue.0">
                         <Stack gap="md">
                             <Group justify="space-between">
-                                <Text fw={500}>
-                                    {selectedPosts.length} post(s) sélectionné(s)
-                                </Text>
+                                <Text fw={500}>{selectedPosts.length} post(s) sélectionné(s)</Text>
                                 <Button
                                     color="red"
                                     variant="light"
@@ -1514,9 +1756,11 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
                                     Supprimer la sélection
                                 </Button>
                             </Group>
-                            
-                            <Text size="sm" fw={500}>Modifier en masse :</Text>
-                            
+
+                            <Text size="sm" fw={500}>
+                                Modifier en masse :
+                            </Text>
+
                             <Group grow>
                                 <Select
                                     placeholder="Nouveau statut"
@@ -1532,17 +1776,30 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
                                         { value: 'failed', label: 'Échec' },
                                     ]}
                                     value={bulkEditData.status}
-                                    onChange={(value) => setBulkEditData(prev => ({ ...prev, status: value || '' }))}
+                                    onChange={(value) =>
+                                        setBulkEditData((prev) => ({
+                                            ...prev,
+                                            status: value || '',
+                                        }))
+                                    }
                                     size="sm"
                                 />
                                 <Select
                                     placeholder="Nouveau client"
                                     data={[
                                         { value: '', label: 'Conserver le client actuel' },
-                                        ...filterOptions.clients.map(client => ({ value: client, label: client }))
+                                        ...filterOptions.clients.map((client) => ({
+                                            value: client,
+                                            label: client,
+                                        })),
                                     ]}
                                     value={bulkEditData.client}
-                                    onChange={(value) => setBulkEditData(prev => ({ ...prev, client: value || '' }))}
+                                    onChange={(value) =>
+                                        setBulkEditData((prev) => ({
+                                            ...prev,
+                                            client: value || '',
+                                        }))
+                                    }
                                     size="sm"
                                     searchable
                                 />
@@ -1550,36 +1807,59 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
                                     placeholder="Nouveau projet"
                                     data={[
                                         { value: '', label: 'Conserver le projet actuel' },
-                                        ...filterOptions.projects.map(project => ({ value: project, label: project }))
+                                        ...filterOptions.projects.map((project) => ({
+                                            value: project,
+                                            label: project,
+                                        })),
                                     ]}
                                     value={bulkEditData.project_name}
-                                    onChange={(value) => setBulkEditData(prev => ({ ...prev, project_name: value || '' }))}
+                                    onChange={(value) =>
+                                        setBulkEditData((prev) => ({
+                                            ...prev,
+                                            project_name: value || '',
+                                        }))
+                                    }
                                     size="sm"
                                     searchable
                                 />
                             </Group>
-                            
+
                             <Group grow>
                                 <TextInput
                                     placeholder="Nouveau Location ID"
                                     value={bulkEditData.location_id}
-                                    onChange={(e) => setBulkEditData(prev => ({ ...prev, location_id: e.target.value }))}
+                                    onChange={(e) =>
+                                        setBulkEditData((prev) => ({
+                                            ...prev,
+                                            location_id: e.target.value,
+                                        }))
+                                    }
                                     size="sm"
                                 />
                                 <TextInput
                                     placeholder="Nouveau Account ID"
                                     value={bulkEditData.account_id}
-                                    onChange={(e) => setBulkEditData(prev => ({ ...prev, account_id: e.target.value }))}
+                                    onChange={(e) =>
+                                        setBulkEditData((prev) => ({
+                                            ...prev,
+                                            account_id: e.target.value,
+                                        }))
+                                    }
                                     size="sm"
                                 />
                                 <TextInput
                                     placeholder="Nouveau Notion ID"
                                     value={bulkEditData.notion_id}
-                                    onChange={(e) => setBulkEditData(prev => ({ ...prev, notion_id: e.target.value }))}
+                                    onChange={(e) =>
+                                        setBulkEditData((prev) => ({
+                                            ...prev,
+                                            notion_id: e.target.value,
+                                        }))
+                                    }
                                     size="sm"
                                 />
                             </Group>
-                            
+
                             <Group>
                                 <Button
                                     onClick={handleBulkEdit}
@@ -1588,11 +1868,7 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
                                 >
                                     Appliquer les modifications
                                 </Button>
-                                <Button
-                                    variant="light"
-                                    onClick={resetBulkEdit}
-                                    size="sm"
-                                >
+                                <Button variant="light" onClick={resetBulkEdit} size="sm">
                                     Réinitialiser
                                 </Button>
                             </Group>
@@ -1604,272 +1880,284 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
                 <Card withBorder>
                     <Box style={{ overflowX: 'auto' }}>
                         <Table striped highlightOnHover style={{ minWidth: '2200px' }}>
-                        <Table.Thead>
-                            <Table.Tr>
-                                <Table.Th w={40}>
-                                    <Checkbox
-                                        checked={selectedPosts.length === posts.data.length && posts.data.length > 0}
-                                        indeterminate={selectedPosts.length > 0 && selectedPosts.length < posts.data.length}
-                                        onChange={toggleSelectAll}
-                                    />
-                                </Table.Th>
-                                <Table.Th w={160}>
-                                    <SortableHeader
-                                        label="Statut"
-                                        sortKey="status"
-                                        currentSortBy={localFilters.sortBy}
-                                        currentSortOrder={localFilters.sortOrder}
-                                        onSort={handleSort}
-                                    />
-                                </Table.Th>
-                                <Table.Th w={400}>
-                                    <SortableHeader
-                                        label="Texte"
-                                        sortKey="text"
-                                        currentSortBy={localFilters.sortBy}
-                                        currentSortOrder={localFilters.sortOrder}
-                                        onSort={handleSort}
-                                    />
-                                </Table.Th>
-                                <Table.Th w={180}>
-                                    <SortableHeader
-                                        label="Client"
-                                        sortKey="client"
-                                        currentSortBy={localFilters.sortBy}
-                                        currentSortOrder={localFilters.sortOrder}
-                                        onSort={handleSort}
-                                    />
-                                </Table.Th>
-                                <Table.Th w={180}>
-                                    <SortableHeader
-                                        label="Projet"
-                                        sortKey="project_name"
-                                        currentSortBy={localFilters.sortBy}
-                                        currentSortOrder={localFilters.sortOrder}
-                                        onSort={handleSort}
-                                    />
-                                </Table.Th>
-                                <Table.Th w={160}>
-                                    <SortableHeader
-                                        label="Date"
-                                        sortKey="date"
-                                        currentSortBy={localFilters.sortBy}
-                                        currentSortOrder={localFilters.sortOrder}
-                                        onSort={handleSort}
-                                    />
-                                </Table.Th>
-                                <Table.Th w={160}>
-                                    <SortableHeader
-                                        label="Mot-clé"
-                                        sortKey="keyword"
-                                        currentSortBy={localFilters.sortBy}
-                                        currentSortOrder={localFilters.sortOrder}
-                                        onSort={handleSort}
-                                    />
-                                </Table.Th>
-                                <Table.Th w={140}>
-                                    <Text fw={500} size="sm">URL Image</Text>
-                                </Table.Th>
-                                <Table.Th w={140}>
-                                    <Text fw={500} size="sm">URL Lien</Text>
-                                </Table.Th>
-                                <Table.Th w={160}>
-                                    <SortableHeader
-                                        label="Location ID"
-                                        sortKey="location_id"
-                                        currentSortBy={localFilters.sortBy}
-                                        currentSortOrder={localFilters.sortOrder}
-                                        onSort={handleSort}
-                                    />
-                                </Table.Th>
-                                <Table.Th w={160}>
-                                    <SortableHeader
-                                        label="Account ID"
-                                        sortKey="account_id"
-                                        currentSortBy={localFilters.sortBy}
-                                        currentSortOrder={localFilters.sortOrder}
-                                        onSort={handleSort}
-                                    />
-                                </Table.Th>
-                                <Table.Th w={140}>
-                                    <SortableHeader
-                                        label="Notion ID"
-                                        sortKey="notion_id"
-                                        currentSortBy={localFilters.sortBy}
-                                        currentSortOrder={localFilters.sortOrder}
-                                        onSort={handleSort}
-                                    />
-                                </Table.Th>
-                                <Table.Th w={140}>
-                                    <Text fw={500} size="sm">Actions</Text>
-                                </Table.Th>
-                            </Table.Tr>
-                        </Table.Thead>
-                        <Table.Tbody>
-                            {posts.data.length === 0 ? (
+                            <Table.Thead>
                                 <Table.Tr>
-                                    <Table.Td colSpan={13}>
-                                        <Text ta="center" py="xl" c="dimmed">
-                                            Aucun post trouvé
+                                    <Table.Th w={40}>
+                                        <Checkbox
+                                            checked={
+                                                selectedPosts.length === posts.data.length &&
+                                                posts.data.length > 0
+                                            }
+                                            indeterminate={
+                                                selectedPosts.length > 0 &&
+                                                selectedPosts.length < posts.data.length
+                                            }
+                                            onChange={toggleSelectAll}
+                                        />
+                                    </Table.Th>
+                                    <Table.Th w={160}>
+                                        <SortableHeader
+                                            label="Statut"
+                                            sortKey="status"
+                                            currentSortBy={localFilters.sortBy}
+                                            currentSortOrder={localFilters.sortOrder}
+                                            onSort={handleSort}
+                                        />
+                                    </Table.Th>
+                                    <Table.Th w={400}>
+                                        <SortableHeader
+                                            label="Texte"
+                                            sortKey="text"
+                                            currentSortBy={localFilters.sortBy}
+                                            currentSortOrder={localFilters.sortOrder}
+                                            onSort={handleSort}
+                                        />
+                                    </Table.Th>
+                                    <Table.Th w={180}>
+                                        <SortableHeader
+                                            label="Client"
+                                            sortKey="client"
+                                            currentSortBy={localFilters.sortBy}
+                                            currentSortOrder={localFilters.sortOrder}
+                                            onSort={handleSort}
+                                        />
+                                    </Table.Th>
+                                    <Table.Th w={180}>
+                                        <SortableHeader
+                                            label="Projet"
+                                            sortKey="project_name"
+                                            currentSortBy={localFilters.sortBy}
+                                            currentSortOrder={localFilters.sortOrder}
+                                            onSort={handleSort}
+                                        />
+                                    </Table.Th>
+                                    <Table.Th w={160}>
+                                        <SortableHeader
+                                            label="Date"
+                                            sortKey="date"
+                                            currentSortBy={localFilters.sortBy}
+                                            currentSortOrder={localFilters.sortOrder}
+                                            onSort={handleSort}
+                                        />
+                                    </Table.Th>
+                                    <Table.Th w={160}>
+                                        <SortableHeader
+                                            label="Mot-clé"
+                                            sortKey="keyword"
+                                            currentSortBy={localFilters.sortBy}
+                                            currentSortOrder={localFilters.sortOrder}
+                                            onSort={handleSort}
+                                        />
+                                    </Table.Th>
+                                    <Table.Th w={140}>
+                                        <Text fw={500} size="sm">
+                                            URL Image
                                         </Text>
-                                    </Table.Td>
+                                    </Table.Th>
+                                    <Table.Th w={140}>
+                                        <Text fw={500} size="sm">
+                                            URL Lien
+                                        </Text>
+                                    </Table.Th>
+                                    <Table.Th w={160}>
+                                        <SortableHeader
+                                            label="Location ID"
+                                            sortKey="location_id"
+                                            currentSortBy={localFilters.sortBy}
+                                            currentSortOrder={localFilters.sortOrder}
+                                            onSort={handleSort}
+                                        />
+                                    </Table.Th>
+                                    <Table.Th w={160}>
+                                        <SortableHeader
+                                            label="Account ID"
+                                            sortKey="account_id"
+                                            currentSortBy={localFilters.sortBy}
+                                            currentSortOrder={localFilters.sortOrder}
+                                            onSort={handleSort}
+                                        />
+                                    </Table.Th>
+                                    <Table.Th w={140}>
+                                        <SortableHeader
+                                            label="Notion ID"
+                                            sortKey="notion_id"
+                                            currentSortBy={localFilters.sortBy}
+                                            currentSortOrder={localFilters.sortOrder}
+                                            onSort={handleSort}
+                                        />
+                                    </Table.Th>
+                                    <Table.Th w={140}>
+                                        <Text fw={500} size="sm">
+                                            Actions
+                                        </Text>
+                                    </Table.Th>
                                 </Table.Tr>
-                            ) : (
-                                posts.data.map((post) => (
-                                    <Table.Tr key={post.id}>
-                                        <Table.Td>
-                                            <Checkbox
-                                                checked={selectedPosts.includes(post.id)}
-                                                onChange={() => toggleSelectPost(post.id)}
-                                            />
-                                        </Table.Td>
-                                        <Table.Td>
-                                            <InlineEditCell
-                                                value={post.status}
-                                                field="status"
-                                                post={post}
-                                                type="select"
-                                                filterOptions={filterOptions}
-                                                onSave={handleInlineEdit}
-                                            />
-                                        </Table.Td>
-                                        <Table.Td>
-                                            <InlineEditCell
-                                                value={post.text}
-                                                field="text"
-                                                post={post}
-                                                type="textarea"
-                                                filterOptions={filterOptions}
-                                                onSave={handleInlineEdit}
-                                            />
-                                        </Table.Td>
-                                        <Table.Td>
-                                            <InlineEditCell
-                                                value={post.client}
-                                                field="client"
-                                                post={post}
-                                                type="select"
-                                                filterOptions={filterOptions}
-                                                onSave={handleInlineEdit}
-                                            />
-                                        </Table.Td>
-                                        <Table.Td>
-                                            <InlineEditCell
-                                                value={post.project_name}
-                                                field="project_name"
-                                                post={post}
-                                                type="select"
-                                                filterOptions={filterOptions}
-                                                onSave={handleInlineEdit}
-                                            />
-                                        </Table.Td>
-                                        <Table.Td>
-                                            <InlineEditCell
-                                                value={post.date}
-                                                field="date"
-                                                post={post}
-                                                type="datetime-local"
-                                                filterOptions={filterOptions}
-                                                onSave={handleInlineEdit}
-                                            />
-                                        </Table.Td>
-                                        <Table.Td>
-                                            <InlineEditCell
-                                                value={post.keyword || ''}
-                                                field="keyword"
-                                                post={post}
-                                                type="text"
-                                                filterOptions={filterOptions}
-                                                onSave={handleInlineEdit}
-                                            />
-                                        </Table.Td>
-                                        <Table.Td>
-                                            <InlineEditCell
-                                                value={post.image_url || ''}
-                                                field="image_url"
-                                                post={post}
-                                                type="text"
-                                                filterOptions={filterOptions}
-                                                onSave={handleInlineEdit}
-                                            />
-                                        </Table.Td>
-                                        <Table.Td>
-                                            <InlineEditCell
-                                                value={post.link_url || ''}
-                                                field="link_url"
-                                                post={post}
-                                                type="text"
-                                                filterOptions={filterOptions}
-                                                onSave={handleInlineEdit}
-                                            />
-                                        </Table.Td>
-                                        <Table.Td>
-                                            <InlineEditCell
-                                                value={post.location_id || ''}
-                                                field="location_id"
-                                                post={post}
-                                                type="text"
-                                                filterOptions={filterOptions}
-                                                onSave={handleInlineEdit}
-                                            />
-                                        </Table.Td>
-                                        <Table.Td>
-                                            <InlineEditCell
-                                                value={post.account_id || ''}
-                                                field="account_id"
-                                                post={post}
-                                                type="text"
-                                                filterOptions={filterOptions}
-                                                onSave={handleInlineEdit}
-                                            />
-                                        </Table.Td>
-                                        <Table.Td>
-                                            <InlineEditCell
-                                                value={post.notion_id || ''}
-                                                field="notion_id"
-                                                post={post}
-                                                type="text"
-                                                filterOptions={filterOptions}
-                                                onSave={handleInlineEdit}
-                                            />
-                                        </Table.Td>
-                                        <Table.Td>
-                                            <Group gap={4}>
-                                                <Tooltip label="Modifier">
-                                                    <ActionIcon
-                                                        variant="light"
-                                                        size="sm"
-                                                        onClick={() => handleEdit(post)}
-                                                    >
-                                                        <LuSettings size={16} />
-                                                    </ActionIcon>
-                                                </Tooltip>
-                                                <Tooltip label="Dupliquer">
-                                                    <ActionIcon
-                                                        variant="light"
-                                                        size="sm"
-                                                        color="blue"
-                                                        onClick={() => handleDuplicate(post.id)}
-                                                    >
-                                                        <LuCopy size={16} />
-                                                    </ActionIcon>
-                                                </Tooltip>
-                                                <Tooltip label="Supprimer">
-                                                    <ActionIcon
-                                                        variant="light"
-                                                        size="sm"
-                                                        color="red"
-                                                        onClick={() => handleDelete(post.id)}
-                                                    >
-                                                        <LuTrash size={16} />
-                                                    </ActionIcon>
-                                                </Tooltip>
-                                            </Group>
+                            </Table.Thead>
+                            <Table.Tbody>
+                                {posts.data.length === 0 ? (
+                                    <Table.Tr>
+                                        <Table.Td colSpan={13}>
+                                            <Text ta="center" py="xl" c="dimmed">
+                                                Aucun post trouvé
+                                            </Text>
                                         </Table.Td>
                                     </Table.Tr>
-                                ))
-                            )}
-                        </Table.Tbody>
+                                ) : (
+                                    posts.data.map((post) => (
+                                        <Table.Tr key={post.id}>
+                                            <Table.Td>
+                                                <Checkbox
+                                                    checked={selectedPosts.includes(post.id)}
+                                                    onChange={() => toggleSelectPost(post.id)}
+                                                />
+                                            </Table.Td>
+                                            <Table.Td>
+                                                <InlineEditCell
+                                                    value={post.status}
+                                                    field="status"
+                                                    post={post}
+                                                    type="select"
+                                                    filterOptions={filterOptions}
+                                                    onSave={handleInlineEdit}
+                                                />
+                                            </Table.Td>
+                                            <Table.Td>
+                                                <InlineEditCell
+                                                    value={post.text}
+                                                    field="text"
+                                                    post={post}
+                                                    type="textarea"
+                                                    filterOptions={filterOptions}
+                                                    onSave={handleInlineEdit}
+                                                />
+                                            </Table.Td>
+                                            <Table.Td>
+                                                <InlineEditCell
+                                                    value={post.client}
+                                                    field="client"
+                                                    post={post}
+                                                    type="select"
+                                                    filterOptions={filterOptions}
+                                                    onSave={handleInlineEdit}
+                                                />
+                                            </Table.Td>
+                                            <Table.Td>
+                                                <InlineEditCell
+                                                    value={post.project_name}
+                                                    field="project_name"
+                                                    post={post}
+                                                    type="select"
+                                                    filterOptions={filterOptions}
+                                                    onSave={handleInlineEdit}
+                                                />
+                                            </Table.Td>
+                                            <Table.Td>
+                                                <InlineEditCell
+                                                    value={post.date}
+                                                    field="date"
+                                                    post={post}
+                                                    type="datetime-local"
+                                                    filterOptions={filterOptions}
+                                                    onSave={handleInlineEdit}
+                                                />
+                                            </Table.Td>
+                                            <Table.Td>
+                                                <InlineEditCell
+                                                    value={post.keyword || ''}
+                                                    field="keyword"
+                                                    post={post}
+                                                    type="text"
+                                                    filterOptions={filterOptions}
+                                                    onSave={handleInlineEdit}
+                                                />
+                                            </Table.Td>
+                                            <Table.Td>
+                                                <InlineEditCell
+                                                    value={post.image_url || ''}
+                                                    field="image_url"
+                                                    post={post}
+                                                    type="text"
+                                                    filterOptions={filterOptions}
+                                                    onSave={handleInlineEdit}
+                                                />
+                                            </Table.Td>
+                                            <Table.Td>
+                                                <InlineEditCell
+                                                    value={post.link_url || ''}
+                                                    field="link_url"
+                                                    post={post}
+                                                    type="text"
+                                                    filterOptions={filterOptions}
+                                                    onSave={handleInlineEdit}
+                                                />
+                                            </Table.Td>
+                                            <Table.Td>
+                                                <InlineEditCell
+                                                    value={post.location_id || ''}
+                                                    field="location_id"
+                                                    post={post}
+                                                    type="text"
+                                                    filterOptions={filterOptions}
+                                                    onSave={handleInlineEdit}
+                                                />
+                                            </Table.Td>
+                                            <Table.Td>
+                                                <InlineEditCell
+                                                    value={post.account_id || ''}
+                                                    field="account_id"
+                                                    post={post}
+                                                    type="text"
+                                                    filterOptions={filterOptions}
+                                                    onSave={handleInlineEdit}
+                                                />
+                                            </Table.Td>
+                                            <Table.Td>
+                                                <InlineEditCell
+                                                    value={post.notion_id || ''}
+                                                    field="notion_id"
+                                                    post={post}
+                                                    type="text"
+                                                    filterOptions={filterOptions}
+                                                    onSave={handleInlineEdit}
+                                                />
+                                            </Table.Td>
+                                            <Table.Td>
+                                                <Group gap={4}>
+                                                    <Tooltip label="Modifier">
+                                                        <ActionIcon
+                                                            variant="light"
+                                                            size="sm"
+                                                            onClick={() => handleEdit(post)}
+                                                        >
+                                                            <LuSettings size={16} />
+                                                        </ActionIcon>
+                                                    </Tooltip>
+                                                    <Tooltip label="Dupliquer">
+                                                        <ActionIcon
+                                                            variant="light"
+                                                            size="sm"
+                                                            color="blue"
+                                                            onClick={() => handleDuplicate(post.id)}
+                                                        >
+                                                            <LuCopy size={16} />
+                                                        </ActionIcon>
+                                                    </Tooltip>
+                                                    <Tooltip label="Supprimer">
+                                                        <ActionIcon
+                                                            variant="light"
+                                                            size="sm"
+                                                            color="red"
+                                                            onClick={() => handleDelete(post.id)}
+                                                        >
+                                                            <LuTrash size={16} />
+                                                        </ActionIcon>
+                                                    </Tooltip>
+                                                </Group>
+                                            </Table.Td>
+                                        </Table.Tr>
+                                    ))
+                                )}
+                            </Table.Tbody>
                         </Table>
                     </Box>
 
@@ -1878,9 +2166,13 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
                         <Box mt="md">
                             <Flex justify="space-between" align="center">
                                 <Text size="sm" c="dimmed">
-                                    Affichage de {((posts.meta.current_page - 1) * posts.meta.per_page) + 1} à{' '}
-                                    {Math.min(posts.meta.current_page * posts.meta.per_page, posts.meta.total)} sur{' '}
-                                    {posts.meta.total} résultats
+                                    Affichage de{' '}
+                                    {(posts.meta.current_page - 1) * posts.meta.per_page + 1} à{' '}
+                                    {Math.min(
+                                        posts.meta.current_page * posts.meta.per_page,
+                                        posts.meta.total
+                                    )}{' '}
+                                    sur {posts.meta.total} résultats
                                 </Text>
                                 <Pagination
                                     total={posts.meta.last_page}
@@ -1890,21 +2182,25 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
                                         console.log('Nouvelle page:', page)
                                         console.log('Filtres actuels:', localFilters)
                                         console.log('==========================')
-                                        
-                                        router.get('/gmb-posts', {
-                                            ...localFilters,
-                                            page
-                                        }, {
-                                            preserveState: true,
-                                            replace: true,
-                                        })
+
+                                        router.get(
+                                            '/gmb-posts',
+                                            {
+                                                ...localFilters,
+                                                page,
+                                            },
+                                            {
+                                                preserveState: true,
+                                                replace: true,
+                                            }
+                                        )
                                     }}
                                 />
                             </Flex>
                         </Box>
                     )}
                 </Card>
-                </Stack>
+            </Stack>
 
             {/* Modal d'édition */}
             <EditPostModal
@@ -1913,6 +2209,35 @@ export default function GmbPostsIndex({ posts, filters, filterOptions, currentUs
                 onClose={closeEditModal}
                 filterOptions={filterOptions}
             />
+
+            {/* Modal pour afficher la réponse du webhook n8n */}
+            <Modal
+                opened={showWebhookModal}
+                onClose={() => setShowWebhookModal(false)}
+                title="Réponse du webhook n8n"
+                size="lg"
+            >
+                {webhookResponse && (
+                    <Stack gap="md">
+                        <Alert icon={<LuCheck size={16} />} title="Réponse reçue" color="blue">
+                            Posts GMB traités par le webhook n8n
+                        </Alert>
+
+                        <Box>
+                            <Text size="sm" fw={500} mb="xs">
+                                Réponse complète :
+                            </Text>
+                            <Code block>{JSON.stringify(webhookResponse, null, 2)}</Code>
+                        </Box>
+
+                        <Group justify="flex-end">
+                            <Button variant="light" onClick={() => setShowWebhookModal(false)}>
+                                Fermer
+                            </Button>
+                        </Group>
+                    </Stack>
+                )}
+            </Modal>
         </>
     )
 }

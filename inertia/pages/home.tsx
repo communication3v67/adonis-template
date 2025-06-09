@@ -64,7 +64,15 @@ interface Props {
     }
 }
 
-export default function Home({ notionPages, databaseInfo, stats, userDatabase, userNotionId, hasNotionId, error }: Props) {
+export default function Home({
+    notionPages,
+    databaseInfo,
+    stats,
+    userDatabase,
+    userNotionId,
+    hasNotionId,
+    error,
+}: Props) {
     const [isRefreshing, setIsRefreshing] = useState(false)
     const [localPages, setLocalPages] = useState(notionPages)
     const [localStats, setLocalStats] = useState(stats)
@@ -109,7 +117,9 @@ export default function Home({ notionPages, databaseInfo, stats, userDatabase, u
             console.log('🚀 Envoi webhook pour:', page.title)
 
             // Récupération du token CSRF
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+            const csrfToken = document
+                .querySelector('meta[name="csrf-token"]')
+                ?.getAttribute('content')
             console.log('🔐 CSRF Token trouvé:', csrfToken ? 'OUI' : 'NON')
 
             if (!csrfToken) {
@@ -148,7 +158,9 @@ export default function Home({ notionPages, databaseInfo, stats, userDatabase, u
 
             // Vérifier si c'est du HTML (redirection vers accueil)
             if (responseText.trim().startsWith('<!DOCTYPE')) {
-                throw new Error('La requête a été redirigée vers la page d\'accueil. Problème d\'authentification ou de route.')
+                throw new Error(
+                    "La requête a été redirigée vers la page d'accueil. Problème d'authentification ou de route."
+                )
             }
 
             let result
@@ -164,17 +176,15 @@ export default function Home({ notionPages, databaseInfo, stats, userDatabase, u
             // Afficher la réponse
             setWebhookResponse(result.data || result)
             setShowResponseModal(true)
-
         } catch (error) {
             console.error('🚨 Erreur complète webhook:', error)
-            
+
             let errorMessage = 'Erreur inconnue'
             if (error instanceof Error) {
                 errorMessage = error.message
             }
-            
+
             alert(`❌ Erreur: ${errorMessage}`)
-            
         } finally {
             setSendingWebhook(null)
         }
@@ -312,11 +322,12 @@ export default function Home({ notionPages, databaseInfo, stats, userDatabase, u
                         color="orange"
                     >
                         <Text size="sm">
-                            Votre compte n'est pas encore lié à un référenceur Notion. 
-                            Contactez l'administrateur pour configurer votre accès.
+                            Votre compte n'est pas encore lié à un référenceur Notion. Contactez
+                            l'administrateur pour configurer votre accès.
                         </Text>
                         <Text size="xs" c="dimmed" mt="xs">
-                            Base de données utilisée : {userDatabase} | Notion ID : {userNotionId || 'Non défini'}
+                            Base de données utilisée : {userDatabase} | Notion ID :{' '}
+                            {userNotionId || 'Non défini'}
                         </Text>
                     </Alert>
                 )}
@@ -345,8 +356,11 @@ export default function Home({ notionPages, databaseInfo, stats, userDatabase, u
                                 size="sm"
                                 onClick={sendAllToN8n}
                                 loading={sendingBulk}
-                                disabled={localPages.length === 0 || sendingBulk || sendingWebhook !== null}
-                                color="blue"
+                                disabled={
+                                    localPages.length === 0 ||
+                                    sendingBulk ||
+                                    sendingWebhook !== null
+                                }
                                 leftSection={<LuSend size={16} />}
                             >
                                 {sendingBulk
@@ -425,7 +439,9 @@ export default function Home({ notionPages, databaseInfo, stats, userDatabase, u
                                                         color="blue"
                                                         size="sm"
                                                         title="Envoyer vers n8n"
-                                                        disabled={sendingWebhook !== null || sendingBulk}
+                                                        disabled={
+                                                            sendingWebhook !== null || sendingBulk
+                                                        }
                                                     >
                                                         <LuSend size={14} />
                                                     </ActionIcon>
