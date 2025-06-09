@@ -11,6 +11,7 @@ export default class extends BaseSchema {
       table.string('password').notNullable()
       table.string('avatar').nullable()
       table.string('notion_id').nullable()
+      table.string('notion_database_id').nullable().defaultTo('database_1')
 
       table.timestamp('created_at').notNullable()
       table.timestamp('updated_at').nullable()

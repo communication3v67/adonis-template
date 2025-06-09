@@ -12,15 +12,68 @@ interface NotionPage {
     properties: any
 }
 
+interface NotionConfig {
+    apiKey: string
+    databaseId: string
+}
+
 export class NotionService {
     private notion: Client
     private databaseId: string
+    private config: NotionConfig
 
-    constructor() {
+    constructor(userDatabaseId?: string) {
+        // Déterminer quelle configuration utiliser selon userDatabaseId
+        this.config = this.getNotionConfig(userDatabaseId)
+        
         this.notion = new Client({
-            auth: env.get('NOTION_API_KEY'),
+            auth: this.config.apiKey,
         })
-        this.databaseId = env.get('NOTION_DATABASE_ID')
+        this.databaseId = this.config.databaseId
+        
+        console.log(`📡 NotionService initialisé avec:`, {
+            databaseType: userDatabaseId || 'database_1',
+            databaseId: this.databaseId.substring(0, 8) + '...',
+            hasApiKey: !!this.config.apiKey
+        })
+    }
+
+    /**
+     * Détermine la configuration Notion à utiliser selon l'utilisateur
+     */
+    private getNotionConfig(userDatabaseId?: string): NotionConfig {
+        if (userDatabaseId === 'database_2') {
+            const config = {
+                apiKey: env.get('NOTION_API_KEY_2'),
+                databaseId: env.get('NOTION_DATABASE_ID_2')
+            }
+            
+            console.log('🔍 Configuration database_2 détectée:')
+            console.log('  - API Key définie:', !!config.apiKey)
+            console.log('  - API Key commence par "secret_":', config.apiKey?.startsWith('secret_'))
+            console.log('  - Database ID défini:', !!config.databaseId)
+            console.log('  - Database ID longueur:', config.databaseId?.length)
+            
+            if (!config.apiKey || !config.databaseId) {
+                console.error('❌ Variables manquantes pour database_2:')
+                console.error('  - NOTION_API_KEY_2:', config.apiKey ? 'Définie' : 'MANQUANTE')
+                console.error('  - NOTION_DATABASE_ID_2:', config.databaseId ? 'Définie' : 'MANQUANTE')
+            }
+            
+            return config
+        }
+        
+        // Par défaut, utiliser la première instance
+        const config = {
+            apiKey: env.get('NOTION_API_KEY'),
+            databaseId: env.get('NOTION_DATABASE_ID')
+        }
+        
+        console.log('🔍 Configuration database_1 (par défaut):')
+        console.log('  - API Key définie:', !!config.apiKey)
+        console.log('  - Database ID défini:', !!config.databaseId)
+        
+        return config
     }
 
     /**

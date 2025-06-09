@@ -55,13 +55,16 @@ interface Props {
     notionPages: NotionPage[]
     databaseInfo: DatabaseInfo | null
     stats: Stats
+    userDatabase?: string
+    userNotionId?: string | null
+    hasNotionId?: boolean
     error?: {
         message: string
         details: string
     }
 }
 
-export default function Home({ notionPages, databaseInfo, stats, error }: Props) {
+export default function Home({ notionPages, databaseInfo, stats, userDatabase, userNotionId, hasNotionId, error }: Props) {
     const [isRefreshing, setIsRefreshing] = useState(false)
     const [localPages, setLocalPages] = useState(notionPages)
     const [localStats, setLocalStats] = useState(stats)
@@ -300,6 +303,23 @@ export default function Home({ notionPages, databaseInfo, stats, error }: Props)
                         </Text>
                     </Box>
                 </Flex>
+
+                {/* Alerte si l'utilisateur n'a pas de notionId */}
+                {!hasNotionId && (
+                    <Alert
+                        icon={<LuBadgeAlert size={16} />}
+                        title="Configuration Notion manquante"
+                        color="orange"
+                    >
+                        <Text size="sm">
+                            Votre compte n'est pas encore lié à un référenceur Notion. 
+                            Contactez l'administrateur pour configurer votre accès.
+                        </Text>
+                        <Text size="xs" c="dimmed" mt="xs">
+                            Base de données utilisée : {userDatabase} | Notion ID : {userNotionId || 'Non défini'}
+                        </Text>
+                    </Alert>
+                )}
 
                 {/* Erreur Notion */}
                 {error && (

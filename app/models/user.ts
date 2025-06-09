@@ -33,6 +33,9 @@ export default class User extends compose(BaseModel, AuthFinder) {
     @column()
     declare notionId: string | null
 
+    @column()
+    declare notionDatabaseId: string | null
+
     @column.dateTime({ autoCreate: true })
     declare createdAt: DateTime
 
