@@ -20,13 +20,15 @@ import { PropsWithChildren } from 'react'
 import { LuLayoutDashboard, LuLogOut, LuNewspaper } from 'react-icons/lu'
 import classes from './app-layout.module.css'
 
-export default function AppLayout(props: PropsWithChildren<SharedProps & { sidebarOpened?: boolean }>) {
+export default function AppLayout(
+    props: PropsWithChildren<SharedProps & { sidebarOpened?: boolean }>
+) {
     // Utiliser directement useLocalStorage pour gérer l'état
     const [opened, setOpened] = useLocalStorage({
         key: 'sidebar-opened',
         defaultValue: props.sidebarOpened ?? false,
     })
-    
+
     const toggle = () => setOpened(!opened)
 
     return (
@@ -44,7 +46,7 @@ export default function AppLayout(props: PropsWithChildren<SharedProps & { sideb
                     <Group h="100%" justify="space-between">
                         <Group pl="md">
                             <Burger opened={opened} onClick={toggle} size="sm" />
-                            <Image src="logo.png" alt="Logo" height={40} />
+                            <Image src="gmb-logo.png" alt="Logo" height={25} />
                             <Text fw="bold" fz="h4">
                                 {import.meta.env.VITE_APP_NAME}
                             </Text>

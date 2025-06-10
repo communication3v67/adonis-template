@@ -1,64 +1,3 @@
-// Gestion du tri
-const handleSort = (sortBy: string, sortOrder: string) => {
-    console.log('=== CHANGEMENT DE TRI ===')
-    console.log('Nouveau tri:', sortBy, sortOrder)
-    console.log('=========================')
-
-    setLocalFilters((prev) => ({
-        ...prev,
-        sortBy,
-        sortOrder,
-    }))
-} // Composant pour les en-têtes de colonnes avec tri
-function SortableHeader({
-    label,
-    sortKey,
-    currentSortBy,
-    currentSortOrder,
-    onSort,
-}: {
-    label: string
-    sortKey: string
-    currentSortBy: string
-    currentSortOrder: string
-    onSort: (sortBy: string, sortOrder: string) => void
-}) {
-    const isActive = currentSortBy === sortKey
-    const isAsc = isActive && currentSortOrder === 'asc'
-    const isDesc = isActive && currentSortOrder === 'desc'
-
-    const handleClick = () => {
-        if (!isActive) {
-            // Si la colonne n'est pas active, commencer par desc
-            onSort(sortKey, 'desc')
-        } else if (isDesc) {
-            // Si desc, passer à asc
-            onSort(sortKey, 'asc')
-        } else {
-            // Si asc, passer à desc
-            onSort(sortKey, 'desc')
-        }
-    }
-
-    return (
-        <Group gap={4} style={{ cursor: 'pointer', userSelect: 'none' }} onClick={handleClick}>
-            <Text fw={500} size="sm">
-                {label}
-            </Text>
-            <Box>
-                {isActive ? (
-                    isDesc ? (
-                        <LuArrowDown size={14} style={{ color: '#228be6' }} />
-                    ) : (
-                        <LuArrowUp size={14} style={{ color: '#228be6' }} />
-                    )
-                ) : (
-                    <LuMoveHorizontal size={14} style={{ color: '#adb5bd', opacity: 0.6 }} />
-                )}
-            </Box>
-        </Group>
-    )
-}
 import { Head, Link, router, useForm } from '@inertiajs/react'
 import {
     ActionIcon,
@@ -241,8 +180,6 @@ function InlineEditCell({
         switch (field) {
             case 'status':
                 return [
-                    { value: 'Futur', label: 'Futur' },
-                    { value: 'À générer', label: 'À générer' },
                     { value: 'Titre généré', label: 'Titre généré' },
                     { value: 'Post à générer', label: 'Post à générer' },
                     { value: 'Post généré', label: 'Post généré' },
@@ -407,12 +344,70 @@ function InlineEditCell({
         </Group>
     )
 }
+// Gestion du tri
+const handleSort = (sortBy: string, sortOrder: string) => {
+    console.log('=== CHANGEMENT DE TRI ===')
+    console.log('Nouveau tri:', sortBy, sortOrder)
+    console.log('=========================')
 
+    setLocalFilters((prev) => ({
+        ...prev,
+        sortBy,
+        sortOrder,
+    }))
+} // Composant pour les en-têtes de colonnes avec tri
+function SortableHeader({
+    label,
+    sortKey,
+    currentSortBy,
+    currentSortOrder,
+    onSort,
+}: {
+    label: string
+    sortKey: string
+    currentSortBy: string
+    currentSortOrder: string
+    onSort: (sortBy: string, sortOrder: string) => void
+}) {
+    const isActive = currentSortBy === sortKey
+    const isAsc = isActive && currentSortOrder === 'asc'
+    const isDesc = isActive && currentSortOrder === 'desc'
+
+    const handleClick = () => {
+        if (!isActive) {
+            // Si la colonne n'est pas active, commencer par desc
+            onSort(sortKey, 'desc')
+        } else if (isDesc) {
+            // Si desc, passer à asc
+            onSort(sortKey, 'asc')
+        } else {
+            // Si asc, passer à desc
+            onSort(sortKey, 'desc')
+        }
+    }
+
+    return (
+        <Group gap={4} style={{ cursor: 'pointer', userSelect: 'none' }} onClick={handleClick}>
+            <Text fw={500} size="sm">
+                {label}
+            </Text>
+            <Box>
+                {isActive ? (
+                    isDesc ? (
+                        <LuArrowDown size={14} style={{ color: '#228be6' }} />
+                    ) : (
+                        <LuArrowUp size={14} style={{ color: '#228be6' }} />
+                    )
+                ) : (
+                    <LuMoveHorizontal size={14} style={{ color: '#adb5bd', opacity: 0.6 }} />
+                )}
+            </Box>
+        </Group>
+    )
+}
 // Fonctions utilitaires pour l'édition inline
 const getStatusBadgeInline = (status: string) => {
     const colors: Record<string, string> = {
-        'Futur': 'gray',
-        'À générer': 'yellow',
         'Titre généré': 'orange',
         'Post à générer': 'blue',
         'Post généré': 'cyan',
@@ -438,8 +433,8 @@ const formatDateInline = (dateString: string) => {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
+        // hour: '2-digit',
+        // minute: '2-digit',
     })
 }
 
@@ -599,8 +594,6 @@ function EditPostModal({
                             label="Statut"
                             placeholder="Sélectionner un statut"
                             data={[
-                                { value: 'Futur', label: 'Futur' },
-                                { value: 'À générer', label: 'À générer' },
                                 { value: 'Titre généré', label: 'Titre généré' },
                                 { value: 'Post à générer', label: 'Post à générer' },
                                 { value: 'Post généré', label: 'Post généré' },
@@ -1289,8 +1282,8 @@ export default function GmbPostsIndex({
             day: '2-digit',
             month: '2-digit',
             year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
+            // hour: '2-digit',
+            // minute: '2-digit',
         })
     }
 
@@ -1655,32 +1648,6 @@ export default function GmbPostsIndex({
                                     <Button
                                         size="xs"
                                         variant="light"
-                                        color="grey"
-                                        onClick={() => {
-                                            setLocalFilters((prev) => ({
-                                                ...prev,
-                                                status: 'Futur',
-                                            }))
-                                        }}
-                                    >
-                                        Futur
-                                    </Button>
-                                    <Button
-                                        size="xs"
-                                        variant="light"
-                                        color="yellow"
-                                        onClick={() => {
-                                            setLocalFilters((prev) => ({
-                                                ...prev,
-                                                status: 'À générer',
-                                            }))
-                                        }}
-                                    >
-                                        À générer
-                                    </Button>
-                                    <Button
-                                        size="xs"
-                                        variant="light"
                                         color="blue"
                                         onClick={() => {
                                             setLocalFilters((prev) => ({
@@ -1766,8 +1733,6 @@ export default function GmbPostsIndex({
                                     placeholder="Nouveau statut"
                                     data={[
                                         { value: '', label: 'Conserver le statut actuel' },
-                                        { value: 'Futur', label: 'Futur' },
-                                        { value: 'À générer', label: 'À générer' },
                                         { value: 'Titre généré', label: 'Titre généré' },
                                         { value: 'Post à générer', label: 'Post à générer' },
                                         { value: 'Post généré', label: 'Post généré' },

@@ -12,7 +12,7 @@ import AppLayout from '~/layouts/app-layout/app-layout'
 import mantineTheme from '~/lib/mantine_theme'
 import '../css/app.css'
 
-const appName = import.meta.env.VITE_APP_NAME || 'Webuild Up'
+const appName = import.meta.env.VITE_APP_NAME || 'GMB Manager'
 
 createInertiaApp({
     progress: { color: '#5468FF' },
