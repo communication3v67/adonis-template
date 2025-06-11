@@ -1,0 +1,17 @@
+import { BaseSeeder } from '@adonisjs/lucid/seeders'
+
+export default class extends BaseSeeder {
+  async run() {
+    // Exécuter les seeders dans le bon ordre
+    const { default: UserSeeder } = await import('./user_seeder.js')
+    const { default: GmbPostSeeder } = await import('./gmbPostSeeder.js')
+    
+    console.log('🌱 Exécution du UserSeeder...')
+    await new UserSeeder(this.client).run()
+    
+    console.log('🌱 Exécution du GmbPostSeeder...')
+    await new GmbPostSeeder(this.client).run()
+    
+    console.log('✅ Tous les seeders ont été exécutés avec succès!')
+  }
+}

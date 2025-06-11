@@ -12,7 +12,7 @@ import AppLayout from '~/layouts/app-layout/app-layout'
 import mantineTheme from '~/lib/mantine_theme'
 import '../css/app.css'
 
-const appName = import.meta.env.VITE_APP_NAME || 'Webuild Up'
+const appName = import.meta.env.VITE_APP_NAME || 'GMB Manager'
 
 createInertiaApp({
     progress: { color: '#5468FF' },
@@ -27,9 +27,15 @@ createInertiaApp({
 
         page.default.layout =
             page.default.layout ??
-            ((page: React.JSX.Element) => (
-                <AppLayout {...(page.props as SharedProps)}>{page}</AppLayout>
-            ))
+            ((page: React.JSX.Element) => {
+                // Ouvrir la sidebar par défaut pour la page GMB Posts
+                const sidebarOpened = name === 'gmbPosts/index'
+                return (
+                    <AppLayout {...(page.props as SharedProps)} sidebarOpened={sidebarOpened}>
+                        {page}
+                    </AppLayout>
+                )
+            })
 
         return page
     },

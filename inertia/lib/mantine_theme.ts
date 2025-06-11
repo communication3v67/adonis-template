@@ -3,8 +3,8 @@ import { createTheme, TableThead } from '@mantine/core'
 
 const mantineTheme = createTheme({
     colors: {
-        primary: generateColors('#ff7900'),
-        secondary: generateColors('#0086FF'),
+        primary: generateColors('#3a87d2'),
+        secondary: generateColors('#f2b604'),
     },
     primaryColor: 'primary',
     components: {

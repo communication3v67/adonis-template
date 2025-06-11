@@ -13,6 +13,21 @@ export default defineConfig({
             reload: ['resources/views/**/*.edge'],
         }),
     ],
+    
+    // Configuration pour corriger les erreurs de modules
+    optimizeDeps: {
+        exclude: ['@notionhq/client'],
+        include: ['react', 'react-dom', '@mantine/core', '@mantine/hooks']
+    },
+    
+    // Force la reconstruction des dépendances
+    server: {
+        force: true,
+        fs: {
+            strict: false
+        }
+    },
+    
     /**
      * Define aliases for importing modules from
      * your frontend code

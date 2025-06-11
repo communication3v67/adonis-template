@@ -13,6 +13,11 @@ export default function render(page: any) {
             const pages = import.meta.glob('../pages/**/*.tsx', { eager: true })
             const page: any = pages[`../pages/${name}.tsx`]
 
+            // S'assurer que la page existe
+            if (!page || !page.default) {
+                throw new Error(`Page component not found: ${name}`)
+            }
+
             page.default.layout =
                 page.default.layout ??
                 ((page: React.JSX.Element) => (
