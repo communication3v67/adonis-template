@@ -344,18 +344,8 @@ function InlineEditCell({
         </Group>
     )
 }
-// Gestion du tri
-const handleSort = (sortBy: string, sortOrder: string) => {
-    console.log('=== CHANGEMENT DE TRI ===')
-    console.log('Nouveau tri:', sortBy, sortOrder)
-    console.log('=========================')
 
-    setLocalFilters((prev) => ({
-        ...prev,
-        sortBy,
-        sortOrder,
-    }))
-} // Composant pour les en-têtes de colonnes avec tri
+// Composant pour les en-têtes de colonnes avec tri
 function SortableHeader({
     label,
     sortKey,
@@ -375,8 +365,8 @@ function SortableHeader({
 
     const handleClick = () => {
         if (!isActive) {
-            // Si la colonne n'est pas active, commencer par desc
-            onSort(sortKey, 'desc')
+            // Si la colonne n'est pas active, commencer par desc pour les dates, asc pour le reste
+            onSort(sortKey, sortKey === 'date' ? 'desc' : 'asc')
         } else if (isDesc) {
             // Si desc, passer à asc
             onSort(sortKey, 'asc')
@@ -450,8 +440,8 @@ const getSortLabel = (sortBy: string) => {
         'location_id': 'Location ID',
         'account_id': 'Account ID',
         'notion_id': 'Notion ID',
-        'created_at': 'Créé le',
-        'updated_at': 'Modifié le'
+        'createdAt': 'Créé le',
+        'updatedAt': 'Modifié le'
     }
     return labels[sortBy] || sortBy
 }
@@ -859,6 +849,19 @@ export default function GmbPostsIndex({
 
     // Hook pour gérer l'hydratation
     const [isClient, setIsClient] = useState(false)
+
+    // Gestion du tri
+    const handleSort = (sortBy: string, sortOrder: string) => {
+        console.log('=== CHANGEMENT DE TRI ===')
+        console.log('Nouveau tri:', sortBy, sortOrder)
+        console.log('===========================')
+
+        setLocalFilters((prev) => ({
+            ...prev,
+            sortBy,
+            sortOrder,
+        }))
+    }
 
     React.useEffect(() => {
         setIsClient(true)
@@ -1775,7 +1778,7 @@ export default function GmbPostsIndex({
                                         onClick={() => {
                                             setLocalFilters((prev) => ({
                                                 ...prev,
-                                                status: 'Titres générés',
+                                                status: 'Titre généré',
                                             }))
                                         }}
                                     >
@@ -1967,7 +1970,7 @@ export default function GmbPostsIndex({
                 {/* Tableau */}
                 <Card withBorder>
                     <Box style={{ overflowX: 'auto' }}>
-                        <Table striped highlightOnHover style={{ minWidth: '2200px' }}>
+                        <Table striped highlightOnHover style={{ minWidth: '2460px' }}>
                             <Table.Thead>
                                 <Table.Tr>
                                     <Table.Th w={40}>
@@ -2074,6 +2077,24 @@ export default function GmbPostsIndex({
                                             onSort={handleSort}
                                         />
                                     </Table.Th>
+                                    <Table.Th w={130}>
+                                        <SortableHeader
+                                            label="Créé le"
+                                            sortKey="createdAt"
+                                            currentSortBy={localFilters.sortBy}
+                                            currentSortOrder={localFilters.sortOrder}
+                                            onSort={handleSort}
+                                        />
+                                    </Table.Th>
+                                    <Table.Th w={130}>
+                                        <SortableHeader
+                                            label="Modifié le"
+                                            sortKey="updatedAt"
+                                            currentSortBy={localFilters.sortBy}
+                                            currentSortOrder={localFilters.sortOrder}
+                                            onSort={handleSort}
+                                        />
+                                    </Table.Th>
                                     <Table.Th w={140}>
                                         <Group justify="space-between">
                                             <Text fw={500} size="sm">
@@ -2091,7 +2112,7 @@ export default function GmbPostsIndex({
                             <Table.Tbody>
                                 {posts.data.length === 0 ? (
                                     <Table.Tr>
-                                        <Table.Td colSpan={13}>
+                                        <Table.Td colSpan={15}>
                                             <Text ta="center" py="xl" c="dimmed">
                                                 Aucun post trouvé
                                             </Text>
@@ -2222,6 +2243,16 @@ export default function GmbPostsIndex({
                                                     filterOptions={filterOptions}
                                                     onSave={handleInlineEdit}
                                                 />
+                                            </Table.Td>
+                                            <Table.Td>
+                                                <Text size="sm" c="dimmed">
+                                                    {formatDate(post.createdAt)}
+                                                </Text>
+                                            </Table.Td>
+                                            <Table.Td>
+                                                <Text size="sm" c="dimmed">
+                                                    {formatDate(post.updatedAt)}
+                                                </Text>
                                             </Table.Td>
                                             <Table.Td>
                                                 <Group gap={4}>

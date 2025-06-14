@@ -215,8 +215,28 @@ export default class GmbPostsController {
             query.whereRaw('LOWER(project_name) LIKE ?', [`%${projectLower}%`])
         }
 
+        // Mapping des noms de colonnes pour le tri (frontend camelCase -> database snake_case)
+        const sortColumnMap: Record<string, string> = {
+            'createdAt': 'created_at',
+            'updatedAt': 'updated_at',
+            'date': 'date',
+            'status': 'status',
+            'text': 'text',
+            'client': 'client',
+            'project_name': 'project_name',
+            'keyword': 'keyword',
+            'location_id': 'location_id',
+            'account_id': 'account_id',
+            'notion_id': 'notion_id',
+            'image_url': 'image_url',
+            'link_url': 'link_url'
+        }
+
+        // Utiliser le vrai nom de colonne pour le tri
+        const actualSortColumn = sortColumnMap[sortBy] || sortBy
+        
         // Tri
-        query.orderBy(sortBy, sortOrder)
+        query.orderBy(actualSortColumn, sortOrder)
 
         console.log('Requête SQL générée:', query.toQuery())
 
