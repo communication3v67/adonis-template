@@ -39,6 +39,57 @@ const updateGmbPostValidator = vine.compile(
 
 export default class GmbPostsController {
     /**
+     * Récupère la configuration Notion pour l'utilisateur connecté
+     */
+    private async getUserNotionConfig(auth: any) {
+        console.log('\n=== GMB POSTS - GET USER NOTION CONFIG DEBUG ===')
+        
+        try {
+            // Récupérer l'utilisateur connecté depuis la session
+            const user = auth.user
+            
+            if (!user) {
+                console.log('⚠️ Aucun utilisateur connecté, utilisation de la configuration par défaut')
+                const defaultConfig = NotionService.getNotionConfigForUser(null)
+                console.log('🔧 Configuration par défaut:', {
+                    apiKey: defaultConfig.apiKey ? defaultConfig.apiKey.substring(0, 20) + '...' : 'NON DÉFINIE',
+                    databaseId: defaultConfig.databaseId || 'NON DÉFINIE',
+                    instance: defaultConfig.instance
+                })
+                console.log('=== FIN GMB POSTS - GET USER NOTION CONFIG DEBUG ===\n')
+                return defaultConfig
+            }
+
+            console.log(`👤 Utilisateur connecté:`)
+            console.log('  - ID:', user.id)
+            console.log('  - Username:', user.username)
+            console.log('  - Email:', user.email)
+            console.log('  - notionDatabaseId:', user.notionDatabaseId)
+            console.log('  - Type notionDatabaseId:', typeof user.notionDatabaseId)
+            
+            console.log('🔍 Appel NotionService.getNotionConfigForUser avec:', user.notionDatabaseId)
+            const config = NotionService.getNotionConfigForUser(user.notionDatabaseId)
+            console.log('🔧 Configuration obtenue:')
+            console.log('  - apiKey:', config.apiKey ? config.apiKey.substring(0, 20) + '...' : 'NON DÉFINIE')
+            console.log('  - databaseId:', config.databaseId || 'NON DÉFINIE')
+            console.log('  - instance:', config.instance)
+            console.log('=== FIN GMB POSTS - GET USER NOTION CONFIG DEBUG ===\n')
+            
+            return config
+        } catch (error) {
+            console.error('❌ Erreur lors de la récupération de l\'utilisateur connecté:', error)
+            const defaultConfig = NotionService.getNotionConfigForUser(null)
+            console.log('🔧 Configuration par défaut (erreur):', {
+                apiKey: defaultConfig.apiKey ? defaultConfig.apiKey.substring(0, 20) + '...' : 'NON DÉFINIE',
+                databaseId: defaultConfig.databaseId || 'NON DÉFINIE',
+                instance: defaultConfig.instance
+            })
+            console.log('=== FIN GMB POSTS - GET USER NOTION CONFIG DEBUG ===\n')
+            return defaultConfig
+        }
+    }
+
+    /**
     * Met à jour plusieurs posts en une fois
     */
     async bulkUpdate({ request, response, session, auth }: HttpContext) {
@@ -624,7 +675,8 @@ export default class GmbPostsController {
 
             console.log(`Synchronisation Notion pour l'utilisateur ${currentUser.username} (Notion ID: ${currentUser.notionId})`)
 
-            const notionService = new NotionService()
+            // Utiliser la configuration de l'utilisateur connecté
+            const notionService = new NotionService(currentUser.notionDatabaseId)
             
             // Récupérer uniquement les pages "À générer" assignées à cet utilisateur
             const notionPages = await notionService.getPagesForUser(currentUser.notionId)
@@ -720,7 +772,7 @@ export default class GmbPostsController {
                 })
             }
 
-            const notionService = new NotionService()
+            const notionService = new NotionService(currentUser.notionDatabaseId)
             const notionPages = await notionService.getPagesForUser(currentUser.notionId)
 
             return inertia.render('gmbPosts/notion-preview', {
@@ -758,9 +810,18 @@ export default class GmbPostsController {
      */
     async sendPostsToN8n({ response, auth }: HttpContext) {
         try {
+            console.log('🚀 SEND GMB POSTS TO N8N - Utilisateur connecté:', {
+                id: auth.user?.id,
+                email: auth.user?.email,
+                username: auth.user?.username
+            })
+            
             // S'assurer qu'un utilisateur est connecté
             await auth.check()
             const currentUser = auth.user!
+            
+            // Récupération de la configuration Notion de l'utilisateur connecté
+            const notionConfig = await this.getUserNotionConfig(auth)
 
             // Vérifier que l'utilisateur a un notion_id
             if (!currentUser.notionId) {
@@ -845,6 +906,13 @@ export default class GmbPostsController {
                 bulk_operation: true,
                 total_posts: gmbPostsData.length,
                 
+                // Configuration Notion de l'utilisateur connecté
+                notion_config: {
+                    api_key: notionConfig.apiKey,
+                    database_id: notionConfig.databaseId,
+                    instance: notionConfig.instance,
+                },
+                
                 // Données utilisateur
                 user: {
                     id: currentUser.id,
@@ -873,6 +941,7 @@ export default class GmbPostsController {
                 url: n8nWebhookUrl,
                 total_posts: webhookData.total_posts,
                 user: currentUser.username,
+                notion_instance: notionConfig.instance,
                 summary: webhookData.summary
             })
 

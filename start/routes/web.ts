@@ -65,8 +65,27 @@ router
     .as('webhook.n8n')
     .use(middleware.auth())
 
-// Route webhook POST BULK pour envoi en lot
+// Routes webhook POST BULK pour envoi en lot
 router
     .post('/webhook/n8n-bulk', [WebhooksController, 'sendBulkToN8n'])
     .as('webhook.n8n_bulk')
+    .use(middleware.auth())
+
+// Route de test pour debug Notion config
+const TestController = () => import('#controllers/test_controller')
+router
+    .get('/test/notion-config', [TestController, 'testUserNotionConfig'])
+    .as('test.notion_config')
+    .use(middleware.auth())
+
+// Route de test pour le webhook n8n
+router
+    .get('/test/n8n-connection', [WebhooksController, 'testN8nConnection'])
+    .as('test.n8n_connection')
+    .use(middleware.auth())
+
+// Route de test pour GMB Posts webhook
+router
+    .get('/test/gmb-webhook', [GmbPostsController, 'sendPostsToN8n'])
+    .as('test.gmb_webhook')
     .use(middleware.auth())

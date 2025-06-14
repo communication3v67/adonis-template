@@ -30,10 +30,10 @@ export default class User extends compose(BaseModel, AuthFinder) {
     @column()
     declare avatar: string | null
 
-    @column()
+    @column({ columnName: 'notion_id' })
     declare notionId: string | null
 
-    @column()
+    @column({ columnName: 'notion_database_id' })
     declare notionDatabaseId: string | null
 
     @column.dateTime({ autoCreate: true })
