@@ -165,20 +165,27 @@ export default class GmbPostsController {
      */
     async index({ inertia, request, auth }: HttpContext) {
         const page = request.input('page', 1)
-        const limit = request.input('limit', 15)
+        const limit = request.input('limit', 50) // Changé à 50 pour le scroll infini
         const search = request.input('search', '')
         const status = request.input('status', '')
         const client = request.input('client', '')
         const project = request.input('project', '')
         const sortBy = request.input('sortBy', 'date')
         const sortOrder = request.input('sortOrder', 'desc')
+        const dateFrom = request.input('dateFrom', '')
+        const dateTo = request.input('dateTo', '')
+        const loadMore = request.input('loadMore', false) // Nouveau paramètre pour le scroll infini
 
         console.log('=== FILTRES REÇUS ===')
         console.log('Utilisateur connecté:', auth.user?.id)
+        console.log('Page:', page, 'Limit:', limit)
+        console.log('Load More:', loadMore)
         console.log('Recherche:', search)
         console.log('Statut:', status)
         console.log('Client:', client)
         console.log('Projet:', project)
+        console.log('Date du:', dateFrom)
+        console.log('Date au:', dateTo)
         console.log('Tri:', sortBy, sortOrder)
         console.log('=====================')
 
@@ -215,6 +222,15 @@ export default class GmbPostsController {
             query.whereRaw('LOWER(project_name) LIKE ?', [`%${projectLower}%`])
         }
 
+        // Filtres de date
+        if (dateFrom) {
+            query.whereRaw('DATE(date) >= ?', [dateFrom])
+        }
+
+        if (dateTo) {
+            query.whereRaw('DATE(date) <= ?', [dateTo])
+        }
+
         // Mapping des noms de colonnes pour le tri (frontend camelCase -> database snake_case)
         const sortColumnMap: Record<string, string> = {
             'createdAt': 'created_at',
@@ -242,6 +258,17 @@ export default class GmbPostsController {
 
         // Pagination
         const posts = await query.paginate(page, limit)
+
+        // Pour le scroll infini, retourner seulement les données en JSON
+        if (loadMore) {
+            const serializedPosts = posts.serialize()
+            console.log(`Load More - Page ${page}: ${serializedPosts.data.length} posts chargés`)
+            
+            return {
+                posts: serializedPosts,
+                hasMore: page < serializedPosts.meta.last_page
+            }
+        }
 
         // Debug : vérifier la sérialisation avec naming strategy
         const serializedPosts = posts.serialize()
@@ -295,6 +322,8 @@ export default class GmbPostsController {
                 project,
                 sortBy,
                 sortOrder,
+                dateFrom,
+                dateTo,
             },
             filterOptions: {
                 clients: clients.map((c) => c.client),

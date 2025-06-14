@@ -76,6 +76,8 @@ interface Props {
         project: string
         sortBy: string
         sortOrder: string
+        dateFrom: string
+        dateTo: string
     }
     filterOptions: {
         clients: string[]
@@ -89,6 +91,15 @@ interface Props {
         notion_id: string | null
     }
     postsToGenerateCount: number
+}
+
+// Interface pour le scroll infini
+interface InfiniteScrollState {
+    allPosts: GmbPost[]
+    currentPage: number
+    hasMore: boolean
+    isLoading: boolean
+    isLoadingMore: boolean
 }
 
 // Composant pour l'édition inline d'une cellule
@@ -831,6 +842,32 @@ export default function GmbPostsIndex({
     const [editModalOpened, setEditModalOpened] = useState(false)
     const [isApplyingFilters, setIsApplyingFilters] = useState(false)
 
+    // États pour le scroll infini
+    const [infiniteScroll, setInfiniteScroll] = useState<InfiniteScrollState>(() => {
+        // SOLUTION SIMPLE : calcul basé sur le nombre de posts et le total
+        const currentPage = 1 // On démarre toujours à 1
+        const total = posts.meta.total || 0
+        const postsLoaded = posts.data.length
+        const hasMorePosts = postsLoaded < total // Simple : si on a moins de posts que le total
+        
+        const initialState = {
+            allPosts: posts.data,
+            currentPage: currentPage,
+            hasMore: hasMorePosts,
+            isLoading: false,
+            isLoadingMore: false,
+        }
+        
+        console.log('=== INITIALISATION SCROLL INFINI (SIMPLE) ===')
+        console.log('Posts chargés:', postsLoaded)
+        console.log('Total posts:', total)
+        console.log('HasMore calcul simple:', postsLoaded, '<', total, '=', hasMorePosts)
+        console.log('Meta complète:', posts.meta)
+        console.log('===============================================')
+        
+        return initialState
+    })
+
     // État pour l'édition en masse
     const [bulkEditData, setBulkEditData] = useState({
         status: '',
@@ -866,7 +903,15 @@ export default function GmbPostsIndex({
     React.useEffect(() => {
         setIsClient(true)
 
-        // Debug temporaire
+        // Debug temporaire - AJOUT pour voir les métadonnées
+        console.log('=== DEBUG POSTS METADATA ===')
+        console.log('Posts complets:', posts)
+        console.log('Posts.meta:', posts.meta)
+        console.log('Posts.data.length:', posts.data.length)
+        console.log('Type de posts.meta:', typeof posts.meta)
+        console.log('Clés de posts.meta:', Object.keys(posts.meta))
+        console.log('============================')
+        
         console.log('=== DEBUG FRONTEND ===')
         console.log('Posts reçus:', posts)
         console.log('postsToGenerateCount reçu:', postsToGenerateCount)
@@ -879,17 +924,145 @@ export default function GmbPostsIndex({
         console.log('=====================')
     }, [])
 
+    // Fonction pour charger plus de posts (scroll infini)
+    const loadMorePosts = async () => {
+        console.log('=== LOAD MORE POSTS CALLED ===')
+        console.log('isLoadingMore:', infiniteScroll.isLoadingMore)
+        console.log('hasMore:', infiniteScroll.hasMore)
+        console.log('currentPage:', infiniteScroll.currentPage)
+        console.log('allPosts length:', infiniteScroll.allPosts.length)
+        
+        if (infiniteScroll.isLoadingMore || !infiniteScroll.hasMore) {
+            console.log('❌ Sortie prématurée - isLoadingMore:', infiniteScroll.isLoadingMore, 'hasMore:', infiniteScroll.hasMore)
+            return
+        }
+
+        console.log('=== CHARGEMENT SCROLL INFINI ===')
+        console.log('Page actuelle:', infiniteScroll.currentPage)
+        console.log('Prochaine page:', infiniteScroll.currentPage + 1)
+        console.log('Filtres actuels:', localFilters)
+        console.log('=================================')
+
+        setInfiniteScroll(prev => ({ ...prev, isLoadingMore: true }))
+
+        try {
+            const nextPage = infiniteScroll.currentPage + 1
+            const params = {
+                ...localFilters,
+                page: nextPage.toString(),
+                limit: '50', // Changé à 50
+                loadMore: 'true'
+            }
+            
+            const url = `/gmb-posts?${new URLSearchParams(params)}`
+            console.log('🌐 URL de requête:', url)
+            
+            const response = await fetch(url, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+
+            console.log('📡 Statut réponse:', response.status, response.statusText)
+
+            if (!response.ok) {
+                throw new Error(`Erreur HTTP: ${response.status}`)
+            }
+
+            const data = await response.json()
+            console.log('📦 Données reçues:', data)
+            console.log('📊 Nouveaux posts:', data.posts?.data?.length || 0)
+            console.log('🔄 hasMore:', data.hasMore)
+
+            setInfiniteScroll(prev => ({
+                ...prev,
+                allPosts: [...prev.allPosts, ...data.posts.data],
+                currentPage: nextPage,
+                hasMore: data.posts.data.length === 50 && (prev.allPosts.length + data.posts.data.length) < (posts.meta.total || 0), // Calcul simple avec 50
+                isLoadingMore: false
+            }))
+
+            console.log(`✅ ${data.posts.data.length} nouveaux posts chargés`)
+        } catch (error) {
+            console.error('❌ Erreur chargement scroll infini:', error)
+            setInfiniteScroll(prev => ({ ...prev, isLoadingMore: false }))
+            notifications.show({
+                title: 'Erreur',
+                message: 'Erreur lors du chargement des posts supplémentaires',
+                color: 'red',
+            })
+        }
+    }
+
+    // Hook pour détecter le scroll en bas de page
+    React.useEffect(() => {
+        const handleScroll = () => {
+            // Vérifier si on est proche du bas de la page (200px avant la fin)
+            const threshold = 200
+            const scrollPosition = window.innerHeight + window.scrollY
+            const documentHeight = document.documentElement.scrollHeight
+            
+            console.log('=== SCROLL DEBUG ===')
+            console.log('ScrollY:', window.scrollY)
+            console.log('Window height:', window.innerHeight)
+            console.log('Document height:', documentHeight)
+            console.log('Scroll position:', scrollPosition)
+            console.log('Distance from bottom:', documentHeight - scrollPosition)
+            console.log('Threshold:', threshold)
+            console.log('Should load more:', scrollPosition >= documentHeight - threshold)
+            console.log('isLoadingMore:', infiniteScroll.isLoadingMore)
+            console.log('hasMore:', infiniteScroll.hasMore)
+            console.log('====================')
+            
+            if (scrollPosition >= documentHeight - threshold) {
+                console.log('🚀 Tentative de chargement de plus de posts')
+                loadMorePosts()
+            }
+        }
+
+        // Ajouter le listener de scroll avec throttling
+        let timeoutId: NodeJS.Timeout
+        const throttledHandleScroll = () => {
+            clearTimeout(timeoutId)
+            timeoutId = setTimeout(handleScroll, 100) // Throttle de 100ms
+        }
+
+        console.log('🔗 Ajout du listener de scroll')
+        window.addEventListener('scroll', throttledHandleScroll)
+        return () => {
+            console.log('🗑️ Suppression du listener de scroll')
+            window.removeEventListener('scroll', throttledHandleScroll)
+            clearTimeout(timeoutId)
+        }
+    }, [infiniteScroll.isLoadingMore, infiniteScroll.hasMore, localFilters])
+
     // Synchroniser les filtres locaux avec les filtres props quand ils changent
     React.useEffect(() => {
         console.log('=== SYNCHRONISATION FILTRES ===')
         console.log('Filtres props:', filters)
-        console.log('Filtres locaux avant:', localFilters)
+        console.log('Posts.meta:', posts.meta)
 
         setLocalFilters(filters)
+        
+        // Réinitialiser le scroll infini avec les nouveaux posts (calcul simple)
+        const total = posts.meta.total || 0
+        const postsLoaded = posts.data.length
+        const hasMorePosts = postsLoaded < total
+        
+        console.log('Nouveau calcul hasMore simple:', postsLoaded, '<', total, '=', hasMorePosts)
+        
+        setInfiniteScroll({
+            allPosts: posts.data,
+            currentPage: 1, // Reset à 1
+            hasMore: hasMorePosts,
+            isLoading: false,
+            isLoadingMore: false,
+        })
 
         console.log('Filtres locaux après:', filters)
         console.log('================================')
-    }, [filters])
+    }, [filters, posts])
 
     // Application automatique des filtres avec debounce pour la recherche
     React.useEffect(() => {
@@ -910,7 +1083,9 @@ export default function GmbPostsIndex({
             localFilters.client !== filters.client ||
             localFilters.project !== filters.project ||
             localFilters.sortBy !== filters.sortBy ||
-            localFilters.sortOrder !== filters.sortOrder
+            localFilters.sortOrder !== filters.sortOrder ||
+            localFilters.dateFrom !== filters.dateFrom ||
+            localFilters.dateTo !== filters.dateTo
         ) {
             console.log('=== AUTO-APPLICATION FILTRES ===')
             console.log('Filtres auto-appliqués:', localFilters)
@@ -924,14 +1099,16 @@ export default function GmbPostsIndex({
         localFilters.project,
         localFilters.sortBy,
         localFilters.sortOrder,
+        localFilters.dateFrom,
+        localFilters.dateTo,
     ])
 
     // Gestion de la sélection multiple
     const toggleSelectAll = () => {
-        if (selectedPosts.length === posts.data.length) {
+        if (selectedPosts.length === infiniteScroll.allPosts.length) {
             setSelectedPosts([])
         } else {
-            setSelectedPosts(posts.data.map((post) => post.id))
+            setSelectedPosts(infiniteScroll.allPosts.map((post) => post.id))
         }
     }
 
@@ -1015,6 +1192,8 @@ export default function GmbPostsIndex({
             project: '',
             sortBy: 'date',
             sortOrder: 'desc',
+            dateFrom: '',
+            dateTo: '',
         }
         console.log('=== RÉINITIALISATION DES FILTRES ===')
         console.log('Données de réinitialisation:', resetFiltersData)
@@ -1203,7 +1382,7 @@ export default function GmbPostsIndex({
 
     // Fonction pour envoyer un post GMB individuel vers n8n
     const handleSendSinglePost = async (postId: number) => {
-        const post = posts.data.find(p => p.id === postId)
+        const post = infiniteScroll.allPosts.find(p => p.id === postId)
         if (!post) {
             notifications.show({
                 title: 'Erreur',
@@ -1422,162 +1601,6 @@ export default function GmbPostsIndex({
                 <Flex justify="space-between" align="center">
                     <Box>
                         <Title order={2}>Posts GMB</Title>
-                        <Group gap="xs" mt="xs">
-                            <Text size="sm" c="dimmed">
-                                {posts.meta.total} post{posts.meta.total > 1 ? 's' : ''} trouvé
-                                {posts.meta.total > 1 ? 's' : ''}
-                            </Text>
-                            <Text size="sm" c="dimmed">
-                                •
-                            </Text>
-                            <Badge variant="outline" color="blue" size="sm">
-                                👤 {currentUser.username}
-                            </Badge>
-                            {currentUser.notion_id && (
-                                <Badge variant="outline" color="violet" size="sm">
-                                    🔗 Notion
-                                </Badge>
-                            )}
-                            {/* Indicateurs de filtres actifs */}
-                            {(localFilters.search ||
-                                localFilters.status ||
-                                localFilters.client ||
-                                localFilters.project) && (
-                                <>
-                                    <Text size="sm" c="dimmed">
-                                        •
-                                    </Text>
-                                    <Group gap={4}>
-                                        {localFilters.search && (
-                                            <Badge
-                                                variant="outline"
-                                                size="xs"
-                                                color="blue"
-                                                style={{ cursor: 'pointer' }}
-                                                rightSection={
-                                                    <LuX
-                                                        size={10}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            setLocalFilters((prev) => ({
-                                                                ...prev,
-                                                                search: '',
-                                                            }))
-                                                        }}
-                                                    />
-                                                }
-                                                onClick={() => {
-                                                    setLocalFilters((prev) => ({
-                                                        ...prev,
-                                                        search: '',
-                                                    }))
-                                                }}
-                                            >
-                                                📝 "
-                                                {localFilters.search.length > 15
-                                                    ? localFilters.search.substring(0, 15) + '...'
-                                                    : localFilters.search}
-                                                "
-                                            </Badge>
-                                        )}
-                                        {localFilters.status && (
-                                            <Badge
-                                                variant="outline"
-                                                size="xs"
-                                                color="green"
-                                                style={{ cursor: 'pointer' }}
-                                                rightSection={
-                                                    <LuX
-                                                        size={10}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            setLocalFilters((prev) => ({
-                                                                ...prev,
-                                                                status: '',
-                                                            }))
-                                                        }}
-                                                    />
-                                                }
-                                                onClick={() => {
-                                                    setLocalFilters((prev) => ({
-                                                        ...prev,
-                                                        status: '',
-                                                    }))
-                                                }}
-                                            >
-                                                🔄 {localFilters.status}
-                                            </Badge>
-                                        )}
-                                        {localFilters.client && (
-                                            <Badge
-                                                variant="outline"
-                                                size="xs"
-                                                color="orange"
-                                                style={{ cursor: 'pointer' }}
-                                                rightSection={
-                                                    <LuX
-                                                        size={10}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            setLocalFilters((prev) => ({
-                                                                ...prev,
-                                                                client: '',
-                                                            }))
-                                                        }}
-                                                    />
-                                                }
-                                                onClick={() => {
-                                                    setLocalFilters((prev) => ({
-                                                        ...prev,
-                                                        client: '',
-                                                    }))
-                                                }}
-                                            >
-                                                👤 {localFilters.client}
-                                            </Badge>
-                                        )}
-                                        {localFilters.project && (
-                                            <Badge
-                                                variant="outline"
-                                                size="xs"
-                                                color="violet"
-                                                style={{ cursor: 'pointer' }}
-                                                rightSection={
-                                                    <LuX
-                                                        size={10}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            setLocalFilters((prev) => ({
-                                                                ...prev,
-                                                                project: '',
-                                                            }))
-                                                        }}
-                                                    />
-                                                }
-                                                onClick={() => {
-                                                    setLocalFilters((prev) => ({
-                                                        ...prev,
-                                                        project: '',
-                                                    }))
-                                                }}
-                                            >
-                                                📁 {localFilters.project}
-                                            </Badge>
-                                        )}
-                                    </Group>
-                                </>
-                            )}
-                            {isApplyingFilters && (
-                                <>
-                                    <Text size="sm" c="dimmed">
-                                        •
-                                    </Text>
-                                    <Text size="sm" c="blue">
-                                        Filtrage en cours...
-                                    </Text>
-                                </>
-                            )}
-                        </Group>
                     </Box>
                     <Group>
                         {/* DEBUG: Affichage des valeurs
@@ -1696,6 +1719,9 @@ export default function GmbPostsIndex({
                                 }}
                                 clearable
                             />
+                        </Group>
+                        
+                        <Group grow>
                             <Select
                                 placeholder="Filtrer par client"
                                 data={[
@@ -1734,6 +1760,134 @@ export default function GmbPostsIndex({
                                     }))
                                 }}
                                 searchable
+                                clearable
+                            />
+                        </Group>
+                        
+                        {/* Filtre par date */}
+                        <Group grow>
+                            <TextInput
+                                label="Date de début"
+                                placeholder="YYYY-MM-DD"
+                                type="date"
+                                value={localFilters.dateFrom}
+                                onChange={(e) => {
+                                    console.log('Date début changée:', e.target.value)
+                                    setLocalFilters((prev) => ({
+                                        ...prev,
+                                        dateFrom: e.target.value,
+                                    }))
+                                }}
+                                clearable
+                            />
+                            <TextInput
+                                label="Date de fin"
+                                placeholder="YYYY-MM-DD"
+                                type="date"
+                                value={localFilters.dateTo}
+                                onChange={(e) => {
+                                    console.log('Date fin changée:', e.target.value)
+                                    setLocalFilters((prev) => ({
+                                        ...prev,
+                                        dateTo: e.target.value,
+                                    }))
+                                }}
+                                clearable
+                            />
+                            {/* Filtre rapide par période */}
+                            <Select
+                                label="Période rapide"
+                                placeholder="Sélectionner une période"
+                                data={[
+                                    { value: '', label: 'Toutes les dates' },
+                                    { value: 'today', label: "Aujourd'hui" },
+                                    { value: 'yesterday', label: 'Hier' },
+                                    { value: 'tomorrow', label: 'Demain' },
+                                    { value: 'last7days', label: '7 derniers jours' },
+                                    { value: 'next7days', label: '7 prochains jours' },
+                                    { value: 'last30days', label: '30 derniers jours' },
+                                    { value: 'next30days', label: '30 prochains jours' },
+                                    { value: 'thismonth', label: 'Ce mois-ci' },
+                                    { value: 'lastmonth', label: 'Mois dernier' },
+                                    { value: 'nextmonth', label: 'Mois prochain' },
+                                ]}
+                                onChange={(value) => {
+                                    if (!value) {
+                                        setLocalFilters((prev) => ({
+                                            ...prev,
+                                            dateFrom: '',
+                                            dateTo: '',
+                                        }))
+                                        return
+                                    }
+                                    
+                                    const today = new Date()
+                                    const yesterday = new Date(today)
+                                    yesterday.setDate(yesterday.getDate() - 1)
+                                    const tomorrow = new Date(today)
+                                    tomorrow.setDate(tomorrow.getDate() + 1)
+                                    
+                                    let dateFrom = ''
+                                    let dateTo = ''
+                                    
+                                    switch (value) {
+                                        case 'today':
+                                            dateFrom = dateTo = today.toISOString().split('T')[0]
+                                            break
+                                        case 'yesterday':
+                                            dateFrom = dateTo = yesterday.toISOString().split('T')[0]
+                                            break
+                                        case 'tomorrow':
+                                            dateFrom = dateTo = tomorrow.toISOString().split('T')[0]
+                                            break
+                                        case 'last7days':
+                                            const last7 = new Date(today)
+                                            last7.setDate(last7.getDate() - 7)
+                                            dateFrom = last7.toISOString().split('T')[0]
+                                            dateTo = today.toISOString().split('T')[0]
+                                            break
+                                        case 'next7days':
+                                            const next7 = new Date(today)
+                                            next7.setDate(next7.getDate() + 7)
+                                            dateFrom = today.toISOString().split('T')[0]
+                                            dateTo = next7.toISOString().split('T')[0]
+                                            break
+                                        case 'last30days':
+                                            const last30 = new Date(today)
+                                            last30.setDate(last30.getDate() - 30)
+                                            dateFrom = last30.toISOString().split('T')[0]
+                                            dateTo = today.toISOString().split('T')[0]
+                                            break
+                                        case 'next30days':
+                                            const next30 = new Date(today)
+                                            next30.setDate(next30.getDate() + 30)
+                                            dateFrom = today.toISOString().split('T')[0]
+                                            dateTo = next30.toISOString().split('T')[0]
+                                            break
+                                        case 'thismonth':
+                                            dateFrom = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
+                                            dateTo = today.toISOString().split('T')[0]
+                                            break
+                                        case 'lastmonth':
+                                            const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+                                            const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0)
+                                            dateFrom = lastMonth.toISOString().split('T')[0]
+                                            dateTo = lastMonthEnd.toISOString().split('T')[0]
+                                            break
+                                        case 'nextmonth':
+                                            const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1)
+                                            const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 0)
+                                            dateFrom = nextMonth.toISOString().split('T')[0]
+                                            dateTo = nextMonthEnd.toISOString().split('T')[0]
+                                            break
+                                    }
+                                    
+                                    setLocalFilters((prev) => ({
+                                        ...prev,
+                                        dateFrom,
+                                        dateTo,
+                                    }))
+                                }}
                                 clearable
                             />
                         </Group>
@@ -1823,6 +1977,61 @@ export default function GmbPostsIndex({
                                         }}
                                     >
                                         Publié
+                                    </Button>
+                                    
+                                    <Text size="xs" c="dimmed" style={{ margin: '0 8px' }}>
+                                        |
+                                    </Text>
+                                    
+                                    {/* Filtres rapides de date */}
+                                    <Button
+                                        size="xs"
+                                        variant="light"
+                                        color="teal"
+                                        onClick={() => {
+                                            const today = new Date().toISOString().split('T')[0]
+                                            setLocalFilters((prev) => ({
+                                                ...prev,
+                                                dateFrom: today,
+                                                dateTo: today,
+                                            }))
+                                        }}
+                                    >
+                                        Aujourd'hui
+                                    </Button>
+                                    <Button
+                                        size="xs"
+                                        variant="light"
+                                        color="teal"
+                                        onClick={() => {
+                                            const tomorrow = new Date()
+                                            tomorrow.setDate(tomorrow.getDate() + 1)
+                                            const tomorrowStr = tomorrow.toISOString().split('T')[0]
+                                            setLocalFilters((prev) => ({
+                                                ...prev,
+                                                dateFrom: tomorrowStr,
+                                                dateTo: tomorrowStr,
+                                            }))
+                                        }}
+                                    >
+                                        Demain
+                                    </Button>
+                                    <Button
+                                        size="xs"
+                                        variant="light"
+                                        color="teal"
+                                        onClick={() => {
+                                            const today = new Date()
+                                            const next7 = new Date(today)
+                                            next7.setDate(next7.getDate() + 7)
+                                            setLocalFilters((prev) => ({
+                                                ...prev,
+                                                dateFrom: today.toISOString().split('T')[0],
+                                                dateTo: next7.toISOString().split('T')[0],
+                                            }))
+                                        }}
+                                    >
+                                        7 prochains jours
                                     </Button>
                                 </Group>
 
@@ -1969,6 +2178,224 @@ export default function GmbPostsIndex({
 
                 {/* Tableau */}
                 <Card withBorder>
+                    {/* Ligne d'indicateurs au-dessus du tableau */}
+                    <Box p="md" style={{ borderBottom: '1px solid #e9ecef' }}>
+                        <Group gap="xs" align="center">
+                            <Text size="sm" c="dimmed">
+                                {infiniteScroll.allPosts.length} post{infiniteScroll.allPosts.length > 1 ? 's' : ''} chargé
+                                {infiniteScroll.allPosts.length > 1 ? 's' : ''}
+                                {infiniteScroll.hasMore && (
+                                    <> sur {posts.meta.total} total</>
+                                )}
+                            </Text>
+                            <Text size="sm" c="dimmed">
+                                •
+                            </Text>
+                            <Badge variant="outline" color="blue" size="sm">
+                                👤 {currentUser.username}
+                            </Badge>
+                            {currentUser.notion_id && (
+                                <Badge variant="outline" color="violet" size="sm">
+                                    🔗 Notion
+                                </Badge>
+                            )}
+                            {/* Indicateurs de filtres actifs */}
+                            {(localFilters.search ||
+                                localFilters.status ||
+                                localFilters.client ||
+                                localFilters.project ||
+                                localFilters.dateFrom ||
+                                localFilters.dateTo) && (
+                                <>
+                                    <Text size="sm" c="dimmed">
+                                        •
+                                    </Text>
+                                    <Group gap={4}>
+                                        {localFilters.search && (
+                                            <Badge
+                                                variant="outline"
+                                                size="xs"
+                                                color="blue"
+                                                style={{ cursor: 'pointer' }}
+                                                rightSection={
+                                                    <LuX
+                                                        size={10}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            setLocalFilters((prev) => ({
+                                                                ...prev,
+                                                                search: '',
+                                                            }))
+                                                        }}
+                                                    />
+                                                }
+                                                onClick={() => {
+                                                    setLocalFilters((prev) => ({
+                                                        ...prev,
+                                                        search: '',
+                                                    }))
+                                                }}
+                                            >
+                                                📝 "
+                                                {localFilters.search.length > 15
+                                                    ? localFilters.search.substring(0, 15) + '...'
+                                                    : localFilters.search}
+                                                "
+                                            </Badge>
+                                        )}
+                                        {localFilters.status && (
+                                            <Badge
+                                                variant="outline"
+                                                size="xs"
+                                                color="green"
+                                                style={{ cursor: 'pointer' }}
+                                                rightSection={
+                                                    <LuX
+                                                        size={10}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            setLocalFilters((prev) => ({
+                                                                ...prev,
+                                                                status: '',
+                                                            }))
+                                                        }}
+                                                    />
+                                                }
+                                                onClick={() => {
+                                                    setLocalFilters((prev) => ({
+                                                        ...prev,
+                                                        status: '',
+                                                    }))
+                                                }}
+                                            >
+                                                🔄 {localFilters.status}
+                                            </Badge>
+                                        )}
+                                        {localFilters.client && (
+                                            <Badge
+                                                variant="outline"
+                                                size="xs"
+                                                color="orange"
+                                                style={{ cursor: 'pointer' }}
+                                                rightSection={
+                                                    <LuX
+                                                        size={10}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            setLocalFilters((prev) => ({
+                                                                ...prev,
+                                                                client: '',
+                                                            }))
+                                                        }}
+                                                    />
+                                                }
+                                                onClick={() => {
+                                                    setLocalFilters((prev) => ({
+                                                        ...prev,
+                                                        client: '',
+                                                    }))
+                                                }}
+                                            >
+                                                👤 {localFilters.client}
+                                            </Badge>
+                                        )}
+                                        {localFilters.project && (
+                                            <Badge
+                                                variant="outline"
+                                                size="xs"
+                                                color="violet"
+                                                style={{ cursor: 'pointer' }}
+                                                rightSection={
+                                                    <LuX
+                                                        size={10}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            setLocalFilters((prev) => ({
+                                                                ...prev,
+                                                                project: '',
+                                                            }))
+                                                        }}
+                                                    />
+                                                }
+                                                onClick={() => {
+                                                    setLocalFilters((prev) => ({
+                                                        ...prev,
+                                                        project: '',
+                                                    }))
+                                                }}
+                                            >
+                                                📁 {localFilters.project}
+                                            </Badge>
+                                        )}
+                                        {(localFilters.dateFrom || localFilters.dateTo) && (
+                                            <Badge
+                                                variant="outline"
+                                                size="xs"
+                                                color="teal"
+                                                style={{ cursor: 'pointer' }}
+                                                rightSection={
+                                                    <LuX
+                                                        size={10}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            setLocalFilters((prev) => ({
+                                                                ...prev,
+                                                                dateFrom: '',
+                                                                dateTo: '',
+                                                            }))
+                                                        }}
+                                                    />
+                                                }
+                                                onClick={() => {
+                                                    setLocalFilters((prev) => ({
+                                                        ...prev,
+                                                        dateFrom: '',
+                                                        dateTo: '',
+                                                    }))
+                                                }}
+                                            >
+                                                📅 {localFilters.dateFrom && localFilters.dateTo
+                                                    ? `${localFilters.dateFrom} → ${localFilters.dateTo}`
+                                                    : localFilters.dateFrom
+                                                    ? `≥ ${localFilters.dateFrom}`
+                                                    : `≤ ${localFilters.dateTo}`}
+                                            </Badge>
+                                        )}
+                                    </Group>
+                                </>
+                            )}
+                            {infiniteScroll.hasMore && (
+                                <>
+                                    <Text size="sm" c="dimmed">
+                                        •
+                                    </Text>
+                                    <Badge variant="outline" color="cyan" size="sm">
+                                        🔄 Scroll infini activé
+                                    </Badge>
+                                </>
+                            )}
+                            {infiniteScroll.isLoadingMore && (
+                                <>
+                                    <Text size="sm" c="dimmed">
+                                        •
+                                    </Text>
+                                    <Text size="sm" c="blue">
+                                        Chargement en cours...
+                                    </Text>
+                                </>
+                            )}
+                            {isApplyingFilters && (
+                                <>
+                                    <Text size="sm" c="dimmed">
+                                        •
+                                    </Text>
+                                    <Text size="sm" c="orange">
+                                        Filtrage en cours...
+                                    </Text>
+                                </>
+                            )}
+                        </Group>
+                    </Box>
                     <Box style={{ overflowX: 'auto' }}>
                         <Table striped highlightOnHover style={{ minWidth: '2460px' }}>
                             <Table.Thead>
@@ -1976,12 +2403,12 @@ export default function GmbPostsIndex({
                                     <Table.Th w={40}>
                                         <Checkbox
                                             checked={
-                                                selectedPosts.length === posts.data.length &&
-                                                posts.data.length > 0
+                                                selectedPosts.length === infiniteScroll.allPosts.length &&
+                                                infiniteScroll.allPosts.length > 0
                                             }
                                             indeterminate={
                                                 selectedPosts.length > 0 &&
-                                                selectedPosts.length < posts.data.length
+                                                selectedPosts.length < infiniteScroll.allPosts.length
                                             }
                                             onChange={toggleSelectAll}
                                         />
@@ -2100,9 +2527,9 @@ export default function GmbPostsIndex({
                                             <Text fw={500} size="sm">
                                                 Actions
                                             </Text>
-                                            {posts.data.filter(p => p.status === 'Post à générer').length > 0 && (
+                                            {infiniteScroll.allPosts.filter(p => p.status === 'Post à générer').length > 0 && (
                                                 <Badge variant="outline" color="green" size="xs">
-                                                    {posts.data.filter(p => p.status === 'Post à générer').length} envoyables
+                                                    {infiniteScroll.allPosts.filter(p => p.status === 'Post à générer').length} envoyables
                                                 </Badge>
                                             )}
                                         </Group>
@@ -2110,7 +2537,7 @@ export default function GmbPostsIndex({
                                 </Table.Tr>
                             </Table.Thead>
                             <Table.Tbody>
-                                {posts.data.length === 0 ? (
+                                {infiniteScroll.allPosts.length === 0 ? (
                                     <Table.Tr>
                                         <Table.Td colSpan={15}>
                                             <Text ta="center" py="xl" c="dimmed">
@@ -2119,7 +2546,8 @@ export default function GmbPostsIndex({
                                         </Table.Td>
                                     </Table.Tr>
                                 ) : (
-                                    posts.data.map((post) => (
+                                    <>
+                                        {infiniteScroll.allPosts.map((post) => (
                                         <Table.Tr 
                                             key={post.id}
                                             style={{
@@ -2304,7 +2732,34 @@ export default function GmbPostsIndex({
                                                 </Group>
                                             </Table.Td>
                                         </Table.Tr>
-                                    ))
+                                        ))}
+                                        
+                                        {/* Indicateur de chargement pour le scroll infini */}
+                                        {infiniteScroll.isLoadingMore && (
+                                            <Table.Tr>
+                                                <Table.Td colSpan={15}>
+                                                    <Group justify="center" py="lg">
+                                                        <Text size="sm" c="dimmed">
+                                                            Chargement de 50 posts supplémentaires...
+                                                        </Text>
+                                                    </Group>
+                                                </Table.Td>
+                                            </Table.Tr>
+                                        )}
+                                        
+                                        {/* Indicateur de fin si plus de posts disponibles */}
+                                        {!infiniteScroll.hasMore && infiniteScroll.allPosts.length > 50 && (
+                                            <Table.Tr>
+                                                <Table.Td colSpan={15}>
+                                                    <Group justify="center" py="md">
+                                                        <Text size="xs" c="dimmed" style={{ fontStyle: 'italic' }}>
+                                                            ✨ Tous les posts ont été chargés ({infiniteScroll.allPosts.length} au total)
+                                                        </Text>
+                                                    </Group>
+                                                </Table.Td>
+                                            </Table.Tr>
+                                        )}
+                                    </>
                                 )}
                             </Table.Tbody>
                         </Table>
