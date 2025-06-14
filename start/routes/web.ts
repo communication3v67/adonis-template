@@ -30,6 +30,9 @@ router
                 
                 // Action webhook pour envoyer les posts à générer vers n8n
                 router.post('/send-to-n8n', [GmbPostsController, 'sendPostsToN8n']).as('send_to_n8n'),
+                
+                // Action webhook pour envoyer un post individuel vers n8n
+                router.post('/:id/send-to-n8n', [GmbPostsController, 'sendSinglePostToN8n']).as('send_single_to_n8n'),
             ])
             .as('gmbPosts')
             .prefix('/gmb-posts'),

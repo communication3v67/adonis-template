@@ -806,8 +806,229 @@ export default class GmbPostsController {
     }
 
     /**
-     * Envoie tous les posts "Post à générer" de l'utilisateur connecté vers le webhook n8n
+     * Envoie un post GMB individuel vers le webhook n8n
      */
+    async sendSinglePostToN8n({ params, response, auth }: HttpContext) {
+        try {
+            console.log('🚀 SEND SINGLE GMB POST TO N8N - Post ID:', params.id)
+            console.log('Utilisateur connecté:', {
+                id: auth.user?.id,
+                email: auth.user?.email,
+                username: auth.user?.username
+            })
+            
+            // S'assurer qu'un utilisateur est connecté
+            await auth.check()
+            const currentUser = auth.user!
+            
+            // Récupération de la configuration Notion de l'utilisateur connecté
+            const notionConfig = await this.getUserNotionConfig(auth)
+
+            // Récupérer le post spécifique
+            const post = await GmbPost.query()
+                .where('id', params.id)
+                .where('user_id', currentUser.id) // Sécurité : seulement les posts de l'utilisateur
+                .first()
+
+            if (!post) {
+                return response.status(404).json({
+                    success: false,
+                    message: 'Post non trouvé ou vous n\'avez pas l\'autorisation de l\'accéder.',
+                })
+            }
+
+            console.log(`📝 Post trouvé: "${post.text?.substring(0, 50)}..." (Status: ${post.status})`)
+
+            // Vérifier que le post est dans le bon statut
+            if (post.status !== 'Post à générer') {
+                return response.status(400).json({
+                    success: false,
+                    message: `Ce post ne peut pas être envoyé. Statut actuel: "${post.status}". Seuls les posts "Post à générer" peuvent être envoyés.`,
+                    current_status: post.status,
+                    required_status: 'Post à générer'
+                })
+            }
+
+            // Préparer les données du post individuel
+            const gmbPostData = {
+                // Identifiants
+                id: post.id,
+                gmb_post_id: post.id,
+                notion_id: post.notion_id,
+                
+                // Informations principales
+                title: post.text || `Post GMB - ${post.client}`,
+                text: post.text,
+                status: post.status,
+                
+                // Dates
+                date: post.date?.toISO(),
+                created_time: post.createdAt?.toISO(),
+                last_edited_time: post.updatedAt?.toISO(),
+                
+                // Métadonnées GMB
+                client: post.client,
+                project_name: post.project_name,
+                keyword: post.keyword,
+                location_id: post.location_id,
+                account_id: post.account_id,
+                
+                // URLs
+                image_url: post.image_url,
+                link_url: post.link_url,
+                
+                // Utilisateur
+                user_id: post.user_id,
+                user_notion_id: currentUser.notionId,
+            }
+
+            // URL du webhook n8n
+            const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL
+            const n8nAuthToken = process.env.N8N_AUTH_TOKEN
+            
+            if (!n8nWebhookUrl) {
+                throw new Error('URL du webhook n8n non configurée (N8N_WEBHOOK_URL)')
+            }
+
+            // Headers avec authentification
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            }
+
+            if (n8nAuthToken) {
+                headers['Authorization'] = `Bearer ${n8nAuthToken}`
+                console.log('🔐 Token d\'authentification ajouté')
+            }
+
+            // Préparer les données pour n8n (format similaire aux autres webhooks)
+            const webhookData = {
+                // Métadonnées de la requête
+                source: 'adonis-gmb-single-post',
+                timestamp: new Date().toISOString(),
+                bulk_operation: false,
+                single_post: true,
+                
+                // Configuration Notion de l'utilisateur connecté
+                notion_config: {
+                    api_key: notionConfig.apiKey,
+                    database_id: notionConfig.databaseId,
+                    instance: notionConfig.instance,
+                },
+                
+                // Données utilisateur
+                user: {
+                    id: currentUser.id,
+                    username: currentUser.username,
+                    email: currentUser.email,
+                    notion_id: currentUser.notionId,
+                },
+                
+                // Post GMB individuel (utiliser la même structure que les envois en lot)
+                notion_page: gmbPostData, // Format compatible avec les workflows existants
+                gmb_post: gmbPostData, // Version alternative
+                
+                // Données extraites (format compatible avec les autres webhooks)
+                extracted_data: {
+                    entreprise: post.client,
+                    projet: post.project_name,
+                    mot_cle: post.keyword,
+                    texte: post.text,
+                    statut: post.status,
+                    location_id: post.location_id,
+                    account_id: post.account_id,
+                    image_url: post.image_url,
+                    link_url: post.link_url,
+                }
+            }
+
+            console.log('🎆 Envoi post individuel vers n8n:', {
+                url: n8nWebhookUrl,
+                post_id: post.id,
+                client: post.client,
+                user: currentUser.username,
+                notion_instance: notionConfig.instance,
+            })
+
+            // Envoi vers n8n
+            const n8nResponse = await fetch(n8nWebhookUrl, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(webhookData),
+            })
+
+            console.log('📡 Statut réponse n8n:', n8nResponse.status)
+
+            if (!n8nResponse.ok) {
+                const errorText = await n8nResponse.text()
+                console.error('❌ Erreur n8n (texte):', errorText.substring(0, 500))
+                throw new Error(`Erreur n8n: ${n8nResponse.status} - ${n8nResponse.statusText}`)
+            }
+
+            // Traitement de la réponse
+            const contentType = n8nResponse.headers.get('content-type')
+            const responseText = await n8nResponse.text()
+            
+            let n8nResult
+            try {
+                if (responseText.trim().startsWith('{') || responseText.trim().startsWith('[')) {
+                    n8nResult = JSON.parse(responseText)
+                } else {
+                    n8nResult = {
+                        success: true,
+                        message: 'Envoi du post GMB réussi (réponse non-JSON)',
+                        raw_response: responseText.substring(0, 300),
+                        content_type: contentType,
+                        notice: 'Ajoutez un nœud "Respond to Webhook" à votre workflow n8n pour une réponse JSON.',
+                    }
+                }
+            } catch (parseError) {
+                n8nResult = {
+                    success: false,
+                    message: 'Envoi du post GMB effectué mais réponse non parsable',
+                    error: parseError.message,
+                    raw_response: responseText.substring(0, 300),
+                }
+            }
+            
+            console.log('✅ Réponse n8n pour post GMB individuel:', n8nResult)
+            
+            return response.json({
+                success: true,
+                data: n8nResult,
+                message: `Post GMB "${post.text?.substring(0, 30)}..." envoyé avec succès vers n8n`,
+                post: {
+                    id: post.id,
+                    title: post.text?.substring(0, 50) + '...',
+                    client: post.client,
+                    status: post.status
+                },
+                notion_config: {
+                    instance: notionConfig.instance,
+                    database_id: notionConfig.databaseId?.substring(0, 8) + '...',
+                },
+                debug: {
+                    webhook_url: n8nWebhookUrl,
+                    response_status: n8nResponse.status,
+                    content_type: contentType,
+                },
+            })
+
+        } catch (error) {
+            console.error('🚨 Erreur envoi post GMB individuel vers n8n:', error)
+            
+            return response.status(500).json({
+                success: false,
+                message: 'Erreur lors de l\'envoi du post GMB vers n8n',
+                error: error.message,
+                debug: {
+                    webhook_url: process.env.N8N_WEBHOOK_URL || 'Non configurée',
+                    timestamp: new Date().toISOString(),
+                    post_id: params.id,
+                },
+            })
+        }
+    }
     async sendPostsToN8n({ response, auth }: HttpContext) {
         try {
             console.log('🚀 SEND GMB POSTS TO N8N - Utilisateur connecté:', {

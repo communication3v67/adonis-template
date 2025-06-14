@@ -438,6 +438,24 @@ const formatDateInline = (dateString: string) => {
     })
 }
 
+// Fonction utilitaire pour obtenir le label de tri
+const getSortLabel = (sortBy: string) => {
+    const labels: Record<string, string> = {
+        'date': 'Date',
+        'status': 'Statut',
+        'text': 'Texte',
+        'client': 'Client',
+        'project_name': 'Projet',
+        'keyword': 'Mot-clé',
+        'location_id': 'Location ID',
+        'account_id': 'Account ID',
+        'notion_id': 'Notion ID',
+        'created_at': 'Créé le',
+        'updated_at': 'Modifié le'
+    }
+    return labels[sortBy] || sortBy
+}
+
 // Composant pour l'édition en modal
 function EditPostModal({
     post,
@@ -835,6 +853,7 @@ export default function GmbPostsIndex({
 
     // États pour le webhook n8n
     const [sendingToN8n, setSendingToN8n] = useState(false)
+    const [sendingSinglePost, setSendingSinglePost] = useState<number | null>(null)
     const [webhookResponse, setWebhookResponse] = useState<any>(null)
     const [showWebhookModal, setShowWebhookModal] = useState(false)
 
@@ -1179,7 +1198,111 @@ export default function GmbPostsIndex({
         )
     }
 
-    // Fonction pour envoyer les posts GMB vers n8n
+    // Fonction pour envoyer un post GMB individuel vers n8n
+    const handleSendSinglePost = async (postId: number) => {
+        const post = posts.data.find(p => p.id === postId)
+        if (!post) {
+            notifications.show({
+                title: 'Erreur',
+                message: 'Post non trouvé',
+                color: 'red',
+            })
+            return
+        }
+
+        // Vérification côté client
+        if (post.status !== 'Post à générer') {
+            notifications.show({
+                title: 'Action non autorisée',
+                message: `Ce post ne peut pas être envoyé. Statut actuel: "${post.status}". Seuls les posts "Post à générer" peuvent être envoyés.`,
+                color: 'orange',
+            })
+            return
+        }
+
+        setSendingSinglePost(postId)
+        setWebhookResponse(null)
+
+        try {
+            console.log(`🚀 Envoi du post GMB individuel (ID: ${postId}) vers n8n`)
+            console.log('Post à envoyer:', post)
+
+            // Récupération du token CSRF
+            const csrfToken = document
+                .querySelector('meta[name="csrf-token"]')
+                ?.getAttribute('content')
+            console.log('🔐 CSRF Token trouvé:', csrfToken ? 'OUI' : 'NON')
+
+            if (!csrfToken) {
+                throw new Error('Token CSRF manquant. Actualisez la page.')
+            }
+
+            const response = await fetch(`/gmb-posts/${postId}/send-to-n8n`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json',
+                },
+            })
+
+            console.log('📡 Statut réponse:', response.status, response.statusText)
+
+            // Vérifier si c'est une redirection ou erreur HTTP
+            if (!response.ok) {
+                const errorText = await response.text()
+                console.error('❌ Erreur HTTP:', response.status, errorText.substring(0, 300))
+                throw new Error(`Erreur HTTP ${response.status}: ${response.statusText}`)
+            }
+
+            // Lire et parser la réponse
+            const responseText = await response.text()
+            console.log('📥 Réponse brute (100 premiers chars):', responseText.substring(0, 100))
+
+            // Vérifier si c'est du HTML (redirection vers accueil)
+            if (responseText.trim().startsWith('<!DOCTYPE')) {
+                throw new Error(
+                    "La requête a été redirigée vers la page d'accueil. Problème d'authentification ou de route."
+                )
+            }
+
+            let result
+            try {
+                result = JSON.parse(responseText)
+            } catch (parseError) {
+                console.error('❌ Erreur parsing JSON:', parseError)
+                throw new Error('Réponse serveur invalide (JSON attendu)')
+            }
+
+            console.log('✅ Résultat parsé:', result)
+
+            // Afficher la réponse
+            setWebhookResponse(result.data || result)
+            setShowWebhookModal(true)
+
+            // Message de succès
+            notifications.show({
+                title: 'Succès',
+                message: `Post "${post.text?.substring(0, 30)}..." envoyé avec succès vers n8n !`,
+                color: 'green',
+            })
+        } catch (error) {
+            console.error('🚨 Erreur complète webhook:', error)
+
+            let errorMessage = 'Erreur inconnue'
+            if (error instanceof Error) {
+                errorMessage = error.message
+            }
+
+            notifications.show({
+                title: 'Erreur',
+                message: `Erreur lors de l'envoi du post: ${errorMessage}`,
+                color: 'red',
+            })
+        } finally {
+            setSendingSinglePost(null)
+        }
+    }
     const sendPostsToN8n = async () => {
         if (postsToGenerateCount === 0) {
             alert('❌ Aucun post "Post à générer" à envoyer')
@@ -1952,9 +2075,16 @@ export default function GmbPostsIndex({
                                         />
                                     </Table.Th>
                                     <Table.Th w={140}>
-                                        <Text fw={500} size="sm">
-                                            Actions
-                                        </Text>
+                                        <Group justify="space-between">
+                                            <Text fw={500} size="sm">
+                                                Actions
+                                            </Text>
+                                            {posts.data.filter(p => p.status === 'Post à générer').length > 0 && (
+                                                <Badge variant="outline" color="green" size="xs">
+                                                    {posts.data.filter(p => p.status === 'Post à générer').length} envoyables
+                                                </Badge>
+                                            )}
+                                        </Group>
                                     </Table.Th>
                                 </Table.Tr>
                             </Table.Thead>
@@ -1969,7 +2099,14 @@ export default function GmbPostsIndex({
                                     </Table.Tr>
                                 ) : (
                                     posts.data.map((post) => (
-                                        <Table.Tr key={post.id}>
+                                        <Table.Tr 
+                                            key={post.id}
+                                            style={{
+                                                backgroundColor: post.status === 'Post à générer' 
+                                                    ? 'rgba(34, 139, 230, 0.05)' // Bleu très léger pour "Post à générer"
+                                                    : undefined
+                                            }}
+                                        >
                                             <Table.Td>
                                                 <Checkbox
                                                     checked={selectedPosts.includes(post.id)}
@@ -2088,6 +2225,22 @@ export default function GmbPostsIndex({
                                             </Table.Td>
                                             <Table.Td>
                                                 <Group gap={4}>
+                                                    <Tooltip label={post.status === 'Post à générer' ? "Envoyer vers n8n" : "Disponible uniquement pour les posts 'Post à générer'"}>
+                                                        <ActionIcon
+                                                            variant="light"
+                                                            size="sm"
+                                                            color={post.status === 'Post à générer' ? "green" : "gray"}
+                                                            onClick={() => post.status === 'Post à générer' && handleSendSinglePost(post.id)}
+                                                            loading={sendingSinglePost === post.id}
+                                                            disabled={sendingSinglePost === post.id || post.status !== 'Post à générer'}
+                                                            style={{
+                                                                opacity: post.status === 'Post à générer' ? 1 : 0.4,
+                                                                cursor: post.status === 'Post à générer' ? 'pointer' : 'not-allowed'
+                                                            }}
+                                                        >
+                                                            <LuSend size={16} />
+                                                        </ActionIcon>
+                                                    </Tooltip>
                                                     <Tooltip label="Modifier">
                                                         <ActionIcon
                                                             variant="light"
