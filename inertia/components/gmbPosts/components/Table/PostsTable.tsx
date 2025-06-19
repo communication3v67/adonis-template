@@ -1,7 +1,9 @@
 import { Checkbox, Table, Text, Box, Group } from '@mantine/core'
+import { useState, useMemo } from 'react'
 import { GmbPost, FilterOptions, FilterState } from '../../types'
 import { SortableHeader } from './SortableHeader'
 import { PostRow } from './PostRow'
+import { ColumnVisibilityManager, ColumnConfig } from './ColumnVisibilityManager'
 
 interface PostsTableProps {
     posts: GmbPost[]
@@ -42,6 +44,55 @@ export const PostsTable = ({
     onDuplicate,
     onSendToN8n,
 }: PostsTableProps) => {
+    // Configuration des colonnes
+    const [columns, setColumns] = useState<ColumnConfig[]>([
+        { key: 'checkbox', label: 'Sélection', visible: true, required: true },
+        { key: 'status', label: 'Statut', visible: true },
+        { key: 'text', label: 'Texte', visible: true },
+        { key: 'date', label: 'Date', visible: true },
+        { key: 'keyword', label: 'Mot-clé', visible: true },
+        { key: 'client', label: 'Client', visible: true },
+        { key: 'project_name', label: 'Projet', visible: true },
+        { key: 'image_url', label: 'Image', visible: false },
+        { key: 'link_url', label: 'Lien', visible: false },
+        { key: 'location_id', label: 'Location ID', visible: false },
+        { key: 'account_id', label: 'Account ID', visible: false },
+        { key: 'notion_id', label: 'Notion ID', visible: false },
+        { key: 'actions', label: 'Actions', visible: true, required: true },
+    ])
+
+    // Colonnes visibles uniquement
+    const visibleColumns = useMemo(() => 
+        columns.filter(col => col.visible), 
+        [columns]
+    )
+
+    // Calculer la largeur minimale dynamiquement
+    const getColumnWidth = (key: string) => {
+        switch (key) {
+            case 'checkbox': return '60px'
+            case 'status': return '180px'
+            case 'text': return '500px'
+            case 'date': return '180px'
+            case 'keyword': return '160px'
+            case 'client': return '180px'
+            case 'project_name': return '200px'
+            case 'image_url': return '120px'
+            case 'link_url': return '120px'
+            case 'location_id': return '160px'
+            case 'account_id': return '160px'
+            case 'notion_id': return '160px'
+            case 'actions': return '180px'
+            default: return '120px'
+        }
+    }
+
+    const totalWidth = useMemo(() => {
+        return visibleColumns.reduce((sum, col) => {
+            const width = parseInt(getColumnWidth(col.key))
+            return sum + width
+        }, 0)
+    }, [visibleColumns])
     if (posts.length === 0) {
         return (
             <Box p="xl" style={{ textAlign: 'center' }}>
@@ -57,77 +108,59 @@ export const PostsTable = ({
 
     return (
         <>
+            {/* Gestionnaire de colonnes */}
+            <Group justify="flex-end" mb="md">
+                <ColumnVisibilityManager
+                    columns={columns}
+                    onColumnsChange={setColumns}
+                />
+            </Group>
+
             <Box style={{ overflowX: 'auto' }}>
-                <Table striped highlightOnHover style={{ minWidth: '2450px', tableLayout: 'fixed' }} verticalSpacing="lg" horizontalSpacing="lg">
+                <Table striped highlightOnHover style={{ minWidth: `${totalWidth}px`, tableLayout: 'fixed' }} verticalSpacing="lg" horizontalSpacing="lg">
                     <Table.Thead>
                         <Table.Tr style={{ height: '50px' }}>
-                            <Table.Th style={{ width: '60px', textAlign: 'center', verticalAlign: 'middle', padding: '8px' }}>
-                                <Checkbox
-                                    checked={isAllSelected}
-                                    indeterminate={isIndeterminate}
-                                    onChange={onSelectAll}
-                                />
-                            </Table.Th>
-                            <Table.Th style={{ width: '180px', verticalAlign: 'middle', padding: '8px' }}>
-                                <SortableHeader
-                                    label="Statut"
-                                    sortKey="status"
-                                    currentSortBy={filters.sortBy}
-                                    currentSortOrder={filters.sortOrder}
-                                    onSort={onSort}
-                                />
-                            </Table.Th>
-                            <Table.Th style={{ width: '500px', minWidth: '400px', verticalAlign: 'middle', padding: '8px' }}>
-                                <SortableHeader
-                                    label="Texte"
-                                    sortKey="text"
-                                    currentSortBy={filters.sortBy}
-                                    currentSortOrder={filters.sortOrder}
-                                    onSort={onSort}
-                                />
-                            </Table.Th>
-                            <Table.Th style={{ width: '180px', verticalAlign: 'middle', padding: '8px' }}>
-                                <SortableHeader
-                                    label="Date"
-                                    sortKey="date"
-                                    currentSortBy={filters.sortBy}
-                                    currentSortOrder={filters.sortOrder}
-                                    onSort={onSort}
-                                />
-                            </Table.Th>
-                            <Table.Th style={{ width: '160px', verticalAlign: 'middle', padding: '8px' }}>
-                                <SortableHeader
-                                    label="Mot-clé"
-                                    sortKey="keyword"
-                                    currentSortBy={filters.sortBy}
-                                    currentSortOrder={filters.sortOrder}
-                                    onSort={onSort}
-                                />
-                            </Table.Th>
-                            <Table.Th style={{ width: '180px', verticalAlign: 'middle', padding: '8px' }}>
-                                <SortableHeader
-                                    label="Client"
-                                    sortKey="client"
-                                    currentSortBy={filters.sortBy}
-                                    currentSortOrder={filters.sortOrder}
-                                    onSort={onSort}
-                                />
-                            </Table.Th>
-                            <Table.Th style={{ width: '200px', verticalAlign: 'middle', padding: '8px' }}>
-                                <SortableHeader
-                                    label="Projet"
-                                    sortKey="project_name"
-                                    currentSortBy={filters.sortBy}
-                                    currentSortOrder={filters.sortOrder}
-                                    onSort={onSort}
-                                />
-                            </Table.Th>
-                            <Table.Th style={{ width: '120px', verticalAlign: 'middle', padding: '8px' }}>Image</Table.Th>
-                            <Table.Th style={{ width: '120px', verticalAlign: 'middle', padding: '8px' }}>Lien</Table.Th>
-                            <Table.Th style={{ width: '160px', verticalAlign: 'middle', padding: '8px' }}>Location ID</Table.Th>
-                            <Table.Th style={{ width: '160px', verticalAlign: 'middle', padding: '8px' }}>Account ID</Table.Th>
-                            <Table.Th style={{ width: '160px', verticalAlign: 'middle', padding: '8px' }}>Notion ID</Table.Th>
-                            <Table.Th style={{ width: '180px', verticalAlign: 'middle', padding: '8px', textAlign: 'center' }}>Actions</Table.Th>
+                            {visibleColumns.map((column) => {
+                                if (column.key === 'checkbox') {
+                                    return (
+                                        <Table.Th key={column.key} style={{ width: getColumnWidth(column.key), textAlign: 'center', verticalAlign: 'middle', padding: '8px' }}>
+                                            <Checkbox
+                                                checked={isAllSelected}
+                                                indeterminate={isIndeterminate}
+                                                onChange={onSelectAll}
+                                            />
+                                        </Table.Th>
+                                    )
+                                }
+                                if (column.key === 'actions') {
+                                    return (
+                                        <Table.Th key={column.key} style={{ width: getColumnWidth(column.key), verticalAlign: 'middle', padding: '8px', textAlign: 'center' }}>
+                                            Actions
+                                        </Table.Th>
+                                    )
+                                }
+                                // Colonnes avec tri
+                                const sortableColumns = ['status', 'text', 'date', 'keyword', 'client', 'project_name']
+                                if (sortableColumns.includes(column.key)) {
+                                    return (
+                                        <Table.Th key={column.key} style={{ width: getColumnWidth(column.key), verticalAlign: 'middle', padding: '8px' }}>
+                                            <SortableHeader
+                                                label={column.label}
+                                                sortKey={column.key}
+                                                currentSortBy={filters.sortBy}
+                                                currentSortOrder={filters.sortOrder}
+                                                onSort={onSort}
+                                            />
+                                        </Table.Th>
+                                    )
+                                }
+                                // Colonnes simples
+                                return (
+                                    <Table.Th key={column.key} style={{ width: getColumnWidth(column.key), verticalAlign: 'middle', padding: '8px' }}>
+                                        {column.label}
+                                    </Table.Th>
+                                )
+                            })}
                         </Table.Tr>
                     </Table.Thead>
                     <Table.Tbody>
@@ -138,6 +171,8 @@ export const PostsTable = ({
                                 isSelected={selectedPosts.includes(post.id)}
                                 sendingSinglePost={sendingSinglePost}
                                 filterOptions={filterOptions}
+                                visibleColumns={visibleColumns}
+                                getColumnWidth={getColumnWidth}
                                 onSelect={onSelectPost}
                                 onInlineEdit={onInlineEdit}
                                 onEdit={onEdit}
