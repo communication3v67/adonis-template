@@ -1,6 +1,7 @@
 import GmbPost from '#models/gmbPost'
 import { NotionService } from '#services/notion_service'
 import type { HttpContext } from '@adonisjs/core/http'
+import SSEController from '#controllers/sse_controller'
 import vine from '@vinejs/vine'
 import { DateTime } from 'luxon'
 
@@ -40,6 +41,54 @@ const updateGmbPostValidator = vine.compile(
 )
 
 export default class GmbPostsController {
+    /**
+     * Diffuse un événement SSE pour les mises à jour de posts GMB
+     */
+    private async broadcastPostUpdate(post: GmbPost, action: string, userId: number) {
+        try {
+            const postData = {
+                ...post.serialize(),
+                action, // 'created', 'updated', 'deleted', 'status_changed'
+                timestamp: new Date().toISOString()
+            }
+            
+            // Canal spécifique à l'utilisateur
+            SSEController.broadcast(`gmb-posts/user/${userId}`, {
+                type: 'post_update',
+                data: postData
+            })
+            
+            // Canal spécifique au post
+            SSEController.broadcast(`gmb-posts/post/${post.id}`, {
+                type: 'post_update', 
+                data: postData
+            })
+            
+            console.log(`📻 SSE: Diffusion événement ${action} pour post ${post.id} (user ${userId})`)
+        } catch (error) {
+            console.error('Erreur diffusion SSE:', error)
+        }
+    }
+    
+    /**
+     * Diffuse une notification système à l'utilisateur
+     */
+    private async broadcastNotification(userId: number, notification: any) {
+        try {
+            SSEController.broadcast(`notifications/user/${userId}`, {
+                type: 'notification',
+                data: {
+                    ...notification,
+                    timestamp: new Date().toISOString(),
+                    id: Date.now().toString()
+                }
+            })
+            
+            console.log(`🔔 SSE: Notification envoyée à l'utilisateur ${userId}`)
+        } catch (error) {
+            console.error('Erreur diffusion notification SSE:', error)
+        }
+    }
     /**
      * Récupère la configuration Notion pour l'utilisateur connecté
      */
@@ -395,7 +444,15 @@ export default class GmbPostsController {
                 date: DateTime.fromJSDate(new Date(payload.date)),
             }
 
-            await GmbPost.create(postData)
+            const newPost = await GmbPost.create(postData)
+            
+            // Diffuser l'événement SSE
+            await this.broadcastPostUpdate(newPost, 'created', currentUser.id)
+            await this.broadcastNotification(currentUser.id, {
+                type: 'success',
+                title: 'Post créé',
+                message: 'Post GMB créé avec succès !'
+            })
 
             session.flash('notification', {
                 type: 'success',
@@ -510,6 +567,14 @@ export default class GmbPostsController {
             })
 
             await post.save()
+            
+            // Diffuser l'événement SSE
+            await this.broadcastPostUpdate(post, 'updated', currentUser.id)
+            await this.broadcastNotification(currentUser.id, {
+                type: 'success',
+                title: 'Post modifié',
+                message: 'Post GMB mis à jour avec succès !'
+            })
 
             console.log('Post après modification:', post.toJSON())
 
@@ -553,7 +618,16 @@ export default class GmbPostsController {
                 return response.redirect().toRoute('gmbPosts.index')
             }
 
+            // Diffuser l'événement SSE avant suppression
+            await this.broadcastPostUpdate(post, 'deleted', currentUser.id)
+            
             await post.delete()
+            
+            await this.broadcastNotification(currentUser.id, {
+                type: 'success',
+                title: 'Post supprimé',
+                message: 'Post GMB supprimé avec succès !'
+            })
 
             session.flash('notification', {
                 type: 'success',
@@ -640,7 +714,15 @@ export default class GmbPostsController {
                 notion_id: originalPost.notion_id,
             }
 
-            await GmbPost.create(duplicatedData)
+            const duplicatedPost = await GmbPost.create(duplicatedData)
+            
+            // Diffuser l'événement SSE
+            await this.broadcastPostUpdate(duplicatedPost, 'created', currentUser.id)
+            await this.broadcastNotification(currentUser.id, {
+                type: 'success',
+                title: 'Post dupliqué',
+                message: 'Post dupliqué avec succès !'
+            })
 
             session.flash('notification', {
                 type: 'success',

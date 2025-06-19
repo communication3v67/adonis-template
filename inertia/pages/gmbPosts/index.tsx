@@ -1,26 +1,28 @@
-import { Head } from '@inertiajs/react'
+import { Head, router } from '@inertiajs/react'
 import { Stack } from '@mantine/core'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { SSE_CLIENT_CONFIG } from '../../config/sse'
+import { useSSE } from '../../hooks/useSSE'
 
 // Types et hooks
 import {
     GmbPostsPageProps,
+    useBulkActions,
     useFilters,
     useInfiniteScroll,
-    useSelection,
-    useBulkActions,
-    useWebhook,
     usePostActions,
+    useSelection,
+    useWebhook,
 } from '../../components/gmbPosts'
 
 // Composants
 import {
-    PageHeader,
-    StatusIndicators,
-    FilterSection,
     BulkActionBar,
-    PostsTable,
     EditPostModal,
+    FilterSection,
+    PageHeader,
+    PostsTable,
+    StatusIndicators,
     WebhookModal,
 } from '../../components/gmbPosts'
 
@@ -31,20 +33,27 @@ export default function GmbPostsIndex({
     currentUser,
     postsToGenerateCount,
 }: GmbPostsPageProps) {
+    // usePoll(10000)
     // États locaux
     const [isClient, setIsClient] = useState(false)
+    const [lastUpdateTime, setLastUpdateTime] = useState<string | null>(null)
+    const [pendingUpdates, setPendingUpdates] = useState<number>(0)
+    const [refreshKey, setRefreshKey] = useState<number>(0) // Clé pour forcer le re-render
 
     // Hooks personnalisés
-    const {
-        filters,
-        updateFilter,
-        isApplyingFilters,
-        applyFilters,
-        resetFilters,
-        handleSort,
-    } = useFilters(initialFilters)
+    const { filters, updateFilter, isApplyingFilters, applyFilters, resetFilters, handleSort } =
+        useFilters(initialFilters)
 
-    const { posts: infinitePosts, hasMore, isLoading } = useInfiniteScroll(posts, filters)
+    // Forcer la mise à jour des hooks dépendants en cas de changement SSE
+    const processedPosts = useMemo(() => {
+        // Ajouter la clé de rafraîchissement comme métadonnées pour forcer la mise à jour
+        return {
+            ...posts,
+            _refreshKey: refreshKey, // Force la re-création de l'objet
+        }
+    }, [posts, refreshKey])
+
+    const { posts: infinitePosts, hasMore, isLoading } = useInfiniteScroll(processedPosts, filters)
 
     const {
         selectedPosts,
@@ -76,6 +85,9 @@ export default function GmbPostsIndex({
         closeWebhookModal,
     } = useWebhook()
 
+    // Hook SSE personnalisé
+    const { isConnected, connectionStatus, reconnect, setCallbacks } = useSSE(currentUser.id)
+
     const {
         editingPost,
         editModalOpened,
@@ -86,16 +98,91 @@ export default function GmbPostsIndex({
         handleDuplicate,
     } = usePostActions()
 
-    // Gestion de l'hydratation
+    // Fonction pour rafraîchir les données
+    const refreshData = () => {
+        console.log('🔄 Rafraîchissement des données via Inertia...')
+        setRefreshKey((prev) => prev + 1) // Forcer le re-render des hooks
+        router.reload({
+            only: ['posts', 'postsToGenerateCount'],
+            onSuccess: () => {
+                console.log('✅ Données rafraîchies avec succès')
+                setPendingUpdates(0)
+                setLastUpdateTime(new Date().toLocaleTimeString())
+            },
+            onError: () => {
+                console.error('❌ Erreur lors du rafraîchissement')
+            },
+        })
+    }
+
+    // Gestion de l'hydratation et SSE
     useEffect(() => {
         setIsClient(true)
-        
+
         console.log('=== DEBUG FRONTEND ===')
         console.log('Posts reçus:', posts)
         console.log('postsToGenerateCount reçu:', postsToGenerateCount)
         console.log('currentUser.notion_id:', currentUser.notion_id)
+        console.log('SSE Connection Status:', connectionStatus)
+        console.log('SSE Is Connected:', isConnected)
         console.log('=====================')
-    }, [])
+
+        // Configurer les callbacks SSE
+        if (isConnected) {
+            setCallbacks({
+                onPostUpdate: (event) => {
+                    console.log('📨 Post update reçu:', event)
+
+                    setPendingUpdates((prev) => prev + 1)
+
+                    if (event.data.action === 'created') {
+                        console.log('🆕 Nouveau post créé:', event.data.text)
+                        // Rafraîchir avec délai configurable
+                        setTimeout(refreshData, SSE_CLIENT_CONFIG.REFRESH_DELAY)
+                    } else if (event.data.action === 'updated') {
+                        console.log('✏️ Post mis à jour:', event.data.text)
+                        // Rafraîchir avec délai configurable
+                        setTimeout(refreshData, SSE_CLIENT_CONFIG.REFRESH_DELAY)
+                    } else if (event.data.action === 'deleted') {
+                        console.log('🗑️ Post supprimé:', event.data.id)
+                        // Rafraîchir avec délai configurable
+                        setTimeout(refreshData, SSE_CLIENT_CONFIG.REFRESH_DELAY)
+                    }
+                },
+                onNotification: (event) => {
+                    console.log('🔔 Notification SSE reçue:', event.data.title)
+                    // La notification est déjà affichée automatiquement par le hook
+                },
+            })
+        }
+    }, [
+        posts,
+        postsToGenerateCount,
+        currentUser.notion_id,
+        isConnected,
+        connectionStatus,
+        setCallbacks,
+    ])
+
+    // Effet pour détecter les changements de posts et s'assurer que les hooks dépendants se mettent à jour
+    useEffect(() => {
+        console.log('📊 Changement détecté dans les posts:', {
+            totalPosts: posts.meta.total,
+            loadedPosts: posts.data.length,
+            refreshKey,
+            timestamp: new Date().toISOString(),
+        })
+    }, [posts, refreshKey])
+
+    // Effet pour détecter les changements de posts et s'assurer que les hooks dépendants se mettent à jour
+    useEffect(() => {
+        console.log('📊 Changement détecté dans les posts:', {
+            totalPosts: posts.meta.total,
+            loadedPosts: posts.data.length,
+            refreshKey,
+            timestamp: new Date().toISOString(),
+        })
+    }, [posts, refreshKey])
 
     // Calcul du nombre de filtres actifs
     const activeFiltersCount = [
@@ -170,7 +257,9 @@ export default function GmbPostsIndex({
                 )}
 
                 {/* Tableau */}
-                <div style={{ border: '1px solid #e9ecef', borderRadius: '8px', overflow: 'hidden' }}>
+                <div
+                    style={{ border: '1px solid #e9ecef', borderRadius: '8px', overflow: 'hidden' }}
+                >
                     {/* Indicateurs de statut */}
                     <StatusIndicators
                         postsLoaded={infinitePosts.length}
@@ -178,6 +267,11 @@ export default function GmbPostsIndex({
                         hasMore={hasMore}
                         currentUser={currentUser}
                         activeFiltersCount={activeFiltersCount}
+                        connectionStatus={connectionStatus}
+                        isConnected={isConnected}
+                        pendingUpdates={pendingUpdates}
+                        lastUpdateTime={lastUpdateTime}
+                        onRefresh={refreshData}
                     />
 
                     {/* Tableau des posts */}

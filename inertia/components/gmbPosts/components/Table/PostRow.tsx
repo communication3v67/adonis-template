@@ -1,8 +1,8 @@
 import { Checkbox } from '@mantine/core'
-import { GmbPost, FilterOptions } from '../../types'
-import { InlineEditCell } from './InlineEditCell'
+import { FilterOptions, GmbPost } from '../../types'
 import { ActionsCell } from './ActionsCell'
 import { ColumnConfig } from './ColumnVisibilityManager'
+import { InlineEditCell } from './InlineEditCell'
 
 interface PostRowProps {
     post: GmbPost
@@ -39,17 +39,14 @@ export const PostRow = ({
             width: `${width}px`,
             maxWidth: `${width}px`,
             verticalAlign: 'middle' as const,
-            padding: '8px'
+            padding: '8px',
         }
 
         switch (column.key) {
             case 'checkbox':
                 return (
                     <td key={column.key} style={{ ...baseStyle, textAlign: 'center' }}>
-                        <Checkbox
-                            checked={isSelected}
-                            onChange={() => onSelect(post.id)}
-                        />
+                        <Checkbox checked={isSelected} onChange={() => onSelect(post.id)} />
                     </td>
                 )
             case 'status':
@@ -67,7 +64,7 @@ export const PostRow = ({
                 )
             case 'text':
                 return (
-                    <td key={column.key} style={{ ...baseStyle, verticalAlign: 'top' }}>
+                    <td key={column.key} style={{ ...baseStyle }}>
                         <InlineEditCell
                             value={post.text}
                             field="text"

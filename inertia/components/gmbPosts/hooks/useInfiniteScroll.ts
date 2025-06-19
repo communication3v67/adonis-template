@@ -31,12 +31,22 @@ export const useInfiniteScroll = (initialPosts: PaginatedPosts, filters: FilterS
 
     // Réinitialiser le scroll infini quand les posts changent
     useEffect(() => {
-        console.log('=== MISE À JOUR SCROLL INFINI ===')
+        console.log('=== MISE À JOUR SCROLL INFINI ===')  
         console.log('Nouveaux posts:', initialPosts.meta)
+        console.log('Anciens posts dans le state:', state.allPosts.length)
+        console.log('Nouveaux posts dans initialPosts:', initialPosts.data.length)
         
         const total = initialPosts.meta.total || 0
         const postsLoaded = initialPosts.data.length
         const hasMorePosts = postsLoaded < total
+        
+        // Comparer avec l'état actuel pour voir s'il y a vraiment un changement
+        const hasRealChange = (
+            state.allPosts.length !== initialPosts.data.length ||
+            JSON.stringify(state.allPosts.map(p => p.id)) !== JSON.stringify(initialPosts.data.map(p => p.id))
+        )
+        
+        console.log('Changement réel détecté:', hasRealChange)
         
         setState({
             allPosts: initialPosts.data,
@@ -44,6 +54,12 @@ export const useInfiniteScroll = (initialPosts: PaginatedPosts, filters: FilterS
             hasMore: hasMorePosts,
             isLoading: false,
             isLoadingMore: false,
+        })
+        
+        console.log('Nouvel état:', {
+            allPostsCount: initialPosts.data.length,
+            hasMore: hasMorePosts,
+            total
         })
         console.log('===================================')
     }, [initialPosts])
