@@ -124,6 +124,17 @@ export const PostRow = ({
                         />
                     </td>
                 )
+            case 'city':
+                return (
+                    <td key={column.key} style={baseStyle}>
+                        <InlineEditCell
+                            value={post.city || ''}
+                            field="city"
+                            post={post}
+                            onSave={onInlineEdit}
+                        />
+                    </td>
+                )
             case 'image_url':
                 return (
                     <td key={column.key} style={baseStyle}>

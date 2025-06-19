@@ -54,6 +54,7 @@ export const PostsTable = ({
         { key: 'keyword', label: 'Mot-clé', visible: true, width: 160, minWidth: 100, maxWidth: 250 },
         { key: 'client', label: 'Client', visible: true, width: 180, minWidth: 120, maxWidth: 300 },
         { key: 'project_name', label: 'Projet', visible: true, width: 200, minWidth: 120, maxWidth: 350 },
+        { key: 'city', label: 'Ville', visible: true, width: 150, minWidth: 100, maxWidth: 250 },
         { key: 'image_url', label: 'Image', visible: false, width: 120, minWidth: 80, maxWidth: 200 },
         { key: 'link_url', label: 'Lien', visible: false, width: 120, minWidth: 80, maxWidth: 200 },
         { key: 'location_id', label: 'Location ID', visible: false, width: 160, minWidth: 100, maxWidth: 250 },
@@ -96,6 +97,7 @@ export const PostsTable = ({
                 case 'keyword': return { ...col, width: 160 }
                 case 'client': return { ...col, width: 180 }
                 case 'project_name': return { ...col, width: 200 }
+                case 'city': return { ...col, width: 150 }
                 case 'image_url': return { ...col, width: 120 }
                 case 'link_url': return { ...col, width: 120 }
                 case 'location_id': return { ...col, width: 160 }
@@ -178,7 +180,7 @@ export const PostsTable = ({
                                     )
                                 }
                                 // Colonnes avec tri
-                                const sortableColumns = ['status', 'text', 'date', 'keyword', 'client', 'project_name']
+                                const sortableColumns = ['status', 'text', 'date', 'keyword', 'client', 'project_name', 'city']
                                 if (sortableColumns.includes(column.key)) {
                                     return (
                                         <ResizableColumn

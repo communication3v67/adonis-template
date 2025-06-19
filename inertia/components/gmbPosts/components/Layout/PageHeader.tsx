@@ -8,6 +8,7 @@ interface PageHeaderProps {
     postsToGenerateCount: number
     sendingToN8n: boolean
     onSendToN8n: () => void
+    testErrorNotification?: () => void // DEBUG - fonction de test
 }
 
 export const PageHeader = ({
@@ -16,6 +17,16 @@ export const PageHeader = ({
     sendingToN8n,
     onSendToN8n,
 }: PageHeaderProps) => {
+    // Debug temporaire
+    console.log('=== PAGEHEADER DEBUG ===')
+    console.log('postsToGenerateCount:', postsToGenerateCount)
+    console.log('currentUser.notion_id:', currentUser.notion_id)
+    console.log('sendingToN8n:', sendingToN8n)
+    console.log('Conditions pour afficher bouton:')
+    console.log('- postsToGenerateCount > 0:', postsToGenerateCount > 0)
+    console.log('- currentUser.notion_id exists:', !!currentUser.notion_id)
+    console.log('========================')
+
     return (
         <Flex justify="space-between" align="center">
             <Box>

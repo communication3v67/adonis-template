@@ -39,8 +39,9 @@ export const usePostActions = () => {
                     console.log('========================')
                     notifications.show({
                         title: 'Succès',
-                        message: `${field} mis à jour avec succès !`,
+                        message: `Champ "${field}" mis à jour avec succès !`,
                         color: 'green',
+                        autoClose: 3000,
                     })
                     resolve(page)
                 },
@@ -50,8 +51,9 @@ export const usePostActions = () => {
                     console.log('========================')
                     notifications.show({
                         title: 'Erreur',
-                        message: `Erreur lors de la mise à jour de ${field}`,
+                        message: `Erreur lors de la mise à jour du champ "${field}". Vérifiez la valeur saisie.`,
                         color: 'red',
+                        autoClose: 5000,
                     })
                     reject(errors)
                 },
@@ -77,6 +79,7 @@ export const usePostActions = () => {
                         title: 'Succès',
                         message: 'Post supprimé avec succès',
                         color: 'green',
+                        autoClose: 3000,
                     })
                 },
                 onError: (errors) => {
@@ -85,8 +88,9 @@ export const usePostActions = () => {
                     console.log('========================')
                     notifications.show({
                         title: 'Erreur',
-                        message: 'Erreur lors de la suppression du post',
+                        message: 'Erreur lors de la suppression du post. Il se peut qu\'il soit toujours présent.',
                         color: 'red',
+                        autoClose: 5000,
                     })
                 },
             })
@@ -109,8 +113,9 @@ export const usePostActions = () => {
                     console.log('========================')
                     notifications.show({
                         title: 'Succès',
-                        message: 'Post dupliqué avec succès',
+                        message: 'Post dupliqué avec succès ! Le nouveau post est maintenant disponible.',
                         color: 'green',
+                        autoClose: 4000,
                     })
                 },
                 onError: (errors) => {
@@ -119,8 +124,9 @@ export const usePostActions = () => {
                     console.log('========================')
                     notifications.show({
                         title: 'Erreur',
-                        message: 'Erreur lors de la duplication du post',
+                        message: 'Erreur lors de la duplication du post. Le post n\'a pas été dupliqué.',
                         color: 'red',
+                        autoClose: 5000,
                     })
                 },
             }

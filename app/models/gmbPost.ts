@@ -42,6 +42,9 @@ export default class GmbPost extends BaseModel {
     declare project_name: string
 
     @column()
+    declare city: string
+
+    @column()
     declare location_id: string
 
     @column()

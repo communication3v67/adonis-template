@@ -54,6 +54,12 @@ export const BulkEditForm = ({ bulkEditData, filterOptions, onUpdateField }: Bul
                     size="sm"
                     searchable
                 />
+                <TextInput
+                    placeholder="Nouvelle ville"
+                    value={bulkEditData.city}
+                    onChange={(e) => onUpdateField('city', e.target.value)}
+                    size="sm"
+                />
             </Group>
 
             <Group grow>

@@ -9,6 +9,7 @@ export interface GmbPost {
     keyword?: string
     client: string
     project_name: string
+    city?: string
     location_id: string
     account_id: string
     notion_id?: string
@@ -64,6 +65,7 @@ export interface BulkEditData {
     status: string
     client: string
     project_name: string
+    city: string
     location_id: string
     account_id: string
     notion_id: string

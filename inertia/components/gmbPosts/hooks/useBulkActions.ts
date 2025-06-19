@@ -11,6 +11,7 @@ export const useBulkActions = () => {
         status: '',
         client: '',
         project_name: '',
+        city: '',
         location_id: '',
         account_id: '',
         notion_id: '',
@@ -27,6 +28,7 @@ export const useBulkActions = () => {
             status: '',
             client: '',
             project_name: '',
+            city: '',
             location_id: '',
             account_id: '',
             notion_id: '',
@@ -82,8 +84,9 @@ export const useBulkActions = () => {
                         resetBulkEdit()
                         notifications.show({
                             title: 'Succès',
-                            message: `${selectedPosts.length} post(s) modifié(s) avec succès !`,
+                            message: `${selectedPosts.length} post(s) modifié(s) avec succès ! Champs mis à jour : ${fieldsToUpdate.join(', ')}`,
                             color: 'green',
+                            autoClose: 5000,
                         })
                     },
                     onError: (errors) => {
@@ -92,8 +95,9 @@ export const useBulkActions = () => {
                         console.log('========================')
                         notifications.show({
                             title: 'Erreur',
-                            message: 'Erreur lors de la modification en masse',
+                            message: 'Erreur lors de la modification en masse. Vérifiez les données et réessayez.',
                             color: 'red',
+                            autoClose: 7000,
                         })
                     },
                 }
@@ -112,21 +116,33 @@ export const useBulkActions = () => {
             return
         }
 
-        if (confirm(`Êtes-vous sûr de vouloir supprimer ${selectedPosts.length} post(s) ?`)) {
+        if (confirm(`Êtes-vous sûr de vouloir supprimer ${selectedPosts.length} post(s) ? Cette action est irréversible.`)) {
+            console.log('=== SUPPRESSION EN MASSE ===')
+            console.log('Posts sélectionnés:', selectedPosts)
+            console.log('========================')
+            
             router.delete('/gmb-posts', {
                 data: { ids: selectedPosts },
                 onSuccess: () => {
+                    console.log('=== SUCCÈS SUPPRESSION MASSE ===')
+                    console.log('Posts supprimés avec succès')
+                    console.log('========================')
                     notifications.show({
                         title: 'Succès',
-                        message: 'Posts supprimés avec succès',
+                        message: `${selectedPosts.length} post(s) supprimé(s) avec succès`,
                         color: 'green',
+                        autoClose: 4000,
                     })
                 },
-                onError: () => {
+                onError: (errors) => {
+                    console.log('=== ERREUR SUPPRESSION MASSE ===')
+                    console.log('Erreurs reçues:', errors)
+                    console.log('========================')
                     notifications.show({
                         title: 'Erreur',
-                        message: 'Erreur lors de la suppression',
+                        message: `Erreur lors de la suppression de ${selectedPosts.length} post(s). Certains posts peuvent ne pas avoir été supprimés.`,
                         color: 'red',
+                        autoClose: 6000,
                     })
                 },
             })

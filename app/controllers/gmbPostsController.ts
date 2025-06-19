@@ -15,6 +15,7 @@ const createGmbPostValidator = vine.compile(
         keyword: vine.string().trim().optional(),
         client: vine.string().trim().minLength(1),
         project_name: vine.string().trim().minLength(1),
+        city: vine.string().trim().optional(),
         location_id: vine.string().trim().minLength(1),
         account_id: vine.string().trim().minLength(1),
         notion_id: vine.string().trim().optional(),
@@ -31,6 +32,7 @@ const updateGmbPostValidator = vine.compile(
         keyword: vine.string().trim().nullable().optional(),
         client: vine.string().trim().optional(),
         project_name: vine.string().trim().optional(),
+        city: vine.string().trim().nullable().optional(),
         location_id: vine.string().trim().optional(),
         account_id: vine.string().trim().optional(),
         notion_id: vine.string().trim().nullable().optional(),
@@ -204,6 +206,7 @@ export default class GmbPostsController {
                     .orWhereRaw('LOWER(keyword) LIKE ?', [`%${searchLower}%`])
                     .orWhereRaw('LOWER(client) LIKE ?', [`%${searchLower}%`])
                     .orWhereRaw('LOWER(project_name) LIKE ?', [`%${searchLower}%`])
+                    .orWhereRaw('LOWER(city) LIKE ?', [`%${searchLower}%`])
             })
         }
 
@@ -240,6 +243,7 @@ export default class GmbPostsController {
             'text': 'text',
             'client': 'client',
             'project_name': 'project_name',
+            'city': 'city',
             'keyword': 'keyword',
             'location_id': 'location_id',
             'account_id': 'account_id',
@@ -483,6 +487,7 @@ export default class GmbPostsController {
             if (payload.keyword !== undefined) updateData.keyword = payload.keyword || null
             if (payload.client !== undefined) updateData.client = payload.client || null
             if (payload.project_name !== undefined) updateData.project_name = payload.project_name || null
+            if (payload.city !== undefined) updateData.city = payload.city || null
             if (payload.location_id !== undefined) updateData.location_id = payload.location_id || null
             if (payload.account_id !== undefined) updateData.account_id = payload.account_id || null
             if (payload.notion_id !== undefined) updateData.notion_id = payload.notion_id || null
@@ -629,6 +634,7 @@ export default class GmbPostsController {
                 keyword: originalPost.keyword,
                 client: originalPost.client,
                 project_name: originalPost.project_name,
+                city: originalPost.city,
                 location_id: originalPost.location_id,
                 account_id: originalPost.account_id,
                 notion_id: originalPost.notion_id,
@@ -918,6 +924,7 @@ export default class GmbPostsController {
                 // Métadonnées GMB
                 client: post.client,
                 project_name: post.project_name,
+                city: post.city,
                 keyword: post.keyword,
                 location_id: post.location_id,
                 account_id: post.account_id,
@@ -981,6 +988,7 @@ export default class GmbPostsController {
                 extracted_data: {
                     entreprise: post.client,
                     projet: post.project_name,
+                    ville: post.city,
                     mot_cle: post.keyword,
                     texte: post.text,
                     statut: post.status,
@@ -1136,6 +1144,7 @@ export default class GmbPostsController {
                 // Métadonnées GMB
                 client: post.client,
                 project_name: post.project_name,
+                city: post.city,
                 keyword: post.keyword,
                 location_id: post.location_id,
                 account_id: post.account_id,
