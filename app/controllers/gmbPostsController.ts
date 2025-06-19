@@ -20,6 +20,11 @@ const createGmbPostValidator = vine.compile(
         location_id: vine.string().trim().minLength(1),
         account_id: vine.string().trim().minLength(1),
         notion_id: vine.string().trim().optional(),
+        // Nouveaux champs IA
+        input_tokens: vine.number().min(0).optional(),
+        output_tokens: vine.number().min(0).optional(),
+        model: vine.string().trim().optional(),
+        price: vine.number().min(0).optional(),
     })
 )
 
@@ -37,6 +42,11 @@ const updateGmbPostValidator = vine.compile(
         location_id: vine.string().trim().optional(),
         account_id: vine.string().trim().optional(),
         notion_id: vine.string().trim().nullable().optional(),
+        // Nouveaux champs IA
+        input_tokens: vine.number().min(0).nullable().optional(),
+        output_tokens: vine.number().min(0).nullable().optional(),
+        model: vine.string().trim().nullable().optional(),
+        price: vine.number().min(0).nullable().optional(),
     })
 )
 
@@ -549,6 +559,12 @@ export default class GmbPostsController {
             if (payload.account_id !== undefined) updateData.account_id = payload.account_id || null
             if (payload.notion_id !== undefined) updateData.notion_id = payload.notion_id || null
             
+            // Nouveaux champs IA
+            if (payload.input_tokens !== undefined) updateData.input_tokens = payload.input_tokens || null
+            if (payload.output_tokens !== undefined) updateData.output_tokens = payload.output_tokens || null
+            if (payload.model !== undefined) updateData.model = payload.model || null
+            if (payload.price !== undefined) updateData.price = payload.price || null
+            
             // Gestion spéciale pour la date
             if (payload.date !== undefined && payload.date) {
                 try {
@@ -741,8 +757,100 @@ export default class GmbPostsController {
     }
 
     /**
-     * Exporte les posts au format JSON
+     * Affiche les statistiques des posts avec les coûts IA
      */
+    async stats({ inertia, auth }: HttpContext) {
+        try {
+            // S'assurer qu'un utilisateur est connecté
+            await auth.check()
+            const currentUser = auth.user!
+
+            // Statistiques générales
+            const totalPosts = await GmbPost.query()
+                .where('user_id', currentUser.id)
+                .count('* as total')
+
+            const postsByStatus = await GmbPost.query()
+                .where('user_id', currentUser.id)
+                .select('status')
+                .count('* as count')
+                .groupBy('status')
+
+            // Statistiques IA et coûts
+            const aiStats = await GmbPost.query()
+                .where('user_id', currentUser.id)
+                .whereNotNull('input_tokens')
+                .select([
+                    GmbPost.query().sum('input_tokens').as('total_input_tokens'),
+                    GmbPost.query().sum('output_tokens').as('total_output_tokens'),
+                    GmbPost.query().sum('price').as('total_cost'),
+                    GmbPost.query().count('*').as('ai_posts_count'),
+                    GmbPost.query().avg('price').as('avg_cost_per_post')
+                ])
+                .first()
+
+            // Coûts par modèle
+            const costsByModel = await GmbPost.query()
+                .where('user_id', currentUser.id)
+                .whereNotNull('model')
+                .select('model')
+                .sum('price as total_cost')
+                .count('* as posts_count')
+                .avg('price as avg_cost')
+                .groupBy('model')
+                .orderBy('total_cost', 'desc')
+
+            // Posts les plus coûteux
+            const mostExpensivePosts = await GmbPost.query()
+                .where('user_id', currentUser.id)
+                .whereNotNull('price')
+                .select('id', 'text', 'model', 'price', 'input_tokens', 'output_tokens', 'created_at')
+                .orderBy('price', 'desc')
+                .limit(10)
+
+            return inertia.render('gmbPosts/stats', {
+                stats: {
+                    total: Number(totalPosts[0].$extras.total),
+                    byStatus: postsByStatus.map(s => ({
+                        status: s.status,
+                        count: Number(s.$extras.count)
+                    })),
+                    ai: {
+                        totalInputTokens: Number(aiStats?.total_input_tokens || 0),
+                        totalOutputTokens: Number(aiStats?.total_output_tokens || 0),
+                        totalCost: Number(aiStats?.total_cost || 0),
+                        aiPostsCount: Number(aiStats?.ai_posts_count || 0),
+                        avgCostPerPost: Number(aiStats?.avg_cost_per_post || 0),
+                        costsByModel: costsByModel.map(m => ({
+                            model: m.model,
+                            totalCost: Number(m.$extras.total_cost),
+                            postsCount: Number(m.$extras.posts_count),
+                            avgCost: Number(m.$extras.avg_cost)
+                        })),
+                        mostExpensivePosts: mostExpensivePosts.map(p => p.serialize())
+                    }
+                },
+                currentUser: {
+                    id: currentUser.id,
+                    username: currentUser.username,
+                    email: currentUser.email,
+                    notion_id: currentUser.notionId
+                }
+            })
+
+        } catch (error) {
+            console.error('Erreur récupération stats:', error)
+            return inertia.render('gmbPosts/stats', {
+                error: 'Erreur lors de la récupération des statistiques',
+                currentUser: {
+                    id: auth.user?.id,
+                    username: auth.user?.username,
+                    email: auth.user?.email,
+                    notion_id: auth.user?.notionId
+                }
+            })
+        }
+    }
     async export({ request, response }: HttpContext) {
         try {
             const { format = 'json' } = request.qs()

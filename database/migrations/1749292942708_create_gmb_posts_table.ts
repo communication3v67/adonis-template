@@ -23,6 +23,12 @@ export default class extends BaseSchema {
             table.string('account_id').nullable()
             table.string('notion_id').nullable()
 
+            // Colonnes IA et coûts
+            table.integer('input_tokens').nullable().comment('Nombre de tokens en entrée pour la génération IA')
+            table.integer('output_tokens').nullable().comment('Nombre de tokens en sortie pour la génération IA')
+            table.string('model', 100).nullable().comment('Modèle IA utilisé (ex: gpt-4, claude-3, etc.)')
+            table.decimal('price', 10, 6).nullable().comment('Coût de génération en EUR ou USD')
+
             // Timestamps
             table.timestamp('created_at', { useTz: true }).notNullable()
             table.timestamp('updated_at', { useTz: true }).notNullable()

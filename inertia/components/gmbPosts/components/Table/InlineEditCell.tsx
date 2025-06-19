@@ -9,9 +9,10 @@ interface InlineEditCellProps {
     value: string
     field: string
     post: GmbPost
-    type?: 'text' | 'textarea' | 'select' | 'datetime-local'
+    type?: 'text' | 'textarea' | 'select' | 'datetime-local' | 'number'
     options?: { value: string; label: string }[]
     filterOptions?: FilterOptions
+    displayValue?: string // Valeur à afficher (différente de la valeur d'édition)
     onSave: (postId: number, field: string, value: string) => Promise<void>
 }
 
@@ -22,6 +23,7 @@ export const InlineEditCell = ({
     type = 'text',
     options = [],
     filterOptions,
+    displayValue, // Nouvelle prop
     onSave,
 }: InlineEditCellProps) => {
     const [isEditing, setIsEditing] = useState(false)
@@ -191,7 +193,7 @@ export const InlineEditCell = ({
                             </Text>
                         </Tooltip>
                     ) : (
-                        <Text size="sm">{value || '-'}</Text>
+                        <Text size="sm">{displayValue || value || '-'}</Text>
                     )}
                 </Box>
                 <ActionIcon

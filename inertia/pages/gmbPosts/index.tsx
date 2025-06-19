@@ -3,6 +3,7 @@ import { Stack } from '@mantine/core'
 import { useEffect, useMemo, useState } from 'react'
 import { SSE_CLIENT_CONFIG } from '../../config/sse'
 import { useSSE } from '../../hooks/useSSE'
+import { ColumnConfig } from '../../components/gmbPosts/components/Table/ColumnVisibilityManager'
 
 // Types et hooks
 import {
@@ -39,6 +40,55 @@ export default function GmbPostsIndex({
     const [lastUpdateTime, setLastUpdateTime] = useState<string | null>(null)
     const [pendingUpdates, setPendingUpdates] = useState<number>(0)
     const [refreshKey, setRefreshKey] = useState<number>(0) // Clé pour forcer le re-render
+
+    // Configuration des colonnes avec largeurs par défaut
+    const [columns, setColumns] = useState<ColumnConfig[]>([
+        { key: 'checkbox', label: 'Sélection', visible: true, width: 80, minWidth: 60, maxWidth: 100, required: true },
+        { key: 'status', label: 'Statut', visible: true, width: 220, minWidth: 150, maxWidth: 300 },
+        { key: 'text', label: 'Texte', visible: true, width: 600, minWidth: 250, maxWidth: 900 },
+        { key: 'date', label: 'Date', visible: true, width: 220, minWidth: 150, maxWidth: 270 },
+        { key: 'keyword', label: 'Mot-clé', visible: true, width: 200, minWidth: 130, maxWidth: 300 },
+        { key: 'client', label: 'Client', visible: true, width: 220, minWidth: 150, maxWidth: 350 },
+        { key: 'project_name', label: 'Projet', visible: true, width: 250, minWidth: 150, maxWidth: 400 },
+        { key: 'city', label: 'Ville', visible: true, width: 190, minWidth: 130, maxWidth: 300 },
+        { key: 'price', label: 'Prix IA', visible: true, width: 160, minWidth: 120, maxWidth: 220 },
+        { key: 'model', label: 'Modèle IA', visible: false, width: 180, minWidth: 130, maxWidth: 250 },
+        { key: 'input_tokens', label: 'Tokens In', visible: false, width: 160, minWidth: 120, maxWidth: 200 },
+        { key: 'output_tokens', label: 'Tokens Out', visible: false, width: 160, minWidth: 120, maxWidth: 200 },
+        { key: 'image_url', label: 'Image', visible: false, width: 160, minWidth: 120, maxWidth: 250 },
+        { key: 'link_url', label: 'Lien', visible: false, width: 160, minWidth: 120, maxWidth: 250 },
+        { key: 'location_id', label: 'Location ID', visible: false, width: 200, minWidth: 150, maxWidth: 300 },
+        { key: 'account_id', label: 'Account ID', visible: false, width: 200, minWidth: 150, maxWidth: 300 },
+        { key: 'notion_id', label: 'Notion ID', visible: false, width: 200, minWidth: 150, maxWidth: 300 },
+        { key: 'actions', label: 'Actions', visible: true, width: 220, minWidth: 180, maxWidth: 280, required: true },
+    ])
+
+    // Fonction pour réinitialiser les largeurs
+    const resetWidths = () => {
+        setColumns(prev => prev.map(col => {
+            switch (col.key) {
+                case 'checkbox': return { ...col, width: 80 }
+                case 'status': return { ...col, width: 220 }
+                case 'text': return { ...col, width: 600 }
+                case 'date': return { ...col, width: 220 }
+                case 'keyword': return { ...col, width: 200 }
+                case 'client': return { ...col, width: 220 }
+                case 'project_name': return { ...col, width: 250 }
+                case 'city': return { ...col, width: 190 }
+                case 'price': return { ...col, width: 160 }
+                case 'model': return { ...col, width: 180 }
+                case 'input_tokens': return { ...col, width: 160 }
+                case 'output_tokens': return { ...col, width: 160 }
+                case 'image_url': return { ...col, width: 160 }
+                case 'link_url': return { ...col, width: 160 }
+                case 'location_id': return { ...col, width: 200 }
+                case 'account_id': return { ...col, width: 200 }
+                case 'notion_id': return { ...col, width: 200 }
+                case 'actions': return { ...col, width: 220 }
+                default: return col
+            }
+        }))
+    }
 
     // Hooks personnalisés
     const { filters, updateFilter, isApplyingFilters, applyFilters, resetFilters, handleSort } =
@@ -272,6 +322,9 @@ export default function GmbPostsIndex({
                         pendingUpdates={pendingUpdates}
                         lastUpdateTime={lastUpdateTime}
                         onRefresh={refreshData}
+                        columns={columns}
+                        onColumnsChange={setColumns}
+                        onResetWidths={resetWidths}
                     />
 
                     {/* Tableau des posts */}
@@ -293,6 +346,9 @@ export default function GmbPostsIndex({
                         onDelete={handleDelete}
                         onDuplicate={handleDuplicate}
                         onSendToN8n={sendSinglePostToN8n}
+                        columns={columns}
+                        onColumnsChange={setColumns}
+                        onResetWidths={resetWidths}
                     />
                 </div>
 

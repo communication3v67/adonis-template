@@ -1,4 +1,4 @@
-import { ActionIcon, Drawer, Switch, Text, Stack, Group, Button, Divider } from '@mantine/core'
+import { ActionIcon, Button, Divider, Drawer, Group, Stack, Switch, Text } from '@mantine/core'
 import { useState } from 'react'
 import { LuEye, LuEyeOff, LuSettings2 } from 'react-icons/lu'
 
@@ -18,29 +18,33 @@ interface ColumnVisibilityManagerProps {
     onResetWidths?: () => void
 }
 
-export const ColumnVisibilityManager = ({ columns, onColumnsChange, onResetWidths }: ColumnVisibilityManagerProps) => {
+export const ColumnVisibilityManager = ({
+    columns,
+    onColumnsChange,
+    onResetWidths,
+}: ColumnVisibilityManagerProps) => {
     const [drawerOpened, setDrawerOpened] = useState(false)
 
     const toggleColumn = (key: string) => {
-        const updatedColumns = columns.map(col => 
+        const updatedColumns = columns.map((col) =>
             col.key === key ? { ...col, visible: !col.visible } : col
         )
         onColumnsChange(updatedColumns)
     }
 
     const showAllColumns = () => {
-        const updatedColumns = columns.map(col => ({ ...col, visible: true }))
+        const updatedColumns = columns.map((col) => ({ ...col, visible: true }))
         onColumnsChange(updatedColumns)
     }
 
     const hideOptionalColumns = () => {
-        const updatedColumns = columns.map(col => 
+        const updatedColumns = columns.map((col) =>
             col.required ? col : { ...col, visible: false }
         )
         onColumnsChange(updatedColumns)
     }
 
-    const visibleCount = columns.filter(col => col.visible).length
+    const visibleCount = columns.filter((col) => col.visible).length
     const totalCount = columns.length
 
     return (
@@ -48,8 +52,8 @@ export const ColumnVisibilityManager = ({ columns, onColumnsChange, onResetWidth
             {/* Bouton pour ouvrir le drawer */}
             <ActionIcon
                 size="lg"
-                variant="subtle"
-                color="gray"
+                variant="light"
+                color="blue"
                 onClick={() => setDrawerOpened(true)}
                 title="Gérer les colonnes"
             >
@@ -74,18 +78,10 @@ export const ColumnVisibilityManager = ({ columns, onColumnsChange, onResetWidth
 
                     {/* Actions rapides */}
                     <Group gap="xs">
-                        <Button
-                            size="xs"
-                            variant="light"
-                            onClick={showAllColumns}
-                        >
+                        <Button size="xs" variant="light" onClick={showAllColumns}>
                             Tout afficher
                         </Button>
-                        <Button
-                            size="xs"
-                            variant="light"
-                            onClick={hideOptionalColumns}
-                        >
+                        <Button size="xs" variant="light" onClick={hideOptionalColumns}>
                             Colonnes essentielles
                         </Button>
                         {onResetWidths && (
@@ -110,18 +106,26 @@ export const ColumnVisibilityManager = ({ columns, onColumnsChange, onResetWidth
                                     <ActionIcon
                                         size="sm"
                                         variant="subtle"
-                                        color={column.visible ? "blue" : "gray"}
+                                        color={column.visible ? 'blue' : 'gray'}
                                         onClick={() => !column.required && toggleColumn(column.key)}
                                         disabled={column.required}
-                                        title={column.required ? "Colonne obligatoire" : "Basculer la visibilité"}
+                                        title={
+                                            column.required
+                                                ? 'Colonne obligatoire'
+                                                : 'Basculer la visibilité'
+                                        }
                                     >
-                                        {column.visible ? <LuEye size={14} /> : <LuEyeOff size={14} />}
+                                        {column.visible ? (
+                                            <LuEye size={14} />
+                                        ) : (
+                                            <LuEyeOff size={14} />
+                                        )}
                                     </ActionIcon>
-                                    <Text 
-                                        size="sm" 
-                                        style={{ 
+                                    <Text
+                                        size="sm"
+                                        style={{
                                             opacity: column.visible ? 1 : 0.6,
-                                            flex: 1
+                                            flex: 1,
                                         }}
                                     >
                                         {column.label}

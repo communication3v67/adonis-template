@@ -3,6 +3,7 @@ import { FilterOptions, GmbPost } from '../../types'
 import { ActionsCell } from './ActionsCell'
 import { ColumnConfig } from './ColumnVisibilityManager'
 import { InlineEditCell } from './InlineEditCell'
+import { calculatePrice } from '../../../../utils/pricing'
 
 interface PostRowProps {
     post: GmbPost
@@ -129,6 +130,62 @@ export const PostRow = ({
                             field="city"
                             post={post}
                             onSave={onInlineEdit}
+                        />
+                    </td>
+                )
+            case 'price':
+                return (
+                    <td key={column.key} style={{ ...baseStyle, textAlign: 'right' }}>
+                        <InlineEditCell
+                            value={post.price ? post.price.toString() : ''}
+                            field="price"
+                            post={post}
+                            type="number"
+                            onSave={onInlineEdit}
+                            displayValue={
+                                post.price !== null && post.price !== undefined 
+                                    ? post.price.toString()
+                                    : post.model && post.input_tokens && post.output_tokens
+                                        ? calculatePrice(post.model, post.input_tokens, post.output_tokens)?.toString() || '-'
+                                        : '-'
+                            }
+                        />
+                    </td>
+                )
+            case 'model':
+                return (
+                    <td key={column.key} style={baseStyle}>
+                        <InlineEditCell
+                            value={post.model || ''}
+                            field="model"
+                            post={post}
+                            onSave={onInlineEdit}
+                        />
+                    </td>
+                )
+            case 'input_tokens':
+                return (
+                    <td key={column.key} style={{ ...baseStyle, textAlign: 'right' }}>
+                        <InlineEditCell
+                            value={post.input_tokens ? post.input_tokens.toString() : ''}
+                            field="input_tokens"
+                            post={post}
+                            type="number"
+                            onSave={onInlineEdit}
+                            displayValue={post.input_tokens ? post.input_tokens.toLocaleString() : '-'}
+                        />
+                    </td>
+                )
+            case 'output_tokens':
+                return (
+                    <td key={column.key} style={{ ...baseStyle, textAlign: 'right' }}>
+                        <InlineEditCell
+                            value={post.output_tokens ? post.output_tokens.toString() : ''}
+                            field="output_tokens"
+                            post={post}
+                            type="number"
+                            onSave={onInlineEdit}
+                            displayValue={post.output_tokens ? post.output_tokens.toLocaleString() : '-'}
                         />
                     </td>
                 )

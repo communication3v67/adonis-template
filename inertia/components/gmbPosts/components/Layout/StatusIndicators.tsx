@@ -1,6 +1,7 @@
 import { Badge, Box, Button, Group, Text } from '@mantine/core'
 import { LuRefreshCw } from 'react-icons/lu'
 import { CurrentUser } from '../../types'
+import { ColumnVisibilityManager, ColumnConfig } from '../Table/ColumnVisibilityManager'
 
 interface StatusIndicatorsProps {
     postsLoaded: number
@@ -13,6 +14,10 @@ interface StatusIndicatorsProps {
     pendingUpdates?: number
     lastUpdateTime?: string | null
     onRefresh?: () => void
+    // Props pour la gestion des colonnes
+    columns?: ColumnConfig[]
+    onColumnsChange?: (columns: ColumnConfig[]) => void
+    onResetWidths?: () => void
 }
 
 export const StatusIndicators = ({
@@ -26,6 +31,9 @@ export const StatusIndicators = ({
     pendingUpdates = 0,
     lastUpdateTime = null,
     onRefresh,
+    columns,
+    onColumnsChange,
+    onResetWidths,
 }: StatusIndicatorsProps) => {
     // Déterminer l'affichage du statut SSE
     const getSSEBadge = () => {
@@ -101,18 +109,30 @@ export const StatusIndicators = ({
                     )}
                 </Group>
                 
-                {/* Bouton de rafraîchissement manuel */}
-                {onRefresh && (
-                    <Button
-                        variant="subtle"
-                        size="xs"
-                        leftSection={<LuRefreshCw size={14} />}
-                        onClick={onRefresh}
-                        color={pendingUpdates > 0 ? 'orange' : 'gray'}
-                    >
-                        Actualiser
-                    </Button>
-                )}
+                {/* Boutons d'actions */}
+                <Group gap="xs">
+                    {/* Gestionnaire de colonnes */}
+                    {columns && onColumnsChange && (
+                        <ColumnVisibilityManager
+                            columns={columns}
+                            onColumnsChange={onColumnsChange}
+                            onResetWidths={onResetWidths}
+                        />
+                    )}
+                    
+                    {/* Bouton de rafraîchissement manuel */}
+                    {onRefresh && (
+                        <Button
+                            variant="subtle"
+                            size="xs"
+                            leftSection={<LuRefreshCw size={14} />}
+                            onClick={onRefresh}
+                            color={pendingUpdates > 0 ? 'orange' : 'gray'}
+                        >
+                            Actualiser
+                        </Button>
+                    )}
+                </Group>
             </Group>
         </Box>
     )

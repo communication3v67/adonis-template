@@ -39,6 +39,11 @@ export default class extends BaseSeeder {
         location_id: 'loc_123456789',
         account_id: 'acc_987654321',
         notion_id: 'notion_456789123',
+        // Données IA d'exemple
+        input_tokens: 1250,
+        output_tokens: 850,
+        model: 'gpt-4',
+        price: 0.005420,
       },
       {
         status: 'scheduled',
@@ -52,6 +57,11 @@ export default class extends BaseSeeder {
         location_id: 'loc_234567890',
         account_id: 'acc_876543210',
         notion_id: 'notion_567890234',
+        // Données IA d'exemple
+        input_tokens: 980,
+        output_tokens: 1200,
+        model: 'claude-3-sonnet',
+        price: 0.003850,
       },
       {
         status: 'published',
@@ -65,6 +75,11 @@ export default class extends BaseSeeder {
         location_id: 'loc_345678901',
         account_id: 'acc_765432109',
         notion_id: 'notion_678901345',
+        // Données IA d'exemple
+        input_tokens: 1500,
+        output_tokens: 750,
+        model: 'gemini-pro',
+        price: 0.002130,
       },
       {
         status: 'draft',
@@ -78,6 +93,11 @@ export default class extends BaseSeeder {
         location_id: 'loc_456789012',
         account_id: 'acc_654321098',
         notion_id: 'notion_789012456',
+        // Pas de données IA (post manuel)
+        input_tokens: null,
+        output_tokens: null,
+        model: null,
+        price: null,
       },
       {
         status: 'draft',
@@ -91,6 +111,11 @@ export default class extends BaseSeeder {
         location_id: 'loc_567890123',
         account_id: 'acc_543210987',
         notion_id: 'notion_890123567',
+        // Données IA d'exemple avec modèle coûteux
+        input_tokens: 2000,
+        output_tokens: 1800,
+        model: 'gpt-4-turbo',
+        price: 0.012350,
       }
     ]
 

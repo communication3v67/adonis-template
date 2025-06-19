@@ -1,8 +1,9 @@
-import { BaseModel, column, belongsTo, afterCreate, afterUpdate, afterDelete } from '@adonisjs/lucid/orm'
+import { BaseModel, column, belongsTo, afterCreate, afterUpdate, afterDelete, beforeSave } from '@adonisjs/lucid/orm'
 import type { BelongsTo } from '@adonisjs/lucid/types/relations'
 import { DateTime } from 'luxon'
 import { SnakeCaseNamingStrategy } from '../naming_strategies/snake_case_naming_strategy.js'
 import User from './user.js'
+import { calculatePrice } from '../utils/pricing_calculator.js'
 
 export default class GmbPost extends BaseModel {
     // Spécifier explicitement le nom de la table
@@ -53,6 +54,19 @@ export default class GmbPost extends BaseModel {
     @column()
     declare notion_id: string
 
+    // Colonnes IA et coûts
+    @column()
+    declare input_tokens: number | null
+
+    @column()
+    declare output_tokens: number | null
+
+    @column()
+    declare model: string | null
+
+    @column()
+    declare price: number | null
+
     @column.dateTime({ autoCreate: true, columnName: 'created_at' })
     declare createdAt: DateTime
 
@@ -98,6 +112,62 @@ export default class GmbPost extends BaseModel {
     // Méthode pour vérifier si le post a un lien
     public get hasLink() {
         return !!this.link_url
+    }
+
+    // Méthodes utilitaires pour l'IA et les coûts
+    public get hasAiData() {
+        return !!(this.input_tokens || this.output_tokens || this.model || this.price)
+    }
+
+    public get totalTokens() {
+        return (this.input_tokens || 0) + (this.output_tokens || 0)
+    }
+
+    public get tokenRatio() {
+        if (!this.input_tokens || !this.output_tokens) return null
+        return this.output_tokens / this.input_tokens
+    }
+
+    public getFormattedPrice(currency: string = 'EUR') {
+        if (!this.price) return null
+        return new Intl.NumberFormat('fr-FR', {
+            style: 'currency',
+            currency: currency,
+            minimumFractionDigits: 6
+        }).format(this.price)
+    }
+
+    public get costPerToken() {
+        if (!this.price || !this.totalTokens) return null
+        return this.price / this.totalTokens
+    }
+
+    // Hook pour calculer automatiquement le prix avant la sauvegarde
+    @beforeSave()
+    public static async calculatePriceBeforeSave(post: GmbPost) {
+        // Si on a toutes les données nécessaires, calculer le prix
+        if (post.model && post.input_tokens && post.output_tokens) {
+            const calculatedPrice = calculatePrice(
+                post.model,
+                post.input_tokens,
+                post.output_tokens
+            )
+            
+            if (calculatedPrice !== null) {
+                post.price = calculatedPrice
+                console.log(`💰 Prix calculé automatiquement: ${calculatedPrice.toFixed(6)}$ pour le modèle ${post.model}`)
+            } else {
+                // Modèle non supporté
+                post.price = null
+                console.log(`⚠️ Modèle non supporté pour le pricing: ${post.model}`)
+            }
+        } else {
+            // Si l'une des données nécessaires manque, mettre le prix à null
+            post.price = null
+            if (post.model || post.input_tokens || post.output_tokens) {
+                console.log(`ℹ️ Données incomplètes pour le calcul du prix - prix mis à null (model: ${post.model}, input: ${post.input_tokens}, output: ${post.output_tokens})`)
+            }
+        }
     }
 
     // Hooks pour déclencher des événements SSE

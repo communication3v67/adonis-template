@@ -13,6 +13,16 @@ export interface GmbPost {
     location_id: string
     account_id: string
     notion_id?: string
+    // Nouveaux champs IA et coûts
+    input_tokens?: number | null
+    output_tokens?: number | null
+    model?: string | null
+    price?: number | null
+    // Champs utilitaires calculés
+    totalTokens?: number
+    hasAiData?: boolean
+    formattedPrice?: string
+    costPerToken?: number
     createdAt: string
     updatedAt: string
 }
@@ -69,6 +79,36 @@ export interface BulkEditData {
     location_id: string
     account_id: string
     notion_id: string
+    // Nouveaux champs IA
+    input_tokens?: number
+    output_tokens?: number
+    model?: string
+    price?: number
+}
+
+// Interface pour les statistiques IA
+export interface AiStats {
+    totalInputTokens: number
+    totalOutputTokens: number
+    totalCost: number
+    aiPostsCount: number
+    avgCostPerPost: number
+    costsByModel: {
+        model: string
+        totalCost: number
+        postsCount: number
+        avgCost: number
+    }[]
+    mostExpensivePosts: GmbPost[]
+}
+
+export interface StatsData {
+    total: number
+    byStatus: {
+        status: string
+        count: number
+    }[]
+    ai: AiStats
 }
 
 // Props principales de la page
