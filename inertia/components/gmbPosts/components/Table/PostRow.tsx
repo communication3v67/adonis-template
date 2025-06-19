@@ -34,10 +34,10 @@ export const PostRow = ({
     onSendToN8n,
 }: PostRowProps) => {
     const renderCell = (column: ColumnConfig) => {
-        const width = getColumnWidth(column.key)
+        const width = column.width
         const baseStyle = {
-            width,
-            maxWidth: width,
+            width: `${width}px`,
+            maxWidth: `${width}px`,
             verticalAlign: 'middle' as const,
             padding: '8px'
         }

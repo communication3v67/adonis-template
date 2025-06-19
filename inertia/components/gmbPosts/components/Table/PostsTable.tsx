@@ -4,6 +4,7 @@ import { GmbPost, FilterOptions, FilterState } from '../../types'
 import { SortableHeader } from './SortableHeader'
 import { PostRow } from './PostRow'
 import { ColumnVisibilityManager, ColumnConfig } from './ColumnVisibilityManager'
+import { ResizableColumn } from './ResizableColumn'
 
 interface PostsTableProps {
     posts: GmbPost[]
@@ -44,21 +45,21 @@ export const PostsTable = ({
     onDuplicate,
     onSendToN8n,
 }: PostsTableProps) => {
-    // Configuration des colonnes
+    // Configuration des colonnes avec largeurs par défaut
     const [columns, setColumns] = useState<ColumnConfig[]>([
-        { key: 'checkbox', label: 'Sélection', visible: true, required: true },
-        { key: 'status', label: 'Statut', visible: true },
-        { key: 'text', label: 'Texte', visible: true },
-        { key: 'date', label: 'Date', visible: true },
-        { key: 'keyword', label: 'Mot-clé', visible: true },
-        { key: 'client', label: 'Client', visible: true },
-        { key: 'project_name', label: 'Projet', visible: true },
-        { key: 'image_url', label: 'Image', visible: false },
-        { key: 'link_url', label: 'Lien', visible: false },
-        { key: 'location_id', label: 'Location ID', visible: false },
-        { key: 'account_id', label: 'Account ID', visible: false },
-        { key: 'notion_id', label: 'Notion ID', visible: false },
-        { key: 'actions', label: 'Actions', visible: true, required: true },
+        { key: 'checkbox', label: 'Sélection', visible: true, width: 60, minWidth: 60, maxWidth: 80, required: true },
+        { key: 'status', label: 'Statut', visible: true, width: 180, minWidth: 120, maxWidth: 250 },
+        { key: 'text', label: 'Texte', visible: true, width: 500, minWidth: 200, maxWidth: 800 },
+        { key: 'date', label: 'Date', visible: true, width: 180, minWidth: 120, maxWidth: 220 },
+        { key: 'keyword', label: 'Mot-clé', visible: true, width: 160, minWidth: 100, maxWidth: 250 },
+        { key: 'client', label: 'Client', visible: true, width: 180, minWidth: 120, maxWidth: 300 },
+        { key: 'project_name', label: 'Projet', visible: true, width: 200, minWidth: 120, maxWidth: 350 },
+        { key: 'image_url', label: 'Image', visible: false, width: 120, minWidth: 80, maxWidth: 200 },
+        { key: 'link_url', label: 'Lien', visible: false, width: 120, minWidth: 80, maxWidth: 200 },
+        { key: 'location_id', label: 'Location ID', visible: false, width: 160, minWidth: 100, maxWidth: 250 },
+        { key: 'account_id', label: 'Account ID', visible: false, width: 160, minWidth: 100, maxWidth: 250 },
+        { key: 'notion_id', label: 'Notion ID', visible: false, width: 160, minWidth: 100, maxWidth: 250 },
+        { key: 'actions', label: 'Actions', visible: true, width: 180, minWidth: 150, maxWidth: 220, required: true },
     ])
 
     // Colonnes visibles uniquement
@@ -69,30 +70,42 @@ export const PostsTable = ({
 
     // Calculer la largeur minimale dynamiquement
     const getColumnWidth = (key: string) => {
-        switch (key) {
-            case 'checkbox': return '60px'
-            case 'status': return '180px'
-            case 'text': return '500px'
-            case 'date': return '180px'
-            case 'keyword': return '160px'
-            case 'client': return '180px'
-            case 'project_name': return '200px'
-            case 'image_url': return '120px'
-            case 'link_url': return '120px'
-            case 'location_id': return '160px'
-            case 'account_id': return '160px'
-            case 'notion_id': return '160px'
-            case 'actions': return '180px'
-            default: return '120px'
-        }
+        const column = columns.find(col => col.key === key)
+        return column ? column.width : 120
     }
 
     const totalWidth = useMemo(() => {
-        return visibleColumns.reduce((sum, col) => {
-            const width = parseInt(getColumnWidth(col.key))
-            return sum + width
-        }, 0)
+        return visibleColumns.reduce((sum, col) => sum + col.width, 0)
     }, [visibleColumns])
+
+    // Fonction pour redimensionner une colonne
+    const handleColumnResize = (key: string, newWidth: number) => {
+        setColumns(prev => prev.map(col => 
+            col.key === key ? { ...col, width: newWidth } : col
+        ))
+    }
+
+    // Fonction pour réinitialiser les largeurs
+    const resetWidths = () => {
+        setColumns(prev => prev.map(col => {
+            switch (col.key) {
+                case 'checkbox': return { ...col, width: 60 }
+                case 'status': return { ...col, width: 180 }
+                case 'text': return { ...col, width: 500 }
+                case 'date': return { ...col, width: 180 }
+                case 'keyword': return { ...col, width: 160 }
+                case 'client': return { ...col, width: 180 }
+                case 'project_name': return { ...col, width: 200 }
+                case 'image_url': return { ...col, width: 120 }
+                case 'link_url': return { ...col, width: 120 }
+                case 'location_id': return { ...col, width: 160 }
+                case 'account_id': return { ...col, width: 160 }
+                case 'notion_id': return { ...col, width: 160 }
+                case 'actions': return { ...col, width: 180 }
+                default: return col
+            }
+        }))
+    }
     if (posts.length === 0) {
         return (
             <Box p="xl" style={{ textAlign: 'center' }}>
@@ -113,37 +126,68 @@ export const PostsTable = ({
                 <ColumnVisibilityManager
                     columns={columns}
                     onColumnsChange={setColumns}
+                    onResetWidths={resetWidths}
                 />
             </Group>
 
             <Box style={{ overflowX: 'auto' }}>
-                <Table striped highlightOnHover style={{ minWidth: `${totalWidth}px`, tableLayout: 'fixed' }} verticalSpacing="lg" horizontalSpacing="lg">
+                <Table 
+                    striped 
+                    highlightOnHover 
+                    style={{ 
+                        minWidth: `${totalWidth}px`, 
+                        tableLayout: 'fixed',
+                        '--mantine-table-border-color': '#e9ecef'
+                    }} 
+                    verticalSpacing="lg" 
+                    horizontalSpacing="lg"
+                >
                     <Table.Thead>
                         <Table.Tr style={{ height: '50px' }}>
                             {visibleColumns.map((column) => {
                                 if (column.key === 'checkbox') {
                                     return (
-                                        <Table.Th key={column.key} style={{ width: getColumnWidth(column.key), textAlign: 'center', verticalAlign: 'middle', padding: '8px' }}>
+                                        <ResizableColumn
+                                            key={column.key}
+                                            width={column.width}
+                                            minWidth={column.minWidth}
+                                            maxWidth={column.maxWidth}
+                                            onResize={(newWidth) => handleColumnResize(column.key, newWidth)}
+                                            style={{ textAlign: 'center' }}
+                                        >
                                             <Checkbox
                                                 checked={isAllSelected}
                                                 indeterminate={isIndeterminate}
                                                 onChange={onSelectAll}
                                             />
-                                        </Table.Th>
+                                        </ResizableColumn>
                                     )
                                 }
                                 if (column.key === 'actions') {
                                     return (
-                                        <Table.Th key={column.key} style={{ width: getColumnWidth(column.key), verticalAlign: 'middle', padding: '8px', textAlign: 'center' }}>
+                                        <ResizableColumn
+                                            key={column.key}
+                                            width={column.width}
+                                            minWidth={column.minWidth}
+                                            maxWidth={column.maxWidth}
+                                            onResize={(newWidth) => handleColumnResize(column.key, newWidth)}
+                                            style={{ textAlign: 'center' }}
+                                        >
                                             Actions
-                                        </Table.Th>
+                                        </ResizableColumn>
                                     )
                                 }
                                 // Colonnes avec tri
                                 const sortableColumns = ['status', 'text', 'date', 'keyword', 'client', 'project_name']
                                 if (sortableColumns.includes(column.key)) {
                                     return (
-                                        <Table.Th key={column.key} style={{ width: getColumnWidth(column.key), verticalAlign: 'middle', padding: '8px' }}>
+                                        <ResizableColumn
+                                            key={column.key}
+                                            width={column.width}
+                                            minWidth={column.minWidth}
+                                            maxWidth={column.maxWidth}
+                                            onResize={(newWidth) => handleColumnResize(column.key, newWidth)}
+                                        >
                                             <SortableHeader
                                                 label={column.label}
                                                 sortKey={column.key}
@@ -151,14 +195,20 @@ export const PostsTable = ({
                                                 currentSortOrder={filters.sortOrder}
                                                 onSort={onSort}
                                             />
-                                        </Table.Th>
+                                        </ResizableColumn>
                                     )
                                 }
                                 // Colonnes simples
                                 return (
-                                    <Table.Th key={column.key} style={{ width: getColumnWidth(column.key), verticalAlign: 'middle', padding: '8px' }}>
+                                    <ResizableColumn
+                                        key={column.key}
+                                        width={column.width}
+                                        minWidth={column.minWidth}
+                                        maxWidth={column.maxWidth}
+                                        onResize={(newWidth) => handleColumnResize(column.key, newWidth)}
+                                    >
                                         {column.label}
-                                    </Table.Th>
+                                    </ResizableColumn>
                                 )
                             })}
                         </Table.Tr>

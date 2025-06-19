@@ -6,15 +6,19 @@ export interface ColumnConfig {
     key: string
     label: string
     visible: boolean
+    width: number
+    minWidth?: number
+    maxWidth?: number
     required?: boolean // Pour les colonnes obligatoires (checkbox, actions)
 }
 
 interface ColumnVisibilityManagerProps {
     columns: ColumnConfig[]
     onColumnsChange: (columns: ColumnConfig[]) => void
+    onResetWidths?: () => void
 }
 
-export const ColumnVisibilityManager = ({ columns, onColumnsChange }: ColumnVisibilityManagerProps) => {
+export const ColumnVisibilityManager = ({ columns, onColumnsChange, onResetWidths }: ColumnVisibilityManagerProps) => {
     const [drawerOpened, setDrawerOpened] = useState(false)
 
     const toggleColumn = (key: string) => {
@@ -84,6 +88,16 @@ export const ColumnVisibilityManager = ({ columns, onColumnsChange }: ColumnVisi
                         >
                             Colonnes essentielles
                         </Button>
+                        {onResetWidths && (
+                            <Button
+                                size="xs"
+                                variant="light"
+                                color="orange"
+                                onClick={onResetWidths}
+                            >
+                                Réinitialiser largeurs
+                            </Button>
+                        )}
                     </Group>
 
                     <Divider />
