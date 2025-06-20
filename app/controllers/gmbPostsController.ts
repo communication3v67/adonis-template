@@ -1,6 +1,7 @@
 import GmbPost from '#models/gmbPost'
 import { NotionService } from '#services/notion_service'
 import type { HttpContext } from '@adonisjs/core/http'
+import SSEController from '#controllers/sse_controller'
 import vine from '@vinejs/vine'
 import { DateTime } from 'luxon'
 
@@ -15,9 +16,15 @@ const createGmbPostValidator = vine.compile(
         keyword: vine.string().trim().optional(),
         client: vine.string().trim().minLength(1),
         project_name: vine.string().trim().minLength(1),
+        city: vine.string().trim().optional(),
         location_id: vine.string().trim().minLength(1),
         account_id: vine.string().trim().minLength(1),
         notion_id: vine.string().trim().optional(),
+        // Nouveaux champs IA
+        input_tokens: vine.number().min(0).optional(),
+        output_tokens: vine.number().min(0).optional(),
+        model: vine.string().trim().optional(),
+        price: vine.number().min(0).optional(),
     })
 )
 
@@ -31,13 +38,214 @@ const updateGmbPostValidator = vine.compile(
         keyword: vine.string().trim().nullable().optional(),
         client: vine.string().trim().optional(),
         project_name: vine.string().trim().optional(),
+        city: vine.string().trim().nullable().optional(),
         location_id: vine.string().trim().optional(),
         account_id: vine.string().trim().optional(),
         notion_id: vine.string().trim().nullable().optional(),
+        // Nouveaux champs IA
+        input_tokens: vine.number().min(0).nullable().optional(),
+        output_tokens: vine.number().min(0).nullable().optional(),
+        model: vine.string().trim().nullable().optional(),
+        price: vine.number().min(0).nullable().optional(),
     })
 )
 
 export default class GmbPostsController {
+    /**
+     * Applique les filtres avancés à la requête
+     */
+    private applyAdvancedFilters(query: any, filters: any) {
+        if (!filters.groups || !Array.isArray(filters.groups)) {
+            return
+        }
+
+        filters.groups.forEach((group: any, groupIndex: number) => {
+            if (!group.filters || !Array.isArray(group.filters)) {
+                return
+            }
+
+            const validFilters = group.filters.filter((filter: any) => 
+                filter.value !== '' && filter.value !== null && filter.value !== undefined
+            )
+
+            if (validFilters.length === 0) {
+                return
+            }
+
+            // Utiliser une fonction pour grouper les conditions
+            const applyGroupCondition = groupIndex === 0 ? 'where' : 
+                (group.condition === 'or' ? 'orWhere' : 'where')
+
+            query[applyGroupCondition]((groupBuilder: any) => {
+                validFilters.forEach((filter: any, filterIndex: number) => {
+                    const applyFilterCondition = filterIndex === 0 ? 'where' : 
+                        (group.condition === 'or' ? 'orWhere' : 'where')
+                    
+                    this.applySingleFilter(groupBuilder, filter, applyFilterCondition)
+                })
+            })
+        })
+    }
+
+    /**
+     * Applique un filtre individuel
+     */
+    private applySingleFilter(builder: any, filter: any, condition: string) {
+        const { property, operator, value } = filter
+
+        // Mapping des propriétés frontend vers les colonnes de base de données
+        const columnMap: Record<string, string> = {
+            'createdAt': 'created_at',
+            'updatedAt': 'updated_at',
+            'project_name': 'project_name',
+            'location_id': 'location_id',
+            'account_id': 'account_id',
+            'notion_id': 'notion_id',
+            'image_url': 'image_url',
+            'link_url': 'link_url',
+            'input_tokens': 'input_tokens',
+            'output_tokens': 'output_tokens'
+        }
+
+        const column = columnMap[property] || property
+
+        switch (operator) {
+            case 'equals':
+                if (Array.isArray(value)) {
+                    builder[condition + 'In'](column, value)
+                } else {
+                    builder[condition](column, value)
+                }
+                break
+            
+            case 'not_equals':
+                if (Array.isArray(value)) {
+                    builder[condition + 'NotIn'](column, value)
+                } else {
+                    builder[condition](column, '!=', value)
+                }
+                break
+            
+            case 'contains':
+                builder[condition + 'Raw'](`LOWER(${column}) LIKE ?`, [`%${value.toString().toLowerCase()}%`])
+                break
+            
+            case 'not_contains':
+                builder[condition + 'Raw'](`LOWER(${column}) NOT LIKE ?`, [`%${value.toString().toLowerCase()}%`])
+                break
+            
+            case 'starts_with':
+                builder[condition + 'Raw'](`LOWER(${column}) LIKE ?`, [`${value.toString().toLowerCase()}%`])
+                break
+            
+            case 'ends_with':
+                builder[condition + 'Raw'](`LOWER(${column}) LIKE ?`, [`%${value.toString().toLowerCase()}`])
+                break
+            
+            case 'is_empty':
+                builder[condition]((subBuilder: any) => {
+                    subBuilder.whereNull(column).orWhere(column, '')
+                })
+                break
+            
+            case 'is_not_empty':
+                builder[condition]((subBuilder: any) => {
+                    subBuilder.whereNotNull(column).where(column, '!=', '')
+                })
+                break
+            
+            case 'before':
+                builder[condition + 'Raw'](`DATE(${column}) < ?`, [value])
+                break
+            
+            case 'after':
+                builder[condition + 'Raw'](`DATE(${column}) > ?`, [value])
+                break
+            
+            case 'on_or_before':
+                builder[condition + 'Raw'](`DATE(${column}) <= ?`, [value])
+                break
+            
+            case 'on_or_after':
+                builder[condition + 'Raw'](`DATE(${column}) >= ?`, [value])
+                break
+            
+            case 'between':
+                if (value.from && value.to) {
+                    if (property.includes('date') || property.includes('At')) {
+                        builder[condition + 'Raw'](`DATE(${column}) BETWEEN ? AND ?`, [value.from, value.to])
+                    } else {
+                        builder[condition + 'Between'](column, [value.from, value.to])
+                    }
+                }
+                break
+            
+            case 'greater_than':
+                builder[condition](column, '>', value)
+                break
+            
+            case 'less_than':
+                builder[condition](column, '<', value)
+                break
+            
+            case 'greater_than_or_equal':
+                builder[condition](column, '>=', value)
+                break
+            
+            case 'less_than_or_equal':
+                builder[condition](column, '<=', value)
+                break
+        }
+    }
+
+    /**
+     * Diffuse un événement SSE pour les mises à jour de posts GMB
+     */
+    private async broadcastPostUpdate(post: GmbPost, action: string, userId: number) {
+        try {
+            const postData = {
+                ...post.serialize(),
+                action, // 'created', 'updated', 'deleted', 'status_changed'
+                timestamp: new Date().toISOString()
+            }
+            
+            // Canal spécifique à l'utilisateur
+            SSEController.broadcast(`gmb-posts/user/${userId}`, {
+                type: 'post_update',
+                data: postData
+            })
+            
+            // Canal spécifique au post
+            SSEController.broadcast(`gmb-posts/post/${post.id}`, {
+                type: 'post_update', 
+                data: postData
+            })
+            
+            console.log(`📻 SSE: Diffusion événement ${action} pour post ${post.id} (user ${userId})`)
+        } catch (error) {
+            console.error('Erreur diffusion SSE:', error)
+        }
+    }
+    
+    /**
+     * Diffuse une notification système à l'utilisateur
+     */
+    private async broadcastNotification(userId: number, notification: any) {
+        try {
+            SSEController.broadcast(`notifications/user/${userId}`, {
+                type: 'notification',
+                data: {
+                    ...notification,
+                    timestamp: new Date().toISOString(),
+                    id: Date.now().toString()
+                }
+            })
+            
+            console.log(`🔔 SSE: Notification envoyée à l'utilisateur ${userId}`)
+        } catch (error) {
+            console.error('Erreur diffusion notification SSE:', error)
+        }
+    }
     /**
      * Récupère la configuration Notion pour l'utilisateur connecté
      */
@@ -90,8 +298,114 @@ export default class GmbPostsController {
     }
 
     /**
-    * Met à jour plusieurs posts en une fois
+    * Attribue des images en masse aux posts sélectionnés
     */
+    async bulkImages({ request, response, session, auth }: HttpContext) {
+        try {
+            // S'assurer qu'un utilisateur est connecté
+            await auth.check()
+            const currentUser = auth.user!
+
+            const { ids, images, overwriteExisting } = request.only(['ids', 'images', 'overwriteExisting'])
+
+            console.log('=== MÉTHODE BULK IMAGES ===')
+            console.log('Utilisateur:', currentUser.id)
+            console.log('IDs reçus:', ids)
+            console.log('Images reçues:', images)
+            console.log('Écraser existantes:', overwriteExisting)
+            console.log('=========================')
+
+            if (!ids || !Array.isArray(ids) || ids.length === 0) {
+                session.flash('notification', {
+                    type: 'error',
+                    message: 'Aucun post sélectionné pour l\'attribution d\'images.',
+                })
+                return response.redirect().back()
+            }
+
+            if (!images || !Array.isArray(images) || images.length === 0) {
+                session.flash('notification', {
+                    type: 'error',
+                    message: 'Aucune image fournie.',
+                })
+                return response.redirect().back()
+            }
+
+            // Récupérer les posts sélectionnés (seulement ceux de l'utilisateur)
+            const selectedPosts = await GmbPost.query()
+                .whereIn('id', ids)
+                .where('user_id', currentUser.id)
+                .orderBy('id')
+
+            if (selectedPosts.length === 0) {
+                session.flash('notification', {
+                    type: 'error',
+                    message: 'Aucun post trouvé ou vous n\'avez pas l\'autorisation.',
+                })
+                return response.redirect().back()
+            }
+
+            console.log(`${selectedPosts.length} posts trouvés sur ${ids.length} demandés`)
+
+            let updatedCount = 0
+            let skippedCount = 0
+            const maxImagesToAssign = Math.min(selectedPosts.length, images.length)
+
+            // Attribuer les images aux posts (une image par post)
+            for (let i = 0; i < maxImagesToAssign; i++) {
+                const post = selectedPosts[i]
+                const imageUrl = images[i]
+
+                try {
+                    // Vérifier si on doit écraser ou non
+                    if (!overwriteExisting && post.image_url && post.image_url.trim() !== '') {
+                        console.log(`Post ${post.id} ignoré - image existante: ${post.image_url}`)
+                        skippedCount++
+                        continue
+                    }
+
+                    const oldImageUrl = post.image_url
+                    post.image_url = imageUrl
+                    await post.save()
+                    updatedCount++
+                    
+                    // Diffuser l'événement SSE pour chaque post mis à jour
+                    await this.broadcastPostUpdate(post, 'updated', currentUser.id)
+                    
+                    console.log(`Image attribuée au post ${post.id}: ${imageUrl} (ancienne: ${oldImageUrl || 'aucune'})`)
+                } catch (error) {
+                    console.error(`Erreur attribution image au post ${post.id}:`, error)
+                }
+            }
+
+            // Diffuser une notification globale
+            await this.broadcastNotification(currentUser.id, {
+                type: 'success',
+                title: 'Images attribuées',
+                message: `${updatedCount} image(s) attribuée(s) avec succès !${skippedCount > 0 ? ` (${skippedCount} ignorées car image existante)` : ''}`
+            })
+
+            console.log(`${updatedCount} posts mis à jour avec des images, ${skippedCount} ignorés`)
+
+            session.flash('notification', {
+                type: 'success',
+                message: `${updatedCount} image(s) attribuée(s) avec succès !${skippedCount > 0 ? ` (${skippedCount} posts ignorés car ayant déjà une image)` : ''}`,
+            })
+
+            return response.redirect().toRoute('gmbPosts.index')
+
+        } catch (error) {
+            console.error('Erreur attribution images en masse:', error)
+            console.error('Stack trace:', error.stack)
+
+            session.flash('notification', {
+                type: 'error',
+                message: 'Erreur lors de l\'attribution des images en masse.',
+            })
+
+            return response.redirect().back()
+        }
+    }
     async bulkUpdate({ request, response, session, auth }: HttpContext) {
     try {
     // S'assurer qu'un utilisateur est connecté
@@ -175,6 +489,7 @@ export default class GmbPostsController {
         const dateFrom = request.input('dateFrom', '')
         const dateTo = request.input('dateTo', '')
         const loadMore = request.input('loadMore', false) // Nouveau paramètre pour le scroll infini
+        const advancedFilters = request.input('advanced_filters', '') // Nouveaux filtres avancés
 
         console.log('=== FILTRES REÇUS ===')
         console.log('Utilisateur connecté:', auth.user?.id)
@@ -187,6 +502,7 @@ export default class GmbPostsController {
         console.log('Date du:', dateFrom)
         console.log('Date au:', dateTo)
         console.log('Tri:', sortBy, sortOrder)
+        console.log('Filtres avancés:', advancedFilters)
         console.log('=====================')
 
         // S'assurer qu'un utilisateur est connecté
@@ -204,6 +520,7 @@ export default class GmbPostsController {
                     .orWhereRaw('LOWER(keyword) LIKE ?', [`%${searchLower}%`])
                     .orWhereRaw('LOWER(client) LIKE ?', [`%${searchLower}%`])
                     .orWhereRaw('LOWER(project_name) LIKE ?', [`%${searchLower}%`])
+                    .orWhereRaw('LOWER(city) LIKE ?', [`%${searchLower}%`])
             })
         }
 
@@ -231,6 +548,16 @@ export default class GmbPostsController {
             query.whereRaw('DATE(date) <= ?', [dateTo])
         }
 
+        // Appliquer les filtres avancés
+        if (advancedFilters) {
+            try {
+                const parsedFilters = JSON.parse(advancedFilters)
+                this.applyAdvancedFilters(query, parsedFilters)
+            } catch (error) {
+                console.error('Erreur parsing filtres avancés:', error)
+            }
+        }
+
         // Mapping des noms de colonnes pour le tri (frontend camelCase -> database snake_case)
         const sortColumnMap: Record<string, string> = {
             'createdAt': 'created_at',
@@ -240,6 +567,7 @@ export default class GmbPostsController {
             'text': 'text',
             'client': 'client',
             'project_name': 'project_name',
+            'city': 'city',
             'keyword': 'keyword',
             'location_id': 'location_id',
             'account_id': 'account_id',
@@ -391,7 +719,15 @@ export default class GmbPostsController {
                 date: DateTime.fromJSDate(new Date(payload.date)),
             }
 
-            await GmbPost.create(postData)
+            const newPost = await GmbPost.create(postData)
+            
+            // Diffuser l'événement SSE
+            await this.broadcastPostUpdate(newPost, 'created', currentUser.id)
+            await this.broadcastNotification(currentUser.id, {
+                type: 'success',
+                title: 'Post créé',
+                message: 'Post GMB créé avec succès !'
+            })
 
             session.flash('notification', {
                 type: 'success',
@@ -483,9 +819,16 @@ export default class GmbPostsController {
             if (payload.keyword !== undefined) updateData.keyword = payload.keyword || null
             if (payload.client !== undefined) updateData.client = payload.client || null
             if (payload.project_name !== undefined) updateData.project_name = payload.project_name || null
+            if (payload.city !== undefined) updateData.city = payload.city || null
             if (payload.location_id !== undefined) updateData.location_id = payload.location_id || null
             if (payload.account_id !== undefined) updateData.account_id = payload.account_id || null
             if (payload.notion_id !== undefined) updateData.notion_id = payload.notion_id || null
+            
+            // Nouveaux champs IA
+            if (payload.input_tokens !== undefined) updateData.input_tokens = payload.input_tokens || null
+            if (payload.output_tokens !== undefined) updateData.output_tokens = payload.output_tokens || null
+            if (payload.model !== undefined) updateData.model = payload.model || null
+            if (payload.price !== undefined) updateData.price = payload.price || null
             
             // Gestion spéciale pour la date
             if (payload.date !== undefined && payload.date) {
@@ -505,6 +848,14 @@ export default class GmbPostsController {
             })
 
             await post.save()
+            
+            // Diffuser l'événement SSE
+            await this.broadcastPostUpdate(post, 'updated', currentUser.id)
+            await this.broadcastNotification(currentUser.id, {
+                type: 'success',
+                title: 'Post modifié',
+                message: 'Post GMB mis à jour avec succès !'
+            })
 
             console.log('Post après modification:', post.toJSON())
 
@@ -548,7 +899,16 @@ export default class GmbPostsController {
                 return response.redirect().toRoute('gmbPosts.index')
             }
 
+            // Diffuser l'événement SSE avant suppression
+            await this.broadcastPostUpdate(post, 'deleted', currentUser.id)
+            
             await post.delete()
+            
+            await this.broadcastNotification(currentUser.id, {
+                type: 'success',
+                title: 'Post supprimé',
+                message: 'Post GMB supprimé avec succès !'
+            })
 
             session.flash('notification', {
                 type: 'success',
@@ -629,12 +989,21 @@ export default class GmbPostsController {
                 keyword: originalPost.keyword,
                 client: originalPost.client,
                 project_name: originalPost.project_name,
+                city: originalPost.city,
                 location_id: originalPost.location_id,
                 account_id: originalPost.account_id,
                 notion_id: originalPost.notion_id,
             }
 
-            await GmbPost.create(duplicatedData)
+            const duplicatedPost = await GmbPost.create(duplicatedData)
+            
+            // Diffuser l'événement SSE
+            await this.broadcastPostUpdate(duplicatedPost, 'created', currentUser.id)
+            await this.broadcastNotification(currentUser.id, {
+                type: 'success',
+                title: 'Post dupliqué',
+                message: 'Post dupliqué avec succès !'
+            })
 
             session.flash('notification', {
                 type: 'success',
@@ -653,8 +1022,100 @@ export default class GmbPostsController {
     }
 
     /**
-     * Exporte les posts au format JSON
+     * Affiche les statistiques des posts avec les coûts IA
      */
+    async stats({ inertia, auth }: HttpContext) {
+        try {
+            // S'assurer qu'un utilisateur est connecté
+            await auth.check()
+            const currentUser = auth.user!
+
+            // Statistiques générales
+            const totalPosts = await GmbPost.query()
+                .where('user_id', currentUser.id)
+                .count('* as total')
+
+            const postsByStatus = await GmbPost.query()
+                .where('user_id', currentUser.id)
+                .select('status')
+                .count('* as count')
+                .groupBy('status')
+
+            // Statistiques IA et coûts
+            const aiStats = await GmbPost.query()
+                .where('user_id', currentUser.id)
+                .whereNotNull('input_tokens')
+                .select([
+                    GmbPost.query().sum('input_tokens').as('total_input_tokens'),
+                    GmbPost.query().sum('output_tokens').as('total_output_tokens'),
+                    GmbPost.query().sum('price').as('total_cost'),
+                    GmbPost.query().count('*').as('ai_posts_count'),
+                    GmbPost.query().avg('price').as('avg_cost_per_post')
+                ])
+                .first()
+
+            // Coûts par modèle
+            const costsByModel = await GmbPost.query()
+                .where('user_id', currentUser.id)
+                .whereNotNull('model')
+                .select('model')
+                .sum('price as total_cost')
+                .count('* as posts_count')
+                .avg('price as avg_cost')
+                .groupBy('model')
+                .orderBy('total_cost', 'desc')
+
+            // Posts les plus coûteux
+            const mostExpensivePosts = await GmbPost.query()
+                .where('user_id', currentUser.id)
+                .whereNotNull('price')
+                .select('id', 'text', 'model', 'price', 'input_tokens', 'output_tokens', 'created_at')
+                .orderBy('price', 'desc')
+                .limit(10)
+
+            return inertia.render('gmbPosts/stats', {
+                stats: {
+                    total: Number(totalPosts[0].$extras.total),
+                    byStatus: postsByStatus.map(s => ({
+                        status: s.status,
+                        count: Number(s.$extras.count)
+                    })),
+                    ai: {
+                        totalInputTokens: Number(aiStats?.total_input_tokens || 0),
+                        totalOutputTokens: Number(aiStats?.total_output_tokens || 0),
+                        totalCost: Number(aiStats?.total_cost || 0),
+                        aiPostsCount: Number(aiStats?.ai_posts_count || 0),
+                        avgCostPerPost: Number(aiStats?.avg_cost_per_post || 0),
+                        costsByModel: costsByModel.map(m => ({
+                            model: m.model,
+                            totalCost: Number(m.$extras.total_cost),
+                            postsCount: Number(m.$extras.posts_count),
+                            avgCost: Number(m.$extras.avg_cost)
+                        })),
+                        mostExpensivePosts: mostExpensivePosts.map(p => p.serialize())
+                    }
+                },
+                currentUser: {
+                    id: currentUser.id,
+                    username: currentUser.username,
+                    email: currentUser.email,
+                    notion_id: currentUser.notionId
+                }
+            })
+
+        } catch (error) {
+            console.error('Erreur récupération stats:', error)
+            return inertia.render('gmbPosts/stats', {
+                error: 'Erreur lors de la récupération des statistiques',
+                currentUser: {
+                    id: auth.user?.id,
+                    username: auth.user?.username,
+                    email: auth.user?.email,
+                    notion_id: auth.user?.notionId
+                }
+            })
+        }
+    }
     async export({ request, response }: HttpContext) {
         try {
             const { format = 'json' } = request.qs()
@@ -918,6 +1379,7 @@ export default class GmbPostsController {
                 // Métadonnées GMB
                 client: post.client,
                 project_name: post.project_name,
+                city: post.city,
                 keyword: post.keyword,
                 location_id: post.location_id,
                 account_id: post.account_id,
@@ -981,6 +1443,7 @@ export default class GmbPostsController {
                 extracted_data: {
                     entreprise: post.client,
                     projet: post.project_name,
+                    ville: post.city,
                     mot_cle: post.keyword,
                     texte: post.text,
                     statut: post.status,
@@ -1136,6 +1599,7 @@ export default class GmbPostsController {
                 // Métadonnées GMB
                 client: post.client,
                 project_name: post.project_name,
+                city: post.city,
                 keyword: post.keyword,
                 location_id: post.location_id,
                 account_id: post.account_id,

@@ -3,6 +3,19 @@ import router from '@adonisjs/core/services/router'
 const GmbPostsController = () => import('#controllers/gmbPostsController')
 const HomeController = () => import('#controllers/home_controller')
 const WebhooksController = () => import('#controllers/webhooks_controller')
+const SSEController = () => import('#controllers/sse_controller')
+
+// Routes SSE personnalisées
+router
+    .group(() => [
+        router.get('/events', [SSEController, 'events']).as('events'),
+        router.get('/stats', [SSEController, 'stats']).as('stats'),
+        router.get('/polling', [SSEController, 'pollingStats']).as('polling'),
+        router.get('/test', [SSEController, 'testEvent']).as('test'),
+    ])
+    .prefix('/__sse')
+    .as('sse')
+    .use(middleware.auth())
 
 /* ignore formmating, as I find it easier to scan single line route definitions */
 /* prettier-ignore-start */
@@ -27,6 +40,7 @@ router
                 router.post('/:id/duplicate', [GmbPostsController, 'duplicate']).as('duplicate'),
                 router.delete('/', [GmbPostsController, 'bulkDestroy']).as('bulk_destroy'),
                 router.post('/bulk-update', [GmbPostsController, 'bulkUpdate']).as('bulk_update'),
+                router.post('/bulk-images', [GmbPostsController, 'bulkImages']).as('bulk_images'),
                 
                 // Action webhook pour envoyer les posts à générer vers n8n
                 router.post('/send-to-n8n', [GmbPostsController, 'sendPostsToN8n']).as('send_to_n8n'),
