@@ -1,11 +1,13 @@
-import { Button, Card, Group, Stack, Text } from '@mantine/core'
-import { LuSearch, LuX } from 'react-icons/lu'
+import { Button, Card, Group, Stack, Text, Accordion, Badge, Divider } from '@mantine/core'
+import { LuSearch, LuX, LuFilter, LuSettings } from 'react-icons/lu'
 import { FilterState, FilterOptions } from '../../types'
 import { SearchInput } from './SearchInput'
 import { FilterDropdowns } from './FilterDropdowns'
 import { DateFilters } from './DateFilters'
 import { QuickFilters } from './QuickFilters'
 import { FilterBadges } from './FilterBadges'
+import { AdvancedFiltersPanel } from '../AdvancedFilters'
+import { useAdvancedFilters } from '../../hooks/useAdvancedFilters'
 
 interface FilterSectionProps {
     filters: FilterState
@@ -30,6 +32,14 @@ export const FilterSection = ({
     onResetFilters,
     onRemoveFilter,
 }: FilterSectionProps) => {
+    const {
+        advancedFilters,
+        activeFiltersCount,
+        hasActiveAdvancedFilters,
+        applyAdvancedFilters,
+        resetAdvancedFilters
+    } = useAdvancedFilters(filters)
+
     const handleRemoveFilter = (key: keyof FilterState) => {
         if (key === 'dateFrom') {
             onUpdateDateRange('', '')
@@ -39,15 +49,25 @@ export const FilterSection = ({
     }
 
     return (
-        <Card withBorder p="md">
-            <Stack gap="md">
-                {/* En-tête avec badges des filtres actifs */}
-                <Group justify="space-between">
-                    <Text fw={500}>Filtres</Text>
-                    <Group gap="xs">
-                        <FilterBadges filters={filters} onRemoveFilter={handleRemoveFilter} />
+        <>
+            <Card withBorder p="md">
+                <Stack gap="md">
+                    {/* En-tête avec badges des filtres actifs */}
+                    <Group justify="space-between">
+                        <Text fw={500}>Filtres</Text>
+                        <Group gap="xs">
+                            <FilterBadges filters={filters} onRemoveFilter={handleRemoveFilter} />
+                            {hasActiveAdvancedFilters && (
+                                <Badge 
+                                    variant="light" 
+                                    color="blue" 
+                                    leftSection={<LuFilter size={12} />}
+                                >
+                                    {activeFiltersCount} filtres avancés
+                                </Badge>
+                            )}
+                        </Group>
                     </Group>
-                </Group>
 
                 {/* Champ de recherche */}
                 <SearchInput
@@ -105,11 +125,42 @@ export const FilterSection = ({
                     onUpdateDateRange={onUpdateDateRange}
                 />
 
-                {/* Note d'auto-application */}
-                <Text size="xs" c="dimmed" style={{ fontStyle: 'italic' }}>
-                    💡 Les filtres s'appliquent automatiquement (recherche : 0.8s)
-                </Text>
-            </Stack>
-        </Card>
+                    {/* Note d'auto-application */}
+                    <Text size="xs" c="dimmed" style={{ fontStyle: 'italic' }}>
+                        💡 Les filtres s'appliquent automatiquement (recherche : 0.8s)
+                    </Text>
+
+                    {/* Accordéon pour les filtres avancés */}
+                    <Accordion variant="separated" defaultValue={null}>
+                        <Accordion.Item value="advanced-filters">
+                            <Accordion.Control 
+                                icon={<LuSettings size={16} />}
+                                style={{ 
+                                    borderRadius: '8px',
+                                    backgroundColor: hasActiveAdvancedFilters ? 'var(--mantine-color-blue-0)' : undefined
+                                }}
+                            >
+                                <Group justify="space-between" pr="md">
+                                    <Text fw={500}>Filtres avancés</Text>
+                                    {hasActiveAdvancedFilters && (
+                                        <Badge size="sm" variant="filled" color="blue">
+                                            {activeFiltersCount}
+                                        </Badge>
+                                    )}
+                                </Group>
+                            </Accordion.Control>
+                            <Accordion.Panel>
+                                <AdvancedFiltersPanel
+                                    filters={advancedFilters}
+                                    filterOptions={filterOptions}
+                                    onApply={applyAdvancedFilters}
+                                    onReset={resetAdvancedFilters}
+                                />
+                            </Accordion.Panel>
+                        </Accordion.Item>
+                    </Accordion>
+                </Stack>
+            </Card>
+        </>
     )
 }

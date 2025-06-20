@@ -8,6 +8,7 @@ export { useSelection } from './hooks/useSelection'
 export { useBulkActions } from './hooks/useBulkActions'
 export { useWebhook } from './hooks/useWebhook'
 export { usePostActions } from './hooks/usePostActions'
+export { useAdvancedFilters } from './hooks/useAdvancedFilters'
 
 // Export des utilitaires
 export * from './utils/constants'
@@ -40,3 +41,6 @@ export { BulkImageUpload } from './components/BulkActions/BulkImageUpload'
 // Export des composants Modals
 export { EditPostModal } from './components/Modals/EditPostModal'
 export { WebhookModal } from './components/Modals/WebhookModal'
+
+// Export des composants AdvancedFilters
+export * from './components/AdvancedFilters'

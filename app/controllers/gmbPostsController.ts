@@ -52,6 +52,153 @@ const updateGmbPostValidator = vine.compile(
 
 export default class GmbPostsController {
     /**
+     * Applique les filtres avancés à la requête
+     */
+    private applyAdvancedFilters(query: any, filters: any) {
+        if (!filters.groups || !Array.isArray(filters.groups)) {
+            return
+        }
+
+        filters.groups.forEach((group: any, groupIndex: number) => {
+            if (!group.filters || !Array.isArray(group.filters)) {
+                return
+            }
+
+            const validFilters = group.filters.filter((filter: any) => 
+                filter.value !== '' && filter.value !== null && filter.value !== undefined
+            )
+
+            if (validFilters.length === 0) {
+                return
+            }
+
+            // Utiliser une fonction pour grouper les conditions
+            const applyGroupCondition = groupIndex === 0 ? 'where' : 
+                (group.condition === 'or' ? 'orWhere' : 'where')
+
+            query[applyGroupCondition]((groupBuilder: any) => {
+                validFilters.forEach((filter: any, filterIndex: number) => {
+                    const applyFilterCondition = filterIndex === 0 ? 'where' : 
+                        (group.condition === 'or' ? 'orWhere' : 'where')
+                    
+                    this.applySingleFilter(groupBuilder, filter, applyFilterCondition)
+                })
+            })
+        })
+    }
+
+    /**
+     * Applique un filtre individuel
+     */
+    private applySingleFilter(builder: any, filter: any, condition: string) {
+        const { property, operator, value } = filter
+
+        // Mapping des propriétés frontend vers les colonnes de base de données
+        const columnMap: Record<string, string> = {
+            'createdAt': 'created_at',
+            'updatedAt': 'updated_at',
+            'project_name': 'project_name',
+            'location_id': 'location_id',
+            'account_id': 'account_id',
+            'notion_id': 'notion_id',
+            'image_url': 'image_url',
+            'link_url': 'link_url',
+            'input_tokens': 'input_tokens',
+            'output_tokens': 'output_tokens'
+        }
+
+        const column = columnMap[property] || property
+
+        switch (operator) {
+            case 'equals':
+                if (Array.isArray(value)) {
+                    builder[condition + 'In'](column, value)
+                } else {
+                    builder[condition](column, value)
+                }
+                break
+            
+            case 'not_equals':
+                if (Array.isArray(value)) {
+                    builder[condition + 'NotIn'](column, value)
+                } else {
+                    builder[condition](column, '!=', value)
+                }
+                break
+            
+            case 'contains':
+                builder[condition + 'Raw'](`LOWER(${column}) LIKE ?`, [`%${value.toString().toLowerCase()}%`])
+                break
+            
+            case 'not_contains':
+                builder[condition + 'Raw'](`LOWER(${column}) NOT LIKE ?`, [`%${value.toString().toLowerCase()}%`])
+                break
+            
+            case 'starts_with':
+                builder[condition + 'Raw'](`LOWER(${column}) LIKE ?`, [`${value.toString().toLowerCase()}%`])
+                break
+            
+            case 'ends_with':
+                builder[condition + 'Raw'](`LOWER(${column}) LIKE ?`, [`%${value.toString().toLowerCase()}`])
+                break
+            
+            case 'is_empty':
+                builder[condition]((subBuilder: any) => {
+                    subBuilder.whereNull(column).orWhere(column, '')
+                })
+                break
+            
+            case 'is_not_empty':
+                builder[condition]((subBuilder: any) => {
+                    subBuilder.whereNotNull(column).where(column, '!=', '')
+                })
+                break
+            
+            case 'before':
+                builder[condition + 'Raw'](`DATE(${column}) < ?`, [value])
+                break
+            
+            case 'after':
+                builder[condition + 'Raw'](`DATE(${column}) > ?`, [value])
+                break
+            
+            case 'on_or_before':
+                builder[condition + 'Raw'](`DATE(${column}) <= ?`, [value])
+                break
+            
+            case 'on_or_after':
+                builder[condition + 'Raw'](`DATE(${column}) >= ?`, [value])
+                break
+            
+            case 'between':
+                if (value.from && value.to) {
+                    if (property.includes('date') || property.includes('At')) {
+                        builder[condition + 'Raw'](`DATE(${column}) BETWEEN ? AND ?`, [value.from, value.to])
+                    } else {
+                        builder[condition + 'Between'](column, [value.from, value.to])
+                    }
+                }
+                break
+            
+            case 'greater_than':
+                builder[condition](column, '>', value)
+                break
+            
+            case 'less_than':
+                builder[condition](column, '<', value)
+                break
+            
+            case 'greater_than_or_equal':
+                builder[condition](column, '>=', value)
+                break
+            
+            case 'less_than_or_equal':
+                builder[condition](column, '<=', value)
+                break
+        }
+    }
+
+    /**
      * Diffuse un événement SSE pour les mises à jour de posts GMB
      */
     private async broadcastPostUpdate(post: GmbPost, action: string, userId: number) {
@@ -342,6 +489,7 @@ export default class GmbPostsController {
         const dateFrom = request.input('dateFrom', '')
         const dateTo = request.input('dateTo', '')
         const loadMore = request.input('loadMore', false) // Nouveau paramètre pour le scroll infini
+        const advancedFilters = request.input('advanced_filters', '') // Nouveaux filtres avancés
 
         console.log('=== FILTRES REÇUS ===')
         console.log('Utilisateur connecté:', auth.user?.id)
@@ -354,6 +502,7 @@ export default class GmbPostsController {
         console.log('Date du:', dateFrom)
         console.log('Date au:', dateTo)
         console.log('Tri:', sortBy, sortOrder)
+        console.log('Filtres avancés:', advancedFilters)
         console.log('=====================')
 
         // S'assurer qu'un utilisateur est connecté
@@ -397,6 +546,16 @@ export default class GmbPostsController {
 
         if (dateTo) {
             query.whereRaw('DATE(date) <= ?', [dateTo])
+        }
+
+        // Appliquer les filtres avancés
+        if (advancedFilters) {
+            try {
+                const parsedFilters = JSON.parse(advancedFilters)
+                this.applyAdvancedFilters(query, parsedFilters)
+            } catch (error) {
+                console.error('Erreur parsing filtres avancés:', error)
+            }
         }
 
         // Mapping des noms de colonnes pour le tri (frontend camelCase -> database snake_case)
