@@ -84,6 +84,8 @@ export interface BulkEditData {
     output_tokens?: number
     model?: string
     price?: number
+    // Images en masse
+    images?: string[]
 }
 
 // Interface pour les statistiques IA

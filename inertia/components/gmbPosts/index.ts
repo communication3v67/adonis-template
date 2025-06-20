@@ -35,6 +35,7 @@ export { PostsTable } from './components/Table/PostsTable'
 // Export des composants BulkActions
 export { BulkEditForm } from './components/BulkActions/BulkEditForm'
 export { BulkActionBar } from './components/BulkActions/BulkActionBar'
+export { BulkImageUpload } from './components/BulkActions/BulkImageUpload'
 
 // Export des composants Modals
 export { EditPostModal } from './components/Modals/EditPostModal'

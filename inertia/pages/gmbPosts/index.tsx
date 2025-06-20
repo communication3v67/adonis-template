@@ -123,6 +123,7 @@ export default function GmbPostsIndex({
         resetBulkEdit,
         handleBulkEdit,
         handleBulkDelete,
+        handleBulkImages,
     } = useBulkActions()
 
     const {
@@ -260,11 +261,30 @@ export default function GmbPostsIndex({
         clearSelection()
     }
 
+    const handleBulkImagesWithClear = (images: string[], overwriteExisting: boolean) => {
+        handleBulkImages(selectedPosts, images, overwriteExisting)
+        clearSelection()
+    }
+
     // Gestion de la mise à jour des filtres de date
     const handleUpdateDateRange = (dateFrom: string, dateTo: string) => {
         updateFilter('dateFrom', dateFrom)
         updateFilter('dateTo', dateTo)
     }
+
+    // Créer un tableau des posts sélectionnés avec leurs données complètes
+    const selectedPostsData = useMemo(() => {
+        if (!infinitePosts || !Array.isArray(infinitePosts) || !selectedPosts || !Array.isArray(selectedPosts)) {
+            return []
+        }
+        
+        return infinitePosts
+            .filter(post => post && post.id && selectedPosts.includes(post.id))
+            .map(post => ({
+                id: post.id,
+                image_url: post.image_url || ''
+            }))
+    }, [infinitePosts, selectedPosts])
 
     return (
         <>
@@ -296,6 +316,7 @@ export default function GmbPostsIndex({
                 {selectedCount > 0 && (
                     <BulkActionBar
                         selectedCount={selectedCount}
+                        selectedPosts={selectedPostsData}
                         bulkEditData={bulkEditData}
                         filterOptions={filterOptions}
                         hasAnyBulkChanges={hasAnyBulkChanges()}
@@ -303,6 +324,7 @@ export default function GmbPostsIndex({
                         onBulkEdit={handleBulkEditWithClear}
                         onBulkDelete={handleBulkDeleteWithClear}
                         onResetBulkEdit={resetBulkEdit}
+                        onBulkImages={handleBulkImagesWithClear}
                     />
                 )}
 

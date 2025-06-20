@@ -15,11 +15,17 @@ export const useBulkActions = () => {
         location_id: '',
         account_id: '',
         notion_id: '',
+        images: [],
     })
 
     // Vérifier s'il y a des modifications en masse
     const hasAnyBulkChanges = useCallback(() => {
-        return Object.values(bulkEditData).some((value) => value.trim() !== '')
+        return Object.entries(bulkEditData).some(([key, value]) => {
+            if (key === 'images') {
+                return Array.isArray(value) && value.length > 0
+            }
+            return typeof value === 'string' && value.trim() !== ''
+        })
     }, [bulkEditData])
 
     // Réinitialiser les données d'édition en masse
@@ -32,6 +38,7 @@ export const useBulkActions = () => {
             location_id: '',
             account_id: '',
             notion_id: '',
+            images: [],
         })
     }, [])
 
@@ -58,7 +65,11 @@ export const useBulkActions = () => {
         // Préparer les données à envoyer (seulement les champs modifiés)
         const updateData: any = {}
         Object.entries(bulkEditData).forEach(([key, value]) => {
-            if (value.trim() !== '') {
+            if (key === 'images') {
+                if (Array.isArray(value) && value.length > 0) {
+                    updateData[key] = value
+                }
+            } else if (typeof value === 'string' && value.trim() !== '') {
                 updateData[key] = value
             }
         })
@@ -149,11 +160,74 @@ export const useBulkActions = () => {
         }
     }, [])
 
-    const updateBulkEditField = useCallback((field: keyof BulkEditData, value: string) => {
+    const updateBulkEditField = useCallback((field: keyof BulkEditData, value: string | string[]) => {
         setBulkEditData((prev) => ({
             ...prev,
             [field]: value,
         }))
+    }, [])
+
+    // Gérer l'attribution d'images en masse
+    const handleBulkImages = useCallback((selectedPosts: number[], images: string[], overwriteExisting: boolean = false) => {
+        if (selectedPosts.length === 0) {
+            notifications.show({
+                title: 'Information',
+                message: 'Aucun post sélectionné',
+                color: 'blue',
+            })
+            return
+        }
+
+        if (images.length === 0) {
+            notifications.show({
+                title: 'Information',
+                message: 'Aucune image fournie',
+                color: 'blue',
+            })
+            return
+        }
+
+        const postsToUpdate = Math.min(selectedPosts.length, images.length)
+        const behaviorText = overwriteExisting ? "" : " (seuls les posts sans image existante seront modifiés)"
+        const confirmMessage = `Attribuer ${postsToUpdate} images à ${postsToUpdate} posts ?${images.length < selectedPosts.length ? ` (${selectedPosts.length - images.length} posts garderont leur image actuelle)` : ''}${behaviorText}`
+
+        if (confirm(confirmMessage)) {
+            console.log('=== ATTRIBUTION IMAGES EN MASSE ===')
+            console.log('Posts sélectionnés:', selectedPosts)
+            console.log('Images à attribuer:', images)
+            console.log('====================================')
+
+            router.post(
+                '/gmb-posts/bulk-images',
+                {
+                    ids: selectedPosts,
+                    images: images,
+                    overwriteExisting: overwriteExisting,
+                },
+                {
+                    onSuccess: () => {
+                        console.log('=== SUCCÈS ATTRIBUTION IMAGES ===')
+                        notifications.show({
+                            title: 'Succès',
+                            message: `Images attribuées avec succès !`,
+                            color: 'green',
+                            autoClose: 5000,
+                        })
+                    },
+                    onError: (errors) => {
+                        console.log('=== ERREUR ATTRIBUTION IMAGES ===')
+                        console.log('Erreurs reçues:', errors)
+                        console.log('==================================')
+                        notifications.show({
+                            title: 'Erreur',
+                            message: 'Erreur lors de l\'attribution des images. Vérifiez les URLs et réessayez.',
+                            color: 'red',
+                            autoClose: 7000,
+                        })
+                    },
+                }
+            )
+        }
     }, [])
 
     return {
@@ -164,5 +238,6 @@ export const useBulkActions = () => {
         resetBulkEdit,
         handleBulkEdit,
         handleBulkDelete,
+        handleBulkImages,
     }
 }

@@ -151,8 +151,114 @@ export default class GmbPostsController {
     }
 
     /**
-    * Met à jour plusieurs posts en une fois
+    * Attribue des images en masse aux posts sélectionnés
     */
+    async bulkImages({ request, response, session, auth }: HttpContext) {
+        try {
+            // S'assurer qu'un utilisateur est connecté
+            await auth.check()
+            const currentUser = auth.user!
+
+            const { ids, images, overwriteExisting } = request.only(['ids', 'images', 'overwriteExisting'])
+
+            console.log('=== MÉTHODE BULK IMAGES ===')
+            console.log('Utilisateur:', currentUser.id)
+            console.log('IDs reçus:', ids)
+            console.log('Images reçues:', images)
+            console.log('Écraser existantes:', overwriteExisting)
+            console.log('=========================')
+
+            if (!ids || !Array.isArray(ids) || ids.length === 0) {
+                session.flash('notification', {
+                    type: 'error',
+                    message: 'Aucun post sélectionné pour l\'attribution d\'images.',
+                })
+                return response.redirect().back()
+            }
+
+            if (!images || !Array.isArray(images) || images.length === 0) {
+                session.flash('notification', {
+                    type: 'error',
+                    message: 'Aucune image fournie.',
+                })
+                return response.redirect().back()
+            }
+
+            // Récupérer les posts sélectionnés (seulement ceux de l'utilisateur)
+            const selectedPosts = await GmbPost.query()
+                .whereIn('id', ids)
+                .where('user_id', currentUser.id)
+                .orderBy('id')
+
+            if (selectedPosts.length === 0) {
+                session.flash('notification', {
+                    type: 'error',
+                    message: 'Aucun post trouvé ou vous n\'avez pas l\'autorisation.',
+                })
+                return response.redirect().back()
+            }
+
+            console.log(`${selectedPosts.length} posts trouvés sur ${ids.length} demandés`)
+
+            let updatedCount = 0
+            let skippedCount = 0
+            const maxImagesToAssign = Math.min(selectedPosts.length, images.length)
+
+            // Attribuer les images aux posts (une image par post)
+            for (let i = 0; i < maxImagesToAssign; i++) {
+                const post = selectedPosts[i]
+                const imageUrl = images[i]
+
+                try {
+                    // Vérifier si on doit écraser ou non
+                    if (!overwriteExisting && post.image_url && post.image_url.trim() !== '') {
+                        console.log(`Post ${post.id} ignoré - image existante: ${post.image_url}`)
+                        skippedCount++
+                        continue
+                    }
+
+                    const oldImageUrl = post.image_url
+                    post.image_url = imageUrl
+                    await post.save()
+                    updatedCount++
+                    
+                    // Diffuser l'événement SSE pour chaque post mis à jour
+                    await this.broadcastPostUpdate(post, 'updated', currentUser.id)
+                    
+                    console.log(`Image attribuée au post ${post.id}: ${imageUrl} (ancienne: ${oldImageUrl || 'aucune'})`)
+                } catch (error) {
+                    console.error(`Erreur attribution image au post ${post.id}:`, error)
+                }
+            }
+
+            // Diffuser une notification globale
+            await this.broadcastNotification(currentUser.id, {
+                type: 'success',
+                title: 'Images attribuées',
+                message: `${updatedCount} image(s) attribuée(s) avec succès !${skippedCount > 0 ? ` (${skippedCount} ignorées car image existante)` : ''}`
+            })
+
+            console.log(`${updatedCount} posts mis à jour avec des images, ${skippedCount} ignorés`)
+
+            session.flash('notification', {
+                type: 'success',
+                message: `${updatedCount} image(s) attribuée(s) avec succès !${skippedCount > 0 ? ` (${skippedCount} posts ignorés car ayant déjà une image)` : ''}`,
+            })
+
+            return response.redirect().toRoute('gmbPosts.index')
+
+        } catch (error) {
+            console.error('Erreur attribution images en masse:', error)
+            console.error('Stack trace:', error.stack)
+
+            session.flash('notification', {
+                type: 'error',
+                message: 'Erreur lors de l\'attribution des images en masse.',
+            })
+
+            return response.redirect().back()
+        }
+    }
     async bulkUpdate({ request, response, session, auth }: HttpContext) {
     try {
     // S'assurer qu'un utilisateur est connecté
