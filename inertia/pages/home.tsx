@@ -1,66 +1,18 @@
 import { Head } from '@inertiajs/react'
-import {
-    ActionIcon,
-    Alert,
-    Badge,
-    Box,
-    Button,
-    Card,
-    Flex,
-    Group,
-    Loader,
-    SimpleGrid,
-    Stack,
-    Table,
-    Text,
-    Title,
-} from '@mantine/core'
+import { Stack } from '@mantine/core'
 import { useState } from 'react'
-import {
-    LuBadgeAlert,
-    LuCalendar,
-    LuDatabase,
-    LuExternalLink,
-    LuRefreshCw,
-    LuSend,
-    LuTrendingUp,
-} from 'react-icons/lu'
-import { NotionWebhookModal, NotionNotifications } from '../components/home'
-
-interface NotionPage {
-    id: string
-    title: string
-    url: string
-    created_time: string
-    last_edited_time: string
-    properties: any
-}
-
-interface DatabaseInfo {
-    title: string
-    id: string
-    url: string
-    created_time: string
-    last_edited_time: string
-}
-
-interface Stats {
-    totalPages: number
-    recentPages: number
-}
-
-interface Props {
-    notionPages: NotionPage[]
-    databaseInfo: DatabaseInfo | null
-    stats: Stats
-    userDatabase?: string
-    userNotionId?: string | null
-    hasNotionId?: boolean
-    error?: {
-        message: string
-        details: string
-    }
-}
+import { 
+    NotionWebhookModal, 
+    NotionNotifications, 
+    HomeProps,
+    NotionPage,
+    PageHeader,
+    ConfigurationAlert,
+    ErrorAlert,
+    NotionPagesTable,
+    StatsGrid,
+    DatabaseInfoCard
+} from '../components/home'
 
 export default function Home({
     notionPages,
@@ -70,7 +22,7 @@ export default function Home({
     userNotionId,
     hasNotionId,
     error,
-}: Props) {
+}: HomeProps) {
     const [isRefreshing, setIsRefreshing] = useState(false)
     const [localPages, setLocalPages] = useState(notionPages)
     const [localStats, setLocalStats] = useState(stats)
@@ -114,6 +66,8 @@ export default function Home({
     }
 
     // Fonction pour envoyer UNE page vers n8n
+    // Note: Utilise maintenant le même format que l'envoi global (pages + total_count)
+    // pour harmoniser le traitement côté serveur
     const sendToN8n = async (page: NotionPage) => {
         setSendingWebhook(page.id)
         setWebhookResponse(null)
@@ -123,7 +77,7 @@ export default function Home({
         NotionNotifications.sendingStart('single')
 
         try {
-            console.log('🚀 Envoi webhook pour:', page.title)
+            console.log('🚀 Envoi webhook individuel pour:', page.title, '(format bulk avec 1 page)')
 
             // Récupération du token CSRF
             const csrfToken = document
@@ -135,7 +89,7 @@ export default function Home({
                 throw new Error('Token CSRF manquant. Actualisez la page.')
             }
 
-            const response = await fetch('/webhook/n8n', {
+            const response = await fetch('/webhook/n8n-bulk', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -143,12 +97,15 @@ export default function Home({
                     'Accept': 'application/json',
                 },
                 body: JSON.stringify({
-                    id: page.id,
-                    title: page.title,
-                    url: page.url,
-                    created_time: page.created_time,
-                    last_edited_time: page.last_edited_time,
-                    properties: page.properties,
+                    pages: [{
+                        id: page.id,
+                        title: page.title,
+                        url: page.url,
+                        created_time: page.created_time,
+                        last_edited_time: page.last_edited_time,
+                        properties: page.properties,
+                    }],
+                    total_count: 1,
                 }),
             })
 
@@ -314,286 +271,45 @@ export default function Home({
         }
     }
 
-    // Formatage des dates
-    const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleDateString('fr-FR', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-        })
-    }
-
     return (
         <>
             <Head title="Accueil - GMB & Notion" />
 
             <Stack gap="xl">
-                {/* En-tete */}
-                <Flex justify="space-between" align="center">
-                    <Box>
-                        <Title order={1}>Tableau de bord GMB & Notion</Title>
-                        <Text size="lg" c="dimmed" mt="xs">
-                            Gestion des posts GMB et synchronisation avec Notion
-                        </Text>
-                    </Box>
-                </Flex>
+                {/* En-tête */}
+                <PageHeader />
 
-                {/* Alerte si l'utilisateur n'a pas de notionId */}
-                {!hasNotionId && (
-                    <Alert
-                        icon={<LuBadgeAlert size={16} />}
-                        title="Configuration Notion manquante"
-                        color="orange"
-                    >
-                        <Text size="sm">
-                            Votre compte n'est pas encore lié à un référenceur Notion. Contactez
-                            l'administrateur pour configurer votre accès.
-                        </Text>
-                        <Text size="xs" c="dimmed" mt="xs">
-                            Base de données utilisée : {userDatabase} | Notion ID :{' '}
-                            {userNotionId || 'Non défini'}
-                        </Text>
-                    </Alert>
-                )}
+                {/* Alertes */}
+                <ConfigurationAlert 
+                    hasNotionId={hasNotionId}
+                    userDatabase={userDatabase}
+                    userNotionId={userNotionId}
+                />
+                
+                <ErrorAlert error={error} />
 
-                {/* Erreur Notion */}
-                {error && (
-                    <Alert
-                        icon={<LuBadgeAlert size={16} />}
-                        title="Erreur de connexion a Notion"
-                        color="red"
-                    >
-                        <Text size="sm">{error.message}</Text>
-                        <Text size="xs" c="dimmed" mt="xs">
-                            {error.details}
-                        </Text>
-                    </Alert>
-                )}
-
-                {/* Liste des pages Notion */}
-                <Card withBorder>
-                    <Group justify="space-between" mb="md">
-                        <Title order={3}>Opérations en attente de génération</Title>
-                        <Group>
-                            <Button
-                                variant="filled"
-                                size="sm"
-                                onClick={sendAllToN8n}
-                                loading={sendingBulk}
-                                disabled={
-                                    localPages.length === 0 ||
-                                    sendingBulk ||
-                                    sendingWebhook !== null
-                                }
-                                leftSection={<LuSend size={16} />}
-                            >
-                                {sendingBulk
-                                    ? `Envoi en cours...`
-                                    : `Envoyer tout vers n8n (${localPages.length})`}
-                            </Button>
-                            <ActionIcon
-                                variant="light"
-                                onClick={refreshNotionData}
-                                loading={isRefreshing}
-                                title="Actualiser"
-                            >
-                                <LuRefreshCw size={16} />
-                            </ActionIcon>
-                            <Badge variant="light">
-                                {localPages.length} page{localPages.length > 1 ? 's' : ''}
-                            </Badge>
-                        </Group>
-                    </Group>
-
-                    {isRefreshing ? (
-                        <Flex justify="center" align="center" py="xl">
-                            <Loader size="md" />
-                            <Text ml="md">Chargement des donnees Notion...</Text>
-                        </Flex>
-                    ) : localPages.length === 0 ? (
-                        <Text ta="center" py="xl" c="dimmed">
-                            {error
-                                ? 'Impossible de charger les pages Notion'
-                                : 'Aucune page trouvee'}
-                        </Text>
-                    ) : (
-                        <Box style={{ overflowX: 'auto' }}>
-                            <Table striped highlightOnHover>
-                                <Table.Thead>
-                                    <Table.Tr>
-                                        <Table.Th>Titre</Table.Th>
-                                        <Table.Th>Creee le</Table.Th>
-                                        <Table.Th>Modifiee le</Table.Th>
-                                        <Table.Th>Actions</Table.Th>
-                                    </Table.Tr>
-                                </Table.Thead>
-                                <Table.Tbody>
-                                    {localPages.slice(0, 10).map((page) => (
-                                        <Table.Tr key={page.id}>
-                                            <Table.Td>
-                                                <Text fw={500}>{page.title}</Text>
-                                            </Table.Td>
-                                            <Table.Td>
-                                                <Text size="sm" c="dimmed">
-                                                    {formatDate(page.created_time)}
-                                                </Text>
-                                            </Table.Td>
-                                            <Table.Td>
-                                                <Text size="sm" c="dimmed">
-                                                    {formatDate(page.last_edited_time)}
-                                                </Text>
-                                            </Table.Td>
-                                            <Table.Td>
-                                                <Group gap="xs">
-                                                    <ActionIcon
-                                                        component="a"
-                                                        href={page.url}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        variant="light"
-                                                        size="sm"
-                                                        title="Ouvrir dans Notion"
-                                                    >
-                                                        <LuExternalLink size={14} />
-                                                    </ActionIcon>
-                                                    <ActionIcon
-                                                        onClick={() => sendToN8n(page)}
-                                                        loading={sendingWebhook === page.id}
-                                                        variant="light"
-                                                        color="blue"
-                                                        size="sm"
-                                                        title="Envoyer vers n8n"
-                                                        disabled={
-                                                            sendingWebhook !== null || sendingBulk
-                                                        }
-                                                    >
-                                                        <LuSend size={14} />
-                                                    </ActionIcon>
-                                                </Group>
-                                            </Table.Td>
-                                        </Table.Tr>
-                                    ))}
-                                </Table.Tbody>
-                            </Table>
-
-                            {localPages.length > 10 && (
-                                <Text ta="center" mt="md" size="sm" c="dimmed">
-                                    ... et {localPages.length - 10} autres pages
-                                </Text>
-                            )}
-                        </Box>
-                    )}
-                </Card>
+                {/* Tableau des pages Notion */}
+                <NotionPagesTable
+                    pages={localPages}
+                    isRefreshing={isRefreshing}
+                    sendingWebhook={sendingWebhook}
+                    sendingBulk={sendingBulk}
+                    error={error}
+                    onRefresh={refreshNotionData}
+                    onSendAll={sendAllToN8n}
+                    onSendSingle={sendToN8n}
+                />
 
                 {/* Statistiques */}
-                <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="md">
-                    <Card withBorder p="md">
-                        <Group justify="space-between">
-                            <Box>
-                                <Text size="xs" tt="uppercase" fw={700} c="dimmed">
-                                    Pages Notion
-                                </Text>
-                                <Text size="xl" fw={700}>
-                                    {localStats.totalPages}
-                                </Text>
-                            </Box>
-                            <LuDatabase size={24} style={{ color: '#228be6' }} />
-                        </Group>
-                    </Card>
+                <StatsGrid
+                    stats={localStats}
+                    databaseInfo={databaseInfo}
+                    isRefreshing={isRefreshing}
+                    onRefresh={refreshNotionData}
+                />
 
-                    <Card withBorder p="md">
-                        <Group justify="space-between">
-                            <Box>
-                                <Text size="xs" tt="uppercase" fw={700} c="dimmed">
-                                    Recentes (7j)
-                                </Text>
-                                <Text size="xl" fw={700}>
-                                    {localStats.recentPages}
-                                </Text>
-                            </Box>
-                            <LuCalendar size={24} style={{ color: '#40c057' }} />
-                        </Group>
-                    </Card>
-
-                    <Card withBorder p="md">
-                        <Group justify="space-between">
-                            <Box>
-                                <Text size="xs" tt="uppercase" fw={700} c="dimmed">
-                                    Base de donnees
-                                </Text>
-                                <Text size="sm" fw={500}>
-                                    {databaseInfo?.title || 'Non connectee'}
-                                </Text>
-                            </Box>
-                            <LuTrendingUp size={24} style={{ color: '#fd7e14' }} />
-                        </Group>
-                    </Card>
-
-                    <Card withBorder p="md">
-                        <Group justify="space-between">
-                            <Box>
-                                <Text size="xs" tt="uppercase" fw={700} c="dimmed">
-                                    Derniere sync
-                                </Text>
-                                <Text size="sm" fw={500}>
-                                    {databaseInfo
-                                        ? formatDate(databaseInfo.last_edited_time)
-                                        : 'N/A'}
-                                </Text>
-                            </Box>
-                            <ActionIcon
-                                variant="light"
-                                size="lg"
-                                onClick={refreshNotionData}
-                                loading={isRefreshing}
-                            >
-                                <LuRefreshCw size={16} />
-                            </ActionIcon>
-                        </Group>
-                    </Card>
-                </SimpleGrid>
-
-                {/* Informations de la base de donnees Notion */}
-                {databaseInfo && (
-                    <Card withBorder p="md">
-                        <Group justify="space-between" mb="md">
-                            <Title order={3}>Base de donnees Notion</Title>
-                            <Button
-                                component="a"
-                                href={databaseInfo.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                variant="light"
-                                size="sm"
-                                rightSection={<LuExternalLink size={14} />}
-                            >
-                                Ouvrir dans Notion
-                            </Button>
-                        </Group>
-                        <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
-                            <Box>
-                                <Text size="sm" fw={500} c="dimmed">
-                                    Titre
-                                </Text>
-                                <Text size="sm">{databaseInfo.title}</Text>
-                            </Box>
-                            <Box>
-                                <Text size="sm" fw={500} c="dimmed">
-                                    Creee le
-                                </Text>
-                                <Text size="sm">{formatDate(databaseInfo.created_time)}</Text>
-                            </Box>
-                            <Box>
-                                <Text size="sm" fw={500} c="dimmed">
-                                    Modifiee le
-                                </Text>
-                                <Text size="sm">{formatDate(databaseInfo.last_edited_time)}</Text>
-                            </Box>
-                        </SimpleGrid>
-                    </Card>
-                )}
+                {/* Informations de la base de données Notion */}
+                <DatabaseInfoCard databaseInfo={databaseInfo} />
 
                 {/* Modal pour afficher la réponse de n8n */}
                 <NotionWebhookModal
