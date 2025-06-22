@@ -1,9 +1,10 @@
-import { Checkbox } from '@mantine/core'
+import { Checkbox, Box, Group, Tooltip } from '@mantine/core'
 import { FilterOptions, GmbPost } from '../../types'
 import { ActionsCell } from './ActionsCell'
 import { ColumnConfig } from './ColumnVisibilityManager'
 import { InlineEditCell } from './InlineEditCell'
 import { calculatePrice } from '../../../../utils/pricing'
+import { LuRefreshCw, LuClock, LuCheck, LuCircleAlert, LuX, LuCircleCheck } from 'react-icons/lu'
 
 interface PostRowProps {
     post: GmbPost
@@ -34,6 +35,141 @@ export const PostRow = ({
     onDuplicate,
     onSendToN8n,
 }: PostRowProps) => {
+    // Fonction pour vérifier si un champ est rempli
+    const isFieldFilled = (value: string | null | undefined): boolean => {
+        return value !== null && value !== undefined && value.trim() !== ''
+    }
+
+    // Fonction pour obtenir l'icône de préparation
+    const getReadinessIcon = () => {
+        // Logique pour "Titre généré" - Action utilisateur nécessaire pour passer à "Post à générer"
+        if (post.status === 'Titre généré') {
+            return (
+                <Tooltip
+                    label="Titre généré - Action utilisateur requise pour passer au statut 'Post à générer'"
+                    multiline
+                    withArrow
+                    position="right"
+                >
+                    <LuRefreshCw 
+                        size={14} 
+                        style={{ color: '#fd7e14', cursor: 'help' }} 
+                    />
+                </Tooltip>
+            )
+        }
+
+        // Logique pour "Post généré" - Action utilisateur nécessaire pour passer à "Post à publier"
+        if (post.status === 'Post généré') {
+            return (
+                <Tooltip
+                    label="Post généré - Action utilisateur requise pour passer au statut 'Post à publier'"
+                    multiline
+                    withArrow
+                    position="right"
+                >
+                    <LuClock 
+                        size={14} 
+                        style={{ color: '#fd7e14', cursor: 'help' }} 
+                    />
+                </Tooltip>
+            )
+        }
+
+        // Logique pour "Post à générer"
+        if (post.status === 'Post à générer') {
+            const hasText = isFieldFilled(post.text)
+            const hasKeyword = isFieldFilled(post.keyword)
+            const hasClient = isFieldFilled(post.client)
+            
+            const isReadyForGeneration = hasText && hasKeyword && hasClient
+            
+            if (isReadyForGeneration) {
+                return (
+                    <Tooltip
+                        label="Prêt pour la génération"
+                        multiline
+                        withArrow
+                        position="right"
+                    >
+                        <LuCircleCheck 
+                            size={14} 
+                            style={{ color: '#40c057', cursor: 'help' }} 
+                        />
+                    </Tooltip>
+                )
+            } else {
+                return (
+                    <Tooltip
+                        label={`Incomplet pour la génération - Champs manquants: ${[
+                            !hasText && 'Texte',
+                            !hasKeyword && 'Mot-clé', 
+                            !hasClient && 'Client'
+                        ].filter(Boolean).join(', ')}`}
+                        multiline
+                        withArrow
+                        position="right"
+                    >
+                        <LuCircleAlert 
+                            size={14} 
+                            style={{ color: '#fd7e14', cursor: 'help' }} 
+                        />
+                    </Tooltip>
+                )
+            }
+        }
+        
+        // Logique pour "Post à publier"
+        if (post.status === 'Post à publier') {
+            const hasText = isFieldFilled(post.text)
+            const hasDate = isFieldFilled(post.date)
+            const hasAccountId = isFieldFilled(post.account_id)
+            const hasLocationId = isFieldFilled(post.location_id)
+            const hasUrl = isFieldFilled(post.link_url) || isFieldFilled(post.image_url)
+            
+            const isReadyForPublication = hasText && hasDate && hasAccountId && hasLocationId && hasUrl
+            
+            if (isReadyForPublication) {
+                return (
+                    <Tooltip
+                        label="Prêt pour la publication - Tous les champs requis sont remplis (Texte, Date, Account ID, Location ID, URL)"
+                        multiline
+                        withArrow
+                        position="right"
+                    >
+                        <LuCheck 
+                            size={14} 
+                            style={{ color: '#228be6', cursor: 'help' }} 
+                        />
+                    </Tooltip>
+                )
+            } else {
+                return (
+                    <Tooltip
+                        label={`Incomplet pour la publication - Champs manquants: ${[
+                            !hasText && 'Texte',
+                            !hasDate && 'Date',
+                            !hasAccountId && 'Account ID',
+                            !hasLocationId && 'Location ID',
+                            !hasUrl && 'URL (Image ou Lien)'
+                        ].filter(Boolean).join(', ')}`}
+                        multiline
+                        withArrow
+                        position="right"
+                    >
+                        <LuX 
+                            size={14} 
+                            style={{ color: '#fa5252', cursor: 'help' }} 
+                        />
+                    </Tooltip>
+                )
+            }
+        }
+        
+        // Pas d'icône pour les autres statuts
+        return null
+    }
+
     const renderCell = (column: ColumnConfig) => {
         const width = column.width
         const baseStyle = {
@@ -44,6 +180,14 @@ export const PostRow = ({
         }
 
         switch (column.key) {
+            case 'readiness':
+                return (
+                    <td key={column.key} style={{ ...baseStyle, textAlign: 'center', verticalAlign: 'middle' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                            {getReadinessIcon()}
+                        </div>
+                    </td>
+                )
             case 'checkbox':
                 return (
                     <td key={column.key} style={{ ...baseStyle, textAlign: 'center' }}>

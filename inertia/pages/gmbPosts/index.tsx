@@ -46,6 +46,7 @@ export default function GmbPostsIndex({
     // Configuration des colonnes avec largeurs par défaut
     const [columns, setColumns] = useState<ColumnConfig[]>([
         { key: 'checkbox', label: 'Sélection', visible: true, width: 80, minWidth: 60, maxWidth: 100, required: true },
+        { key: 'readiness', label: '✓', visible: true, width: 50, minWidth: 40, maxWidth: 70, required: true },
         { key: 'status', label: 'Statut', visible: true, width: 220, minWidth: 150, maxWidth: 300 },
         { key: 'text', label: 'Texte', visible: true, width: 600, minWidth: 250, maxWidth: 900 },
         { key: 'date', label: 'Date', visible: true, width: 220, minWidth: 150, maxWidth: 270 },
@@ -57,8 +58,8 @@ export default function GmbPostsIndex({
         { key: 'model', label: 'Modèle IA', visible: false, width: 180, minWidth: 130, maxWidth: 250 },
         { key: 'input_tokens', label: 'Tokens In', visible: false, width: 160, minWidth: 120, maxWidth: 200 },
         { key: 'output_tokens', label: 'Tokens Out', visible: false, width: 160, minWidth: 120, maxWidth: 200 },
-        { key: 'image_url', label: 'Image', visible: false, width: 160, minWidth: 120, maxWidth: 250 },
-        { key: 'link_url', label: 'Lien', visible: false, width: 160, minWidth: 120, maxWidth: 250 },
+        { key: 'image_url', label: 'Image', visible: true, width: 160, minWidth: 120, maxWidth: 250 },
+        { key: 'link_url', label: 'Lien', visible: true, width: 160, minWidth: 120, maxWidth: 250 },
         { key: 'location_id', label: 'Location ID', visible: false, width: 200, minWidth: 150, maxWidth: 300 },
         { key: 'account_id', label: 'Account ID', visible: false, width: 200, minWidth: 150, maxWidth: 300 },
         { key: 'notion_id', label: 'Notion ID', visible: false, width: 200, minWidth: 150, maxWidth: 300 },
@@ -70,6 +71,7 @@ export default function GmbPostsIndex({
         setColumns(prev => prev.map(col => {
             switch (col.key) {
                 case 'checkbox': return { ...col, width: 80 }
+                case 'readiness': return { ...col, width: 50 }
                 case 'status': return { ...col, width: 220 }
                 case 'text': return { ...col, width: 600 }
                 case 'date': return { ...col, width: 220 }

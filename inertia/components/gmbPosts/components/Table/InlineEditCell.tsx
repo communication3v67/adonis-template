@@ -1,6 +1,6 @@
 import { ActionIcon, Badge, Box, Group, Text, Textarea, TextInput, Tooltip } from '@mantine/core'
 import { useState, useEffect, useRef } from 'react'
-import { LuCheck, LuSettings, LuX } from 'react-icons/lu'
+import { LuCheck, LuSettings, LuX, LuImage, LuLink } from 'react-icons/lu'
 import { GmbPost, FilterOptions } from '../../types'
 import { STATUS_COLORS } from '../../utils/constants'
 import { truncateText, formatDateForEdit } from '../../utils/formatters'
@@ -186,27 +186,24 @@ export const InlineEditCell = ({
                         <Text size="sm">{value ? new Date(value).toLocaleDateString('fr-FR') : '-'}</Text>
                     ) : (field === 'image_url' || field === 'link_url') && value ? (
                         <Tooltip label={value}>
-                            <Text
-                                size="sm"
-                                component="a"
+                            <a
                                 href={value}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 style={{
                                     textDecoration: 'none',
-                                    color: '#868e96',
-                                    backgroundColor: '#f8f9fa',
-                                    padding: '2px 6px',
-                                    borderRadius: '4px',
-                                    border: '1px solid #e9ecef',
-                                    display: 'inline-block',
-                                    transition: 'all 0.15s ease',
-                                    fontSize: '11px',
-                                    fontWeight: 400,
+                                    color: '#228be6',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    cursor: 'pointer',
                                 }}
                             >
-                                {field === 'image_url' ? '📷' : '🔗'}
-                            </Text>
+                                {field === 'image_url' ? (
+                                    <LuImage size={16} />
+                                ) : (
+                                    <LuLink size={16} />
+                                )}
+                            </a>
                         </Tooltip>
                     ) : (
                         <Text size="sm">{displayValue || value || '-'}</Text>
