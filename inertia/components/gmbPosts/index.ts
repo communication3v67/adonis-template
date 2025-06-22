@@ -41,6 +41,7 @@ export { BulkImageUpload } from './components/BulkActions/BulkImageUpload'
 // Export des composants Modals
 export { EditPostModal } from './components/Modals/EditPostModal'
 export { WebhookModal } from './components/Modals/WebhookModal'
+export { CreatePostModal } from './components/Modals/CreatePostModal'
 
 // Export des composants AdvancedFilters
 export * from './components/AdvancedFilters'

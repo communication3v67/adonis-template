@@ -20,6 +20,7 @@ import {
 import {
     BulkActionBar,
     EditPostModal,
+    CreatePostModal,
     FilterSection,
     PageHeader,
     PostsTable,
@@ -40,6 +41,7 @@ export default function GmbPostsIndex({
     const [lastUpdateTime, setLastUpdateTime] = useState<string | null>(null)
     const [pendingUpdates, setPendingUpdates] = useState<number>(0)
     const [refreshKey, setRefreshKey] = useState<number>(0) // Clé pour forcer le re-render
+    const [createModalOpened, setCreateModalOpened] = useState(false)
 
     // Configuration des colonnes avec largeurs par défaut
     const [columns, setColumns] = useState<ColumnConfig[]>([
@@ -245,9 +247,45 @@ export default function GmbPostsIndex({
         filters.dateTo,
     ].filter(Boolean).length
 
+    // Filtrer les posts "Post à générer" pour validation
+    const postsToGenerate = useMemo(() => {
+        if (!infinitePosts || !Array.isArray(infinitePosts)) {
+            return []
+        }
+        return infinitePosts.filter(post => post.status === 'Post à générer')
+    }, [infinitePosts])
+
     // Gestion de l'envoi vers n8n
     const handleSendToN8n = () => {
         sendPostsToN8n(postsToGenerateCount)
+    }
+
+    // Gestion de l'ouverture de la modal de création
+    const handleCreatePost = () => {
+        setCreateModalOpened(true)
+    }
+
+    // Gestion de l'export CSV
+    const handleExport = () => {
+        // Construire l'URL avec les filtres actuels
+        const params = new URLSearchParams()
+        
+        // Ajouter les filtres de base
+        if (filters.search) params.append('search', filters.search)
+        if (filters.status) params.append('status', filters.status)
+        if (filters.client) params.append('client', filters.client)
+        if (filters.project) params.append('project', filters.project)
+        if (filters.dateFrom) params.append('dateFrom', filters.dateFrom)
+        if (filters.dateTo) params.append('dateTo', filters.dateTo)
+        if (filters.sortBy) params.append('sortBy', filters.sortBy)
+        if (filters.sortOrder) params.append('sortOrder', filters.sortOrder)
+        
+        // Forcer le format CSV
+        params.append('format', 'csv')
+        
+        // Télécharger le fichier
+        const url = `/gmb-posts/export?${params.toString()}`
+        window.open(url, '_blank')
     }
 
     // Gestion des actions en masse avec nettoyage de sélection
@@ -295,8 +333,11 @@ export default function GmbPostsIndex({
                 <PageHeader
                     currentUser={currentUser}
                     postsToGenerateCount={postsToGenerateCount}
+                    postsToGenerate={postsToGenerate}
                     sendingToN8n={sendingToN8n}
                     onSendToN8n={handleSendToN8n}
+                    onCreatePost={handleCreatePost}
+                    onExport={handleExport}
                 />
 
                 {/* Section des filtres */}
@@ -379,6 +420,20 @@ export default function GmbPostsIndex({
                     post={editingPost}
                     opened={editModalOpened}
                     onClose={closeEditModal}
+                    filterOptions={filterOptions}
+                />
+
+                {/* Modal de création */}
+                <CreatePostModal
+                    opened={createModalOpened}
+                    onClose={() => setCreateModalOpened(false)}
+                    filterOptions={filterOptions}
+                />
+
+                {/* Modal de création */}
+                <CreatePostModal
+                    opened={createModalOpened}
+                    onClose={() => setCreateModalOpened(false)}
                     filterOptions={filterOptions}
                 />
 

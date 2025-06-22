@@ -1,9 +1,10 @@
-import { Badge, Button, Group, Modal, Select, Stack, Text, Textarea, TextInput } from '@mantine/core'
+import { Badge, Button, Group, Modal, NumberInput, Textarea, TextInput, Stack, Text } from '@mantine/core'
 import { useForm } from '@inertiajs/react'
 import { notifications } from '@mantine/notifications'
 import React, { useEffect, useState } from 'react'
 import { LuSave, LuX } from 'react-icons/lu'
 import { GmbPost, FilterOptions } from '../../types'
+import { CreatableSelect } from '../CreatableSelect'
 
 interface EditPostModalProps {
     post: GmbPost | null
@@ -22,6 +23,7 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
         keyword: '',
         client: '',
         project_name: '',
+        city: '',
         location_id: '',
         account_id: '',
         notion_id: '',
@@ -29,6 +31,28 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
 
     // Garder une référence des valeurs originales
     const [originalData, setOriginalData] = useState<any>({})
+
+    // Options pour le statut
+    const [statusOptions, setStatusOptions] = useState([
+        { value: 'Post à générer', label: 'Post à générer' },
+        { value: 'Brouillon', label: 'Brouillon' },
+        { value: 'Publié', label: 'Publié' },
+        { value: 'Programmé', label: 'Programmé' },
+        { value: 'Échec', label: 'Échec' },
+        { value: 'Titre généré', label: 'Titre généré' },
+        { value: 'Post généré', label: 'Post généré' },
+        { value: 'Post à publier', label: 'Post à publier' },
+    ])
+
+    // Options pour les clients
+    const [clientOptions, setClientOptions] = useState(
+        filterOptions.clients.map(client => ({ value: client, label: client }))
+    )
+
+    // Options pour les projets
+    const [projectOptions, setProjectOptions] = useState(
+        filterOptions.projects.map(project => ({ value: project, label: project }))
+    )
 
     // Mettre à jour le formulaire quand le post change
     useEffect(() => {
@@ -42,6 +66,7 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                 keyword: post.keyword || '',
                 client: post.client || '',
                 project_name: post.project_name || '',
+                city: post.city || '',
                 location_id: post.location_id || '',
                 account_id: post.account_id || '',
                 notion_id: post.notion_id || '',
@@ -127,19 +152,17 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
             <form onSubmit={handleSubmit}>
                 <Stack gap="md">
                     <Group grow>
-                        <Select
+                        <CreatableSelect
                             label="Statut"
                             placeholder="Sélectionner un statut"
-                            data={[
-                                { value: 'Titre généré', label: 'Titre généré' },
-                                { value: 'Post à générer', label: 'Post à générer' },
-                                { value: 'Post généré', label: 'Post généré' },
-                                { value: 'Post à publier', label: 'Post à publier' },
-                                { value: 'Publié', label: 'Publié' },
-                                { value: 'failed', label: 'Échec' },
-                            ]}
+                            data={statusOptions}
                             value={data.status}
                             onChange={(value) => setData('status', value || '')}
+                            onCreate={(query) => {
+                                const newOption = { value: query, label: query }
+                                setStatusOptions(prev => [...prev, newOption])
+                                setData('status', query)
+                            }}
                             error={errors.status}
                             styles={{
                                 input: {
@@ -163,6 +186,36 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                         />
                     </Group>
 
+                    {/* URLs */}
+                    <Group grow>
+                        <TextInput
+                            label="URL de l'image"
+                            placeholder="https://..."
+                            value={data.image_url}
+                            onChange={(e) => setData('image_url', e.target.value)}
+                            error={errors.image_url}
+                            styles={{
+                                input: {
+                                    borderColor: isFieldChanged('image_url') ? '#fd7e14' : undefined,
+                                    backgroundColor: isFieldChanged('image_url') ? '#fff4e6' : undefined,
+                                },
+                            }}
+                        />
+                        <TextInput
+                            label="URL du lien"
+                            placeholder="https://..."
+                            value={data.link_url}
+                            onChange={(e) => setData('link_url', e.target.value)}
+                            error={errors.link_url}
+                            styles={{
+                                input: {
+                                    borderColor: isFieldChanged('link_url') ? '#fd7e14' : undefined,
+                                    backgroundColor: isFieldChanged('link_url') ? '#fff4e6' : undefined,
+                                },
+                            }}
+                        />
+                    </Group>
+
                     <Textarea
                         label="Texte du post"
                         placeholder="Contenu du post..."
@@ -180,17 +233,18 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                     />
 
                     <Group grow>
-                        <Select
+                        <CreatableSelect
                             label="Client"
                             placeholder="Sélectionner un client"
-                            data={filterOptions.clients.map((client) => ({
-                                value: client,
-                                label: client,
-                            }))}
+                            data={clientOptions}
                             value={data.client}
                             onChange={(value) => setData('client', value || '')}
+                            onCreate={(query) => {
+                                const newOption = { value: query, label: query }
+                                setClientOptions(prev => [...prev, newOption])
+                                setData('client', query)
+                            }}
                             error={errors.client}
-                            searchable
                             styles={{
                                 input: {
                                     borderColor: isFieldChanged('client') ? '#fd7e14' : undefined,
@@ -198,11 +252,17 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                                 },
                             }}
                         />
-                        <TextInput
+                        <CreatableSelect
                             label="Nom du projet"
-                            placeholder="Nom du projet"
+                            placeholder="Sélectionner un projet"
+                            data={projectOptions}
                             value={data.project_name}
-                            onChange={(e) => setData('project_name', e.target.value)}
+                            onChange={(value) => setData('project_name', value || '')}
+                            onCreate={(query) => {
+                                const newOption = { value: query, label: query }
+                                setProjectOptions(prev => [...prev, newOption])
+                                setData('project_name', query)
+                            }}
                             error={errors.project_name}
                             styles={{
                                 input: {
@@ -228,34 +288,22 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                             }}
                         />
                         <TextInput
-                            label="URL de l'image"
-                            placeholder="https://..."
-                            value={data.image_url}
-                            onChange={(e) => setData('image_url', e.target.value)}
-                            error={errors.image_url}
+                            label="Ville"
+                            placeholder="Ville"
+                            value={data.city}
+                            onChange={(e) => setData('city', e.target.value)}
+                            error={errors.city}
                             styles={{
                                 input: {
-                                    borderColor: isFieldChanged('image_url') ? '#fd7e14' : undefined,
-                                    backgroundColor: isFieldChanged('image_url') ? '#fff4e6' : undefined,
+                                    borderColor: isFieldChanged('city') ? '#fd7e14' : undefined,
+                                    backgroundColor: isFieldChanged('city') ? '#fff4e6' : undefined,
                                 },
                             }}
                         />
                     </Group>
 
+                    {/* IDs */}
                     <Group grow>
-                        <TextInput
-                            label="URL du lien"
-                            placeholder="https://..."
-                            value={data.link_url}
-                            onChange={(e) => setData('link_url', e.target.value)}
-                            error={errors.link_url}
-                            styles={{
-                                input: {
-                                    borderColor: isFieldChanged('link_url') ? '#fd7e14' : undefined,
-                                    backgroundColor: isFieldChanged('link_url') ? '#fff4e6' : undefined,
-                                },
-                            }}
-                        />
                         <TextInput
                             label="Location ID"
                             placeholder="ID de la localisation"
@@ -269,9 +317,6 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                                 },
                             }}
                         />
-                    </Group>
-
-                    <Group grow>
                         <TextInput
                             label="Account ID"
                             placeholder="ID du compte"
@@ -285,20 +330,22 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                                 },
                             }}
                         />
-                        <TextInput
-                            label="Notion ID"
-                            placeholder="ID Notion (optionnel)"
-                            value={data.notion_id}
-                            onChange={(e) => setData('notion_id', e.target.value)}
-                            error={errors.notion_id}
-                            styles={{
-                                input: {
-                                    borderColor: isFieldChanged('notion_id') ? '#fd7e14' : undefined,
-                                    backgroundColor: isFieldChanged('notion_id') ? '#fff4e6' : undefined,
-                                },
-                            }}
-                        />
                     </Group>
+
+                    {/* Notion ID */}
+                    <TextInput
+                        label="Notion ID"
+                        placeholder="ID Notion (optionnel)"
+                        value={data.notion_id}
+                        onChange={(e) => setData('notion_id', e.target.value)}
+                        error={errors.notion_id}
+                        styles={{
+                            input: {
+                                borderColor: isFieldChanged('notion_id') ? '#fd7e14' : undefined,
+                                backgroundColor: isFieldChanged('notion_id') ? '#fff4e6' : undefined,
+                            },
+                        }}
+                    />
 
                     <Group justify="flex-end" mt="md">
                         <Button variant="light" onClick={onClose} leftSection={<LuX size={16} />}>

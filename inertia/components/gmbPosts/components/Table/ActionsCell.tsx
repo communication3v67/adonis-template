@@ -21,23 +21,50 @@ export const ActionsCell = ({
 }: ActionsCellProps) => {
     const canSendToN8n = post.status === 'Post à générer'
     const isSending = sendingSinglePost === post.id
+    
+    // Vérifier si les champs requis sont remplis pour l'envoi
+    const hasRequiredFields = !!(post.status && post.text && post.keyword)
+    const isN8nButtonDisabled = !canSendToN8n || !hasRequiredFields || isSending
+    
+    // Message du tooltip selon l'état
+    const getN8nTooltipMessage = () => {
+        if (!canSendToN8n) {
+            return 'Seuls les posts "Post à générer" peuvent être envoyés'
+        }
+        if (!post.status) {
+            return 'Le statut est requis pour l\'envoi'
+        }
+        if (!post.text) {
+            return 'Le texte est requis pour l\'envoi'
+        }
+        if (!post.keyword) {
+            return 'Le mot-clé est requis pour l\'envoi'
+        }
+        if (isSending) {
+            return 'Envoi en cours...'
+        }
+        return 'Envoyer vers n8n'
+    }
 
     return (
         <Group gap={4} wrap="nowrap" justify="center">
-            {/* Bouton d'envoi vers n8n si applicable */}
-            {canSendToN8n && (
-                <Tooltip label="Envoyer vers n8n">
-                    <ActionIcon
-                        size="sm"
-                        variant="light"
-                        color="blue"
-                        onClick={() => onSendToN8n(post)}
-                        loading={isSending}
-                    >
-                        <LuSend size={14} />
-                    </ActionIcon>
-                </Tooltip>
-            )}
+            {/* Bouton d'envoi vers n8n - toujours visible */}
+            <Tooltip label={getN8nTooltipMessage()}>
+                <ActionIcon
+                    size="sm"
+                    variant={isN8nButtonDisabled ? "subtle" : "light"}
+                    color={isN8nButtonDisabled ? "gray" : "blue"}
+                    onClick={() => !isN8nButtonDisabled && onSendToN8n(post)}
+                    loading={isSending}
+                    disabled={isN8nButtonDisabled}
+                    style={{ 
+                        opacity: isN8nButtonDisabled ? 0.5 : 1,
+                        cursor: isN8nButtonDisabled ? 'not-allowed' : 'pointer'
+                    }}
+                >
+                    <LuSend size={14} />
+                </ActionIcon>
+            </Tooltip>
 
             {/* Bouton de modification */}
             <Tooltip label="Modifier">
