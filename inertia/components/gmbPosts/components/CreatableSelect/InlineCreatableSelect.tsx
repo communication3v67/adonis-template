@@ -41,16 +41,25 @@ export function InlineCreatableSelect({
         setSearch(selectedOption?.label || value || '')
     }, [value, data])
 
-    // Filtrer les options en fonction de la recherche
-    const filteredOptions = data.filter((item) =>
-        item.label.toLowerCase().includes(search.toLowerCase().trim())
+    // Pour le statut, on ne filtre jamais - toutes les options sont toujours visibles
+    const isStatusField = data.some(item => 
+        ['Titre généré', 'Post à générer', 'Post généré', 'Post à publier', 'Publié', 'failed'].includes(item.value)
     )
 
-    // Vérifier si la valeur recherchée existe déjà
-    const exactOptionMatch = data.some((item) => 
-        item.value.toLowerCase() === search.toLowerCase().trim() ||
-        item.label.toLowerCase() === search.toLowerCase().trim()
-    )
+    // Filtrer les options seulement si ce n'est pas le champ statut
+    const filteredOptions = isStatusField 
+        ? data // Pas de filtrage pour le statut
+        : data.filter((item) =>
+            item.label.toLowerCase().includes(search.toLowerCase().trim())
+          )
+
+    // Vérifier si la valeur recherchée existe déjà (seulement pour les champs autres que statut)
+    const exactOptionMatch = isStatusField 
+        ? false // Pas de création d'option pour le statut
+        : data.some((item) => 
+            item.value.toLowerCase() === search.toLowerCase().trim() ||
+            item.label.toLowerCase() === search.toLowerCase().trim()
+          )
 
     // Créer les options du dropdown
     const options = filteredOptions.map((item) => (
@@ -59,8 +68,8 @@ export function InlineCreatableSelect({
         </Combobox.Option>
     ))
 
-    // Option pour créer une nouvelle valeur
-    const shouldShowCreateOption = onCreate && search.trim() !== '' && !exactOptionMatch
+    // Option pour créer une nouvelle valeur (pas pour le statut)
+    const shouldShowCreateOption = onCreate && !isStatusField && search.trim() !== '' && !exactOptionMatch
     
     if (shouldShowCreateOption) {
         options.push(
@@ -100,11 +109,13 @@ export function InlineCreatableSelect({
                     rightSectionPointerEvents="none"
                     onFocus={() => {
                         combobox.openDropdown()
-                        // Sélectionner tout le texte au focus
-                        setTimeout(() => {
-                            const input = document.activeElement as HTMLInputElement
-                            if (input) input.select()
-                        }, 0)
+                        // Sélectionner tout le texte au focus seulement si ce n'est pas le statut
+                        if (!isStatusField) {
+                            setTimeout(() => {
+                                const input = document.activeElement as HTMLInputElement
+                                if (input) input.select()
+                            }, 0)
+                        }
                     }}
                     onBlur={() => {
                         combobox.closeDropdown()
@@ -116,16 +127,21 @@ export function InlineCreatableSelect({
                     value={search}
                     onChange={(event) => {
                         const newValue = event.currentTarget.value
-                        combobox.updateSelectedOptionIndex()
-                        setSearch(newValue)
-                        // Ouvrir le dropdown seulement si on tape quelque chose
-                        if (newValue.length > 0 || combobox.dropdownOpened) {
-                            combobox.openDropdown()
+                        
+                        // Pour le statut, on ne modifie pas la recherche avec la saisie utilisateur
+                        if (!isStatusField) {
+                            combobox.updateSelectedOptionIndex()
+                            setSearch(newValue)
+                            // Ouvrir le dropdown seulement si on tape quelque chose
+                            if (newValue.length > 0 || combobox.dropdownOpened) {
+                                combobox.openDropdown()
+                            }
                         }
                     }}
                     onKeyDown={onKeyDown}
                     size={size}
                     style={{ width: '100%' }}
+                    readOnly={isStatusField} // Lecture seule pour le statut
                 />
             </Combobox.Target>
 
