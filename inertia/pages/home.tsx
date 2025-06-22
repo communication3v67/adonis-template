@@ -6,11 +6,9 @@ import {
     Box,
     Button,
     Card,
-    Code,
     Flex,
     Group,
     Loader,
-    Modal,
     SimpleGrid,
     Stack,
     Table,
@@ -21,13 +19,13 @@ import { useState } from 'react'
 import {
     LuBadgeAlert,
     LuCalendar,
-    LuCheck,
     LuDatabase,
     LuExternalLink,
     LuRefreshCw,
     LuSend,
     LuTrendingUp,
 } from 'react-icons/lu'
+import { NotionWebhookModal, NotionNotifications } from '../components/home'
 
 interface NotionPage {
     id: string
@@ -79,8 +77,15 @@ export default function Home({
     const [sendingWebhook, setSendingWebhook] = useState<string | null>(null)
     const [webhookResponse, setWebhookResponse] = useState<any>(null)
     const [showResponseModal, setShowResponseModal] = useState(false)
+    const [modalType, setModalType] = useState<'single' | 'bulk'>('single')
     const [processingCount, setProcessingCount] = useState(0)
     const [sendingBulk, setSendingBulk] = useState(false)
+
+    // Fonction pour recharger la page
+    const handleSuccessReload = () => {
+        console.log('Rechargement de la page déclenché!') // Debug
+        window.location.reload()
+    }
 
     // Fonction pour rafraichir les donnees Notion
     const refreshNotionData = async () => {
@@ -112,6 +117,10 @@ export default function Home({
     const sendToN8n = async (page: NotionPage) => {
         setSendingWebhook(page.id)
         setWebhookResponse(null)
+        setModalType('single')
+
+        // Notification de début
+        NotionNotifications.sendingStart('single')
 
         try {
             console.log('🚀 Envoi webhook pour:', page.title)
@@ -173,6 +182,9 @@ export default function Home({
 
             console.log('✅ Résultat parsé:', result)
 
+            // Notification de succès
+            NotionNotifications.sendingSuccess('single')
+
             // Afficher la réponse
             setWebhookResponse(result.data || result)
             setShowResponseModal(true)
@@ -184,7 +196,12 @@ export default function Home({
                 errorMessage = error.message
             }
 
-            alert(`❌ Erreur: ${errorMessage}`)
+            // Notification d'erreur
+            NotionNotifications.sendingError('single', errorMessage)
+
+            // Afficher aussi la modale d'erreur
+            setWebhookResponse({ error: true, message: errorMessage })
+            setShowResponseModal(true)
         } finally {
             setSendingWebhook(null)
         }
@@ -193,13 +210,17 @@ export default function Home({
     // Fonction pour envoyer TOUTES les pages vers n8n
     const sendAllToN8n = async () => {
         if (localPages.length === 0) {
-            alert('❌ Aucune page à envoyer')
+            NotionNotifications.warning('Aucune page', 'Aucune page à envoyer')
             return
         }
 
         setSendingBulk(true)
         setWebhookResponse(null)
         setProcessingCount(0)
+        setModalType('bulk')
+
+        // Notification de début
+        NotionNotifications.sendingStart('bulk', localPages.length)
 
         try {
             console.log(`🚀 Envoi de ${localPages.length} pages vers n8n`)
@@ -267,12 +288,12 @@ export default function Home({
 
             console.log('✅ Résultat parsé:', result)
 
+            // Notification de succès
+            NotionNotifications.sendingSuccess('bulk', localPages.length)
+
             // Afficher la réponse
             setWebhookResponse(result.data || result)
             setShowResponseModal(true)
-
-            // Message de succès
-            alert(`✅ ${localPages.length} pages envoyées avec succès vers n8n !`)
         } catch (error) {
             console.error('🚨 Erreur complète webhook:', error)
 
@@ -281,7 +302,12 @@ export default function Home({
                 errorMessage = error.message
             }
 
-            alert(`❌ Erreur lors de l'envoi global: ${errorMessage}`)
+            // Notification d'erreur
+            NotionNotifications.sendingError('bulk', errorMessage)
+
+            // Afficher aussi la modale d'erreur
+            setWebhookResponse({ error: true, message: errorMessage })
+            setShowResponseModal(true)
         } finally {
             setSendingBulk(false)
             setProcessingCount(0)
@@ -569,34 +595,15 @@ export default function Home({
                     </Card>
                 )}
 
-                {/* Modal pour afficher la réponse de Notion */}
-                <Modal
+                {/* Modal pour afficher la réponse de n8n */}
+                <NotionWebhookModal
                     opened={showResponseModal}
+                    response={webhookResponse}
                     onClose={() => setShowResponseModal(false)}
-                    title="Réponse de n8n/Notion"
-                    size="lg"
-                >
-                    {webhookResponse && (
-                        <Stack gap="md">
-                            <Alert icon={<LuCheck size={16} />} title="Réponse reçue" color="blue">
-                                Données traitées par le webhook n8n
-                            </Alert>
-
-                            <Box>
-                                <Text size="sm" fw={500} mb="xs">
-                                    Réponse complète :
-                                </Text>
-                                <Code block>{JSON.stringify(webhookResponse, null, 2)}</Code>
-                            </Box>
-
-                            <Group justify="flex-end">
-                                <Button variant="light" onClick={() => setShowResponseModal(false)}>
-                                    Fermer
-                                </Button>
-                            </Group>
-                        </Stack>
-                    )}
-                </Modal>
+                    type={modalType}
+                    itemsCount={modalType === 'bulk' ? localPages.length : 1}
+                    onSuccess={handleSuccessReload}
+                />
             </Stack>
         </>
     )
