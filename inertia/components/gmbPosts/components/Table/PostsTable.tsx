@@ -1,10 +1,11 @@
-import { Checkbox, Table, Text, Box, Group } from '@mantine/core'
-import { useState, useMemo } from 'react'
-import { GmbPost, FilterOptions, FilterState } from '../../types'
-import { SortableHeader } from './SortableHeader'
-import { PostRow } from './PostRow'
+import { Box, Checkbox, Group, Table, Text, Tooltip } from '@mantine/core'
+import { useMemo } from 'react'
+import { LuCircleAlert, LuCircleCheck, LuImage, LuLink, LuShieldCheck, LuX } from 'react-icons/lu'
+import { FilterOptions, FilterState, GmbPost } from '../../types'
 import { ColumnConfig } from './ColumnVisibilityManager'
+import { PostRow } from './PostRow'
 import { ResizableColumn } from './ResizableColumn'
+import { SortableHeader } from './SortableHeader'
 
 interface PostsTableProps {
     posts: GmbPost[]
@@ -53,15 +54,15 @@ export const PostsTable = ({
     onResetWidths,
 }: PostsTableProps) => {
     // Colonnes visibles uniquement
-    const visibleColumns = useMemo(() => 
-        columns ? columns.filter(col => col.visible) : [], 
+    const visibleColumns = useMemo(
+        () => (columns ? columns.filter((col) => col.visible) : []),
         [columns]
     )
 
     // Calculer la largeur minimale dynamiquement
     const getColumnWidth = (key: string) => {
         if (!columns) return 120
-        const column = columns.find(col => col.key === key)
+        const column = columns.find((col) => col.key === key)
         return column ? column.width : 120
     }
 
@@ -72,12 +73,12 @@ export const PostsTable = ({
     // Fonction pour redimensionner une colonne
     const handleColumnResize = (key: string, newWidth: number) => {
         if (!columns || !onColumnsChange) return
-        const updatedColumns = columns.map(col => 
+        const updatedColumns = columns.map((col) =>
             col.key === key ? { ...col, width: newWidth } : col
         )
         onColumnsChange(updatedColumns)
     }
-    
+
     if (posts.length === 0) {
         return (
             <Box p="xl" style={{ textAlign: 'center' }}>
@@ -93,21 +94,86 @@ export const PostsTable = ({
 
     return (
         <>
-            <Box style={{ overflowX: 'auto' }}>
-                <Table 
-                    striped 
-                    highlightOnHover 
-                    style={{ 
-                        minWidth: `${totalWidth}px`, 
-                        tableLayout: 'fixed',
-                        '--mantine-table-border-color': '#e9ecef'
-                    }} 
-                    verticalSpacing="lg" 
+            {/* Légende des icônes - version mise à jour */}
+            <Box mb="xs" p="xs" style={{ backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <Group gap="md" style={{ fontSize: '11px' }}>
+                    <Group gap={4}>
+                        <LuCircleCheck size={14} style={{ color: '#40c057' }} />
+                        <Text size="xs" c="dimmed">
+                            Prêt (génération)
+                        </Text>
+                    </Group>
+                    <Group gap={4}>
+                        <LuCircleCheck size={14} style={{ color: '#228be6' }} />
+                        <Text size="xs" c="dimmed">
+                            Prêt (publication)
+                        </Text>
+                    </Group>
+                    <Group gap={4}>
+                        <LuCircleAlert size={14} style={{ color: '#fd7e14' }} />
+                        <Text size="xs" c="dimmed">
+                            Incomplet (génération)
+                        </Text>
+                    </Group>
+                    <Group gap={4}>
+                        <LuX size={14} style={{ color: '#fa5252' }} />
+                        <Text size="xs" c="dimmed">
+                            Incomplet (publication)
+                        </Text>
+                    </Group>
+                </Group>
+            </Box>
+
+            <Box style={{ overflowX: 'auto', marginBottom: '60px' }}>
+                <Table
+                    striped
+                    highlightOnHover
+                    style={{
+                        'minWidth': `${totalWidth}px`,
+                        'tableLayout': 'fixed',
+                        '--mantine-table-border-color': '#e9ecef',
+                    }}
+                    verticalSpacing="lg"
                     horizontalSpacing="lg"
                 >
                     <Table.Thead>
                         <Table.Tr style={{ height: '50px' }}>
                             {visibleColumns.map((column) => {
+                                if (column.key === 'readiness') {
+                                    return (
+                                        <ResizableColumn
+                                            key={column.key}
+                                            width={column.width}
+                                            minWidth={column.minWidth}
+                                            maxWidth={column.maxWidth}
+                                            onResize={(newWidth) =>
+                                                handleColumnResize(column.key, newWidth)
+                                            }
+                                            style={{ textAlign: 'left' }}
+                                        >
+                                            <Tooltip
+                                                label="Badges de préparation : Prêt pour génération/publication ou Incomplet"
+                                                multiline
+                                                withArrow
+                                                position="bottom"
+                                            >
+                                                <div
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'flex-start',
+                                                        height: '100%',
+                                                    }}
+                                                >
+                                                    <LuShieldCheck
+                                                        size={16}
+                                                        style={{ color: '#495057' }}
+                                                    />
+                                                </div>
+                                            </Tooltip>
+                                        </ResizableColumn>
+                                    )
+                                }
                                 if (column.key === 'checkbox') {
                                     return (
                                         <ResizableColumn
@@ -115,8 +181,10 @@ export const PostsTable = ({
                                             width={column.width}
                                             minWidth={column.minWidth}
                                             maxWidth={column.maxWidth}
-                                            onResize={(newWidth) => handleColumnResize(column.key, newWidth)}
-                                            style={{ textAlign: 'center' }}
+                                            onResize={(newWidth) =>
+                                                handleColumnResize(column.key, newWidth)
+                                            }
+                                            style={{ textAlign: 'left' }}
                                         >
                                             <Checkbox
                                                 checked={isAllSelected}
@@ -133,15 +201,87 @@ export const PostsTable = ({
                                             width={column.width}
                                             minWidth={column.minWidth}
                                             maxWidth={column.maxWidth}
-                                            onResize={(newWidth) => handleColumnResize(column.key, newWidth)}
-                                            style={{ textAlign: 'center' }}
+                                            onResize={(newWidth) =>
+                                                handleColumnResize(column.key, newWidth)
+                                            }
+                                            style={{ textAlign: 'left' }}
                                         >
                                             Actions
                                         </ResizableColumn>
                                     )
                                 }
-                                // Colonnes avec tri
-                                const sortableColumns = ['status', 'text', 'date', 'keyword', 'client', 'project_name', 'city', 'price', 'model']
+                                // Colonnes avec icônes
+                                if (column.key === 'image_url') {
+                                    return (
+                                        <ResizableColumn
+                                            key={column.key}
+                                            width={column.width}
+                                            minWidth={column.minWidth}
+                                            maxWidth={column.maxWidth}
+                                            onResize={(newWidth) =>
+                                                handleColumnResize(column.key, newWidth)
+                                            }
+                                            style={{ textAlign: 'left' }}
+                                        >
+                                            <Tooltip label="Image URL" withArrow position="bottom">
+                                                <div
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'flex-start',
+                                                        height: '100%',
+                                                    }}
+                                                >
+                                                    <LuImage
+                                                        size={16}
+                                                        style={{ color: '#495057' }}
+                                                    />
+                                                </div>
+                                            </Tooltip>
+                                        </ResizableColumn>
+                                    )
+                                }
+                                if (column.key === 'link_url') {
+                                    return (
+                                        <ResizableColumn
+                                            key={column.key}
+                                            width={column.width}
+                                            minWidth={column.minWidth}
+                                            maxWidth={column.maxWidth}
+                                            onResize={(newWidth) =>
+                                                handleColumnResize(column.key, newWidth)
+                                            }
+                                            style={{ textAlign: 'left' }}
+                                        >
+                                            <Tooltip label="Lien URL" withArrow position="bottom">
+                                                <div
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'flex-start',
+                                                        height: '100%',
+                                                    }}
+                                                >
+                                                    <LuLink
+                                                        size={16}
+                                                        style={{ color: '#495057' }}
+                                                    />
+                                                </div>
+                                            </Tooltip>
+                                        </ResizableColumn>
+                                    )
+                                }
+                                const sortableColumns = [
+                                    'status',
+                                    'text',
+                                    'date',
+                                    'keyword',
+                                    'client',
+                                    'project_name',
+                                    'city',
+                                    'price',
+                                    'model',
+                                ]
                                 if (sortableColumns.includes(column.key)) {
                                     return (
                                         <ResizableColumn
@@ -149,7 +289,9 @@ export const PostsTable = ({
                                             width={column.width}
                                             minWidth={column.minWidth}
                                             maxWidth={column.maxWidth}
-                                            onResize={(newWidth) => handleColumnResize(column.key, newWidth)}
+                                            onResize={(newWidth) =>
+                                                handleColumnResize(column.key, newWidth)
+                                            }
                                         >
                                             <SortableHeader
                                                 label={column.label}
@@ -168,7 +310,9 @@ export const PostsTable = ({
                                         width={column.width}
                                         minWidth={column.minWidth}
                                         maxWidth={column.maxWidth}
-                                        onResize={(newWidth) => handleColumnResize(column.key, newWidth)}
+                                        onResize={(newWidth) =>
+                                            handleColumnResize(column.key, newWidth)
+                                        }
                                     >
                                         {column.label}
                                     </ResizableColumn>

@@ -1,0 +1,1 @@
+export { NotionPagesTable } from './NotionPagesTable'

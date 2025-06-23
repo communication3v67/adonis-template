@@ -706,20 +706,70 @@ export default class GmbPostsController {
      */
     async store({ request, response, session, auth }: HttpContext) {
         try {
+            console.log('=== MÉTHODE STORE APPELÉE ===')
+            console.log('Données reçues:', request.all())
+            
             // S'assurer qu'un utilisateur est connecté
             await auth.check()
             const currentUser = auth.user!
+            
+            console.log('Utilisateur connecté:', currentUser.id)
 
-            const payload = await request.validateUsing(createGmbPostValidator)
-
-            // Conversion de la date si nécessaire
-            const postData = {
-                ...payload,
-                user_id: currentUser.id, // Associer le post à l'utilisateur connecté
-                date: DateTime.fromJSDate(new Date(payload.date)),
+            // Valider les données sans utiliser le validateur strict
+            const payload = request.all()
+            
+            // Validation manuelle plus flexible
+            if (!payload.status || !payload.text || !payload.client || !payload.project_name || !payload.location_id || !payload.account_id) {
+                console.log('Validation échouée - champs manquants')
+                session.flash('notification', {
+                    type: 'error',
+                    message: 'Veuillez remplir tous les champs requis.',
+                })
+                return response.redirect().back()
             }
 
+            // Conversion de la date
+            let dateValue
+            try {
+                if (payload.date) {
+                    // Essayer de parser la date depuis datetime-local
+                    dateValue = DateTime.fromISO(payload.date)
+                    if (!dateValue.isValid) {
+                        dateValue = DateTime.fromJSDate(new Date(payload.date))
+                    }
+                } else {
+                    dateValue = DateTime.now()
+                }
+            } catch (error) {
+                console.error('Erreur parsing date:', error)
+                dateValue = DateTime.now()
+            }
+
+            const postData = {
+                user_id: currentUser.id,
+                status: payload.status,
+                text: payload.text,
+                date: dateValue,
+                image_url: payload.image_url || null,
+                link_url: payload.link_url || null,
+                keyword: payload.keyword || null,
+                client: payload.client,
+                project_name: payload.project_name,
+                city: payload.city || null,
+                location_id: payload.location_id,
+                account_id: payload.account_id,
+                notion_id: payload.notion_id || null,
+                input_tokens: payload.input_tokens || null,
+                output_tokens: payload.output_tokens || null,
+                model: payload.model || null,
+                price: payload.price || null,
+            }
+            
+            console.log('Données à insérer:', postData)
+
             const newPost = await GmbPost.create(postData)
+            
+            console.log('Post créé avec succès:', newPost.id)
             
             // Diffuser l'événement SSE
             await this.broadcastPostUpdate(newPost, 'created', currentUser.id)
@@ -736,9 +786,12 @@ export default class GmbPostsController {
 
             return response.redirect().toRoute('gmbPosts.index')
         } catch (error) {
+            console.error('Erreur lors de la création du post:', error)
+            console.error('Stack trace:', error.stack)
+            
             session.flash('notification', {
                 type: 'error',
-                message: 'Erreur lors de la création du post.',
+                message: 'Erreur lors de la création du post: ' + error.message,
             })
 
             return response.redirect().back()
@@ -1116,11 +1169,156 @@ export default class GmbPostsController {
             })
         }
     }
-    async export({ request, response }: HttpContext) {
+    async export({ request, response, auth }: HttpContext) {
         try {
-            const { format = 'json' } = request.qs()
+            // S'assurer qu'un utilisateur est connecté
+            await auth.check()
+            const currentUser = auth.user!
 
-            const posts = await GmbPost.query().orderBy('date', 'desc')
+            const { format = 'csv' } = request.qs()
+            
+            // Récupérer les filtres depuis la requête
+            const search = request.input('search', '')
+            const status = request.input('status', '')
+            const client = request.input('client', '')
+            const project = request.input('project', '')
+            const sortBy = request.input('sortBy', 'date')
+            const sortOrder = request.input('sortOrder', 'desc')
+            const dateFrom = request.input('dateFrom', '')
+            const dateTo = request.input('dateTo', '')
+            const advancedFilters = request.input('advanced_filters', '')
+
+            // Construire la requête avec les mêmes filtres que l'index
+            const query = GmbPost.query().where('user_id', currentUser.id)
+
+            // Appliquer les filtres (même logique que dans index)
+            if (search) {
+                const searchLower = search.toLowerCase()
+                query.where((builder) => {
+                    builder
+                        .whereRaw('LOWER(text) LIKE ?', [`%${searchLower}%`])
+                        .orWhereRaw('LOWER(keyword) LIKE ?', [`%${searchLower}%`])
+                        .orWhereRaw('LOWER(client) LIKE ?', [`%${searchLower}%`])
+                        .orWhereRaw('LOWER(project_name) LIKE ?', [`%${searchLower}%`])
+                        .orWhereRaw('LOWER(city) LIKE ?', [`%${searchLower}%`])
+                })
+            }
+
+            if (status) {
+                query.where('status', status)
+            }
+
+            if (client) {
+                const clientLower = client.toLowerCase()
+                query.whereRaw('LOWER(client) LIKE ?', [`%${clientLower}%`])
+            }
+
+            if (project) {
+                const projectLower = project.toLowerCase()
+                query.whereRaw('LOWER(project_name) LIKE ?', [`%${projectLower}%`])
+            }
+
+            if (dateFrom) {
+                query.whereRaw('DATE(date) >= ?', [dateFrom])
+            }
+
+            if (dateTo) {
+                query.whereRaw('DATE(date) <= ?', [dateTo])
+            }
+
+            // Appliquer les filtres avancés
+            if (advancedFilters) {
+                try {
+                    const parsedFilters = JSON.parse(advancedFilters)
+                    this.applyAdvancedFilters(query, parsedFilters)
+                } catch (error) {
+                    console.error('Erreur parsing filtres avancés pour export:', error)
+                }
+            }
+
+            // Mapping des noms de colonnes pour le tri
+            const sortColumnMap: Record<string, string> = {
+                'createdAt': 'created_at',
+                'updatedAt': 'updated_at',
+                'date': 'date',
+                'status': 'status',
+                'text': 'text',
+                'client': 'client',
+                'project_name': 'project_name',
+                'city': 'city',
+                'keyword': 'keyword',
+                'location_id': 'location_id',
+                'account_id': 'account_id',
+                'notion_id': 'notion_id',
+                'image_url': 'image_url',
+                'link_url': 'link_url'
+            }
+
+            const actualSortColumn = sortColumnMap[sortBy] || sortBy
+            query.orderBy(actualSortColumn, sortOrder)
+
+            // Récupérer tous les posts (sans pagination pour l'export)
+            const posts = await query
+
+            if (format === 'csv') {
+                // Générer le CSV
+                const csvHeaders = [
+                    'ID',
+                    'Statut',
+                    'Texte',
+                    'Date',
+                    'Client',
+                    'Projet',
+                    'Ville',
+                    'Mot-clé',
+                    'URL Image',
+                    'URL Lien',
+                    'Location ID',
+                    'Account ID',
+                    'Notion ID',
+                    'Prix IA',
+                    'Tokens Entrée',
+                    'Tokens Sortie',
+                    'Modèle IA',
+                    'Date Création',
+                    'Date Modification'
+                ]
+
+                const csvRows = posts.map(post => [
+                    post.id,
+                    `"${(post.status || '').replace(/"/g, '""')}"`,
+                    `"${(post.text || '').replace(/"/g, '""')}"`,
+                    post.date?.toFormat('yyyy-MM-dd HH:mm:ss') || '',
+                    `"${(post.client || '').replace(/"/g, '""')}"`,
+                    `"${(post.project_name || '').replace(/"/g, '""')}"`,
+                    `"${(post.city || '').replace(/"/g, '""')}"`,
+                    `"${(post.keyword || '').replace(/"/g, '""')}"`,
+                    `"${(post.image_url || '').replace(/"/g, '""')}"`,
+                    `"${(post.link_url || '').replace(/"/g, '""')}"`,
+                    `"${(post.location_id || '').replace(/"/g, '""')}"`,
+                    `"${(post.account_id || '').replace(/"/g, '""')}"`,
+                    `"${(post.notion_id || '').replace(/"/g, '""')}"`,
+                    post.price || '',
+                    post.input_tokens || '',
+                    post.output_tokens || '',
+                    `"${(post.model || '').replace(/"/g, '""')}"`,
+                    post.createdAt?.toFormat('yyyy-MM-dd HH:mm:ss') || '',
+                    post.updatedAt?.toFormat('yyyy-MM-dd HH:mm:ss') || ''
+                ])
+
+                const csvContent = [
+                    csvHeaders.join(','),
+                    ...csvRows.map(row => row.join(','))
+                ].join('\n')
+
+                const filename = `posts-gmb-${new Date().toISOString().slice(0, 10)}.csv`
+                
+                response.header('Content-Type', 'text/csv; charset=utf-8')
+                response.header('Content-Disposition', `attachment; filename="${filename}"`)
+                
+                // Ajouter le BOM UTF-8 pour Excel
+                return response.send('\ufeff' + csvContent)
+            }
 
             if (format === 'json') {
                 const serializedPosts = posts.map((post) => post.serialize())
@@ -1131,9 +1329,10 @@ export default class GmbPostsController {
                 return response.send(JSON.stringify(serializedPosts, null, 2))
             }
 
-            // Autres formats d'export peuvent être ajoutés ici (CSV, Excel, etc.)
-            return response.badRequest({ message: "Format d'export non supporté" })
+            // Format non supporté
+            return response.badRequest({ message: "Format d'export non supporté. Utilisez 'csv' ou 'json'." })
         } catch (error) {
+            console.error('Erreur lors de l\'export:', error)
             return response.internalServerError({ message: "Erreur lors de l'export" })
         }
     }

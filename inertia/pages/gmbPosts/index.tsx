@@ -1,9 +1,9 @@
 import { Head, router } from '@inertiajs/react'
 import { Stack } from '@mantine/core'
 import { useEffect, useMemo, useState } from 'react'
+import { ColumnConfig } from '../../components/gmbPosts/components/Table/ColumnVisibilityManager'
 import { SSE_CLIENT_CONFIG } from '../../config/sse'
 import { useSSE } from '../../hooks/useSSE'
-import { ColumnConfig } from '../../components/gmbPosts/components/Table/ColumnVisibilityManager'
 
 // Types et hooks
 import {
@@ -19,6 +19,7 @@ import {
 // Composants
 import {
     BulkActionBar,
+    CreatePostModal,
     EditPostModal,
     FilterSection,
     PageHeader,
@@ -40,54 +41,166 @@ export default function GmbPostsIndex({
     const [lastUpdateTime, setLastUpdateTime] = useState<string | null>(null)
     const [pendingUpdates, setPendingUpdates] = useState<number>(0)
     const [refreshKey, setRefreshKey] = useState<number>(0) // Clé pour forcer le re-render
+    const [createModalOpened, setCreateModalOpened] = useState(false)
 
     // Configuration des colonnes avec largeurs par défaut
     const [columns, setColumns] = useState<ColumnConfig[]>([
-        { key: 'checkbox', label: 'Sélection', visible: true, width: 80, minWidth: 60, maxWidth: 100, required: true },
+        {
+            key: 'checkbox',
+            label: 'Sélection',
+            visible: true,
+            width: 80,
+            minWidth: 60,
+            maxWidth: 100,
+            required: true,
+        },
+        {
+            key: 'readiness',
+            label: '✓',
+            visible: true,
+            width: 50,
+            minWidth: 40,
+            maxWidth: 70,
+            required: true,
+        },
         { key: 'status', label: 'Statut', visible: true, width: 220, minWidth: 150, maxWidth: 300 },
         { key: 'text', label: 'Texte', visible: true, width: 600, minWidth: 250, maxWidth: 900 },
         { key: 'date', label: 'Date', visible: true, width: 220, minWidth: 150, maxWidth: 270 },
-        { key: 'keyword', label: 'Mot-clé', visible: true, width: 200, minWidth: 130, maxWidth: 300 },
+        {
+            key: 'keyword',
+            label: 'Mot-clé',
+            visible: true,
+            width: 200,
+            minWidth: 130,
+            maxWidth: 300,
+        },
         { key: 'client', label: 'Client', visible: true, width: 220, minWidth: 150, maxWidth: 350 },
-        { key: 'project_name', label: 'Projet', visible: true, width: 250, minWidth: 150, maxWidth: 400 },
+        {
+            key: 'project_name',
+            label: 'Projet',
+            visible: true,
+            width: 250,
+            minWidth: 150,
+            maxWidth: 400,
+        },
         { key: 'city', label: 'Ville', visible: true, width: 190, minWidth: 130, maxWidth: 300 },
         { key: 'price', label: 'Prix IA', visible: true, width: 160, minWidth: 120, maxWidth: 220 },
-        { key: 'model', label: 'Modèle IA', visible: false, width: 180, minWidth: 130, maxWidth: 250 },
-        { key: 'input_tokens', label: 'Tokens In', visible: false, width: 160, minWidth: 120, maxWidth: 200 },
-        { key: 'output_tokens', label: 'Tokens Out', visible: false, width: 160, minWidth: 120, maxWidth: 200 },
-        { key: 'image_url', label: 'Image', visible: false, width: 160, minWidth: 120, maxWidth: 250 },
-        { key: 'link_url', label: 'Lien', visible: false, width: 160, minWidth: 120, maxWidth: 250 },
-        { key: 'location_id', label: 'Location ID', visible: false, width: 200, minWidth: 150, maxWidth: 300 },
-        { key: 'account_id', label: 'Account ID', visible: false, width: 200, minWidth: 150, maxWidth: 300 },
-        { key: 'notion_id', label: 'Notion ID', visible: false, width: 200, minWidth: 150, maxWidth: 300 },
-        { key: 'actions', label: 'Actions', visible: true, width: 220, minWidth: 180, maxWidth: 280, required: true },
+        {
+            key: 'model',
+            label: 'Modèle IA',
+            visible: false,
+            width: 180,
+            minWidth: 130,
+            maxWidth: 250,
+        },
+        {
+            key: 'input_tokens',
+            label: 'Tokens In',
+            visible: false,
+            width: 160,
+            minWidth: 120,
+            maxWidth: 200,
+        },
+        {
+            key: 'output_tokens',
+            label: 'Tokens Out',
+            visible: false,
+            width: 160,
+            minWidth: 120,
+            maxWidth: 200,
+        },
+        {
+            key: 'image_url',
+            label: 'Image',
+            visible: true,
+            width: 160,
+            minWidth: 120,
+            maxWidth: 250,
+        },
+        { key: 'link_url', label: 'Lien', visible: true, width: 160, minWidth: 120, maxWidth: 250 },
+        {
+            key: 'location_id',
+            label: 'Location ID',
+            visible: false,
+            width: 200,
+            minWidth: 150,
+            maxWidth: 300,
+        },
+        {
+            key: 'account_id',
+            label: 'Account ID',
+            visible: false,
+            width: 200,
+            minWidth: 150,
+            maxWidth: 300,
+        },
+        {
+            key: 'notion_id',
+            label: 'Notion ID',
+            visible: false,
+            width: 200,
+            minWidth: 150,
+            maxWidth: 300,
+        },
+        {
+            key: 'actions',
+            label: 'Actions',
+            visible: true,
+            width: 220,
+            minWidth: 180,
+            maxWidth: 280,
+            required: true,
+        },
     ])
 
     // Fonction pour réinitialiser les largeurs
     const resetWidths = () => {
-        setColumns(prev => prev.map(col => {
-            switch (col.key) {
-                case 'checkbox': return { ...col, width: 80 }
-                case 'status': return { ...col, width: 220 }
-                case 'text': return { ...col, width: 600 }
-                case 'date': return { ...col, width: 220 }
-                case 'keyword': return { ...col, width: 200 }
-                case 'client': return { ...col, width: 220 }
-                case 'project_name': return { ...col, width: 250 }
-                case 'city': return { ...col, width: 190 }
-                case 'price': return { ...col, width: 160 }
-                case 'model': return { ...col, width: 180 }
-                case 'input_tokens': return { ...col, width: 160 }
-                case 'output_tokens': return { ...col, width: 160 }
-                case 'image_url': return { ...col, width: 160 }
-                case 'link_url': return { ...col, width: 160 }
-                case 'location_id': return { ...col, width: 200 }
-                case 'account_id': return { ...col, width: 200 }
-                case 'notion_id': return { ...col, width: 200 }
-                case 'actions': return { ...col, width: 220 }
-                default: return col
-            }
-        }))
+        setColumns((prev) =>
+            prev.map((col) => {
+                switch (col.key) {
+                    case 'checkbox':
+                        return { ...col, width: 80 }
+                    case 'readiness':
+                        return { ...col, width: 50 }
+                    case 'status':
+                        return { ...col, width: 220 }
+                    case 'text':
+                        return { ...col, width: 600 }
+                    case 'date':
+                        return { ...col, width: 220 }
+                    case 'keyword':
+                        return { ...col, width: 200 }
+                    case 'client':
+                        return { ...col, width: 220 }
+                    case 'project_name':
+                        return { ...col, width: 250 }
+                    case 'city':
+                        return { ...col, width: 190 }
+                    case 'price':
+                        return { ...col, width: 160 }
+                    case 'model':
+                        return { ...col, width: 180 }
+                    case 'input_tokens':
+                        return { ...col, width: 160 }
+                    case 'output_tokens':
+                        return { ...col, width: 160 }
+                    case 'image_url':
+                        return { ...col, width: 160 }
+                    case 'link_url':
+                        return { ...col, width: 160 }
+                    case 'location_id':
+                        return { ...col, width: 200 }
+                    case 'account_id':
+                        return { ...col, width: 200 }
+                    case 'notion_id':
+                        return { ...col, width: 200 }
+                    case 'actions':
+                        return { ...col, width: 220 }
+                    default:
+                        return col
+                }
+            })
+        )
     }
 
     // Hooks personnalisés
@@ -245,9 +358,45 @@ export default function GmbPostsIndex({
         filters.dateTo,
     ].filter(Boolean).length
 
+    // Filtrer les posts "Post à générer" pour validation
+    const postsToGenerate = useMemo(() => {
+        if (!infinitePosts || !Array.isArray(infinitePosts)) {
+            return []
+        }
+        return infinitePosts.filter((post) => post.status === 'Post à générer')
+    }, [infinitePosts])
+
     // Gestion de l'envoi vers n8n
     const handleSendToN8n = () => {
         sendPostsToN8n(postsToGenerateCount)
+    }
+
+    // Gestion de l'ouverture de la modal de création
+    const handleCreatePost = () => {
+        setCreateModalOpened(true)
+    }
+
+    // Gestion de l'export CSV
+    const handleExport = () => {
+        // Construire l'URL avec les filtres actuels
+        const params = new URLSearchParams()
+
+        // Ajouter les filtres de base
+        if (filters.search) params.append('search', filters.search)
+        if (filters.status) params.append('status', filters.status)
+        if (filters.client) params.append('client', filters.client)
+        if (filters.project) params.append('project', filters.project)
+        if (filters.dateFrom) params.append('dateFrom', filters.dateFrom)
+        if (filters.dateTo) params.append('dateTo', filters.dateTo)
+        if (filters.sortBy) params.append('sortBy', filters.sortBy)
+        if (filters.sortOrder) params.append('sortOrder', filters.sortOrder)
+
+        // Forcer le format CSV
+        params.append('format', 'csv')
+
+        // Télécharger le fichier
+        const url = `/gmb-posts/export?${params.toString()}`
+        window.open(url, '_blank')
     }
 
     // Gestion des actions en masse avec nettoyage de sélection
@@ -274,15 +423,20 @@ export default function GmbPostsIndex({
 
     // Créer un tableau des posts sélectionnés avec leurs données complètes
     const selectedPostsData = useMemo(() => {
-        if (!infinitePosts || !Array.isArray(infinitePosts) || !selectedPosts || !Array.isArray(selectedPosts)) {
+        if (
+            !infinitePosts ||
+            !Array.isArray(infinitePosts) ||
+            !selectedPosts ||
+            !Array.isArray(selectedPosts)
+        ) {
             return []
         }
-        
+
         return infinitePosts
-            .filter(post => post && post.id && selectedPosts.includes(post.id))
-            .map(post => ({
+            .filter((post) => post && post.id && selectedPosts.includes(post.id))
+            .map((post) => ({
                 id: post.id,
-                image_url: post.image_url || ''
+                image_url: post.image_url || '',
             }))
     }, [infinitePosts, selectedPosts])
 
@@ -295,8 +449,11 @@ export default function GmbPostsIndex({
                 <PageHeader
                     currentUser={currentUser}
                     postsToGenerateCount={postsToGenerateCount}
+                    postsToGenerate={postsToGenerate}
                     sendingToN8n={sendingToN8n}
                     onSendToN8n={handleSendToN8n}
+                    onCreatePost={handleCreatePost}
+                    onExport={handleExport}
                 />
 
                 {/* Section des filtres */}
@@ -371,6 +528,7 @@ export default function GmbPostsIndex({
                         columns={columns}
                         onColumnsChange={setColumns}
                         onResetWidths={resetWidths}
+                        mb="xl"
                     />
                 </div>
 
@@ -379,6 +537,20 @@ export default function GmbPostsIndex({
                     post={editingPost}
                     opened={editModalOpened}
                     onClose={closeEditModal}
+                    filterOptions={filterOptions}
+                />
+
+                {/* Modal de création */}
+                <CreatePostModal
+                    opened={createModalOpened}
+                    onClose={() => setCreateModalOpened(false)}
+                    filterOptions={filterOptions}
+                />
+
+                {/* Modal de création */}
+                <CreatePostModal
+                    opened={createModalOpened}
+                    onClose={() => setCreateModalOpened(false)}
                     filterOptions={filterOptions}
                 />
 

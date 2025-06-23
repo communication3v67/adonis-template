@@ -1,9 +1,11 @@
-import { ActionIcon, Badge, Box, Group, Select, Text, Textarea, TextInput, Tooltip } from '@mantine/core'
+import { ActionIcon, Badge, Box, Group, Text, Textarea, TextInput, Tooltip } from '@mantine/core'
 import { useState, useEffect, useRef } from 'react'
-import { LuCheck, LuSettings, LuX } from 'react-icons/lu'
+import { LuCheck, LuSettings, LuX, LuImage, LuLink } from 'react-icons/lu'
 import { GmbPost, FilterOptions } from '../../types'
 import { STATUS_COLORS } from '../../utils/constants'
 import { truncateText, formatDateForEdit } from '../../utils/formatters'
+import { InlineCreatableSelect } from '../CreatableSelect'
+import { ImageHoverPreview } from '../ImageHoverPreview'
 
 interface InlineEditCellProps {
     value: string
@@ -23,7 +25,7 @@ export const InlineEditCell = ({
     type = 'text',
     options = [],
     filterOptions,
-    displayValue, // Nouvelle prop
+    displayValue,
     onSave,
 }: InlineEditCellProps) => {
     const [isEditing, setIsEditing] = useState(false)
@@ -35,7 +37,8 @@ export const InlineEditCell = ({
         return value || ''
     })
     const [isSaving, setIsSaving] = useState(false)
-    const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(null)
+    const [customOptions, setCustomOptions] = useState<{ [key: string]: { value: string; label: string }[] }>({})
+    const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null)
 
     useEffect(() => {
         if (isEditing && inputRef.current) {
@@ -92,9 +95,11 @@ export const InlineEditCell = ({
 
     // Fonction pour obtenir les options selon le champ
     const getSelectOptions = () => {
+        let baseOptions: { value: string; label: string }[] = []
+        
         switch (field) {
             case 'status':
-                return [
+                baseOptions = [
                     { value: 'Titre généré', label: 'Titre généré' },
                     { value: 'Post à générer', label: 'Post à générer' },
                     { value: 'Post généré', label: 'Post généré' },
@@ -102,20 +107,32 @@ export const InlineEditCell = ({
                     { value: 'Publié', label: 'Publié' },
                     { value: 'failed', label: 'Échec' },
                 ]
+                break
             case 'client':
-                return (
-                    filterOptions?.clients.map((client) => ({ value: client, label: client })) || []
-                )
+                baseOptions = filterOptions?.clients.map((client) => ({ value: client, label: client })) || []
+                break
             case 'project_name':
-                return (
-                    filterOptions?.projects.map((project) => ({
-                        value: project,
-                        label: project,
-                    })) || []
-                )
+                baseOptions = filterOptions?.projects.map((project) => ({
+                    value: project,
+                    label: project,
+                })) || []
+                break
             default:
-                return options
+                baseOptions = options
         }
+        
+        // Ajouter les options personnalisées pour ce champ
+        const customFieldOptions = customOptions[field] || []
+        
+        // Combiner les options de base avec les options personnalisées (en évitant les doublons)
+        const allOptions = [...baseOptions]
+        customFieldOptions.forEach(customOption => {
+            if (!allOptions.find(option => option.value === customOption.value)) {
+                allOptions.push(customOption)
+            }
+        })
+        
+        return allOptions
     }
 
     // Fonction pour obtenir le badge de statut
@@ -169,29 +186,42 @@ export const InlineEditCell = ({
                     ) : field === 'date' ? (
                         <Text size="sm">{value ? new Date(value).toLocaleDateString('fr-FR') : '-'}</Text>
                     ) : (field === 'image_url' || field === 'link_url') && value ? (
-                        <Tooltip label={value}>
-                            <Text
-                                size="sm"
-                                component="a"
-                                href={value}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{
-                                    textDecoration: 'none',
-                                    color: '#868e96',
-                                    backgroundColor: '#f8f9fa',
-                                    padding: '2px 6px',
-                                    borderRadius: '4px',
-                                    border: '1px solid #e9ecef',
-                                    display: 'inline-block',
-                                    transition: 'all 0.15s ease',
-                                    fontSize: '11px',
-                                    fontWeight: 400,
-                                }}
-                            >
-                                {field === 'image_url' ? '📷' : '🔗'}
-                            </Text>
-                        </Tooltip>
+                        field === 'image_url' ? (
+                            <ImageHoverPreview imageUrl={value}>
+                                <a
+                                    href={value}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                        textDecoration: 'none',
+                                        color: '#228be6',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        cursor: 'pointer',
+                                    }}
+                                    title={value}
+                                >
+                                    <LuImage size={16} />
+                                </a>
+                            </ImageHoverPreview>
+                        ) : (
+                            <Tooltip label={value}>
+                                <a
+                                    href={value}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                        textDecoration: 'none',
+                                        color: '#228be6',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        cursor: 'pointer',
+                                    }}
+                                >
+                                    <LuLink size={16} />
+                                </a>
+                            </Tooltip>
+                        )
                     ) : (
                         <Text size="sm">{displayValue || value || '-'}</Text>
                     )}
@@ -213,15 +243,20 @@ export const InlineEditCell = ({
         <Group gap={8} wrap="nowrap" style={{ width: '100%', paddingRight: '4px', alignItems: 'center', height: '100%', overflow: 'hidden' }}>
             <Box flex={1} style={{ minWidth: 0, maxWidth: '100%' }}>
                 {type === 'select' ? (
-                    <Select
-                        ref={inputRef as any}
+                    <InlineCreatableSelect
+                        data={getSelectOptions()}
                         value={editValue}
                         onChange={(val) => setEditValue(val || '')}
-                        data={getSelectOptions()}
-                        size="sm"
-                        searchable={field === 'client' || field === 'project_name'}
+                        onCreate={(query) => {
+                            const newOption = { value: query, label: query }
+                            setCustomOptions(prev => ({
+                                ...prev,
+                                [field]: [...(prev[field] || []), newOption]
+                            }))
+                            setEditValue(query)
+                        }}
                         onKeyDown={handleKeyDown}
-                        style={{ width: '100%' }}
+                        size="sm"
                     />
                 ) : type === 'textarea' ? (
                     <Textarea

@@ -71,10 +71,8 @@ export const WebhookModal = ({ opened, response, onClose }: WebhookModalProps) =
                             </Text>
                             <Text size="sm">
                                 • Vos posts sont en cours de traitement par n8n
-                                <br />
-                                • Vous recevrez une notification une fois le traitement terminé
-                                <br />• Les posts traités apparaîtront dans votre tableau avec le
-                                nouveau statut
+                                <br />• Les posts traités apparaîtront dans la section Mes posts
+                                avec le statut Post généré.
                             </Text>
                         </Stack>
                     </Alert>

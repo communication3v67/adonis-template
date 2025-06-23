@@ -43,7 +43,7 @@ export default function AppLayout(
                 padding={{ base: 16, sm: 16 }}
             >
                 <AppShellHeader>
-                    <Group h="100%" justify="space-between">
+                    <Group h="100%">
                         <Group pl="md">
                             <Burger opened={opened} onClick={toggle} size="sm" />
                             <Image src="gmb-logo.png" alt="Logo" height={25} />

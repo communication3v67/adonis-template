@@ -33,6 +33,9 @@ export { ActionsCell } from './components/Table/ActionsCell'
 export { PostRow } from './components/Table/PostRow'
 export { PostsTable } from './components/Table/PostsTable'
 
+// Export des composants Utils
+export { ImageHoverPreview } from './components/ImageHoverPreview'
+
 // Export des composants BulkActions
 export { BulkEditForm } from './components/BulkActions/BulkEditForm'
 export { BulkActionBar } from './components/BulkActions/BulkActionBar'
@@ -41,6 +44,7 @@ export { BulkImageUpload } from './components/BulkActions/BulkImageUpload'
 // Export des composants Modals
 export { EditPostModal } from './components/Modals/EditPostModal'
 export { WebhookModal } from './components/Modals/WebhookModal'
+export { CreatePostModal } from './components/Modals/CreatePostModal'
 
 // Export des composants AdvancedFilters
 export * from './components/AdvancedFilters'
