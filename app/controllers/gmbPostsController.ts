@@ -54,6 +54,109 @@ const updateGmbPostValidator = vine.compile(
 
 export default class GmbPostsController {
     /**
+     * Formatte un post GMB pour l'envoi vers N8N
+     * Fonction utilitaire commune pour assurer la cohérence
+     */
+    private formatPostForN8n(post: GmbPost, currentUser: any) {
+        return {
+            // Identifiants
+            id: post.id,
+            gmb_post_id: post.id,
+            notion_id: post.notion_id,
+
+            // Informations principales
+            title: post.text || `Post GMB - ${post.client}`,
+            text: post.text,
+            status: post.status,
+
+            // Dates
+            date: post.date?.toISO(),
+            created_time: post.createdAt?.toISO(),
+            last_edited_time: post.updatedAt?.toISO(),
+
+            // Métadonnées GMB
+            client: post.client,
+            project_name: post.project_name,
+            city: post.city,
+            keyword: post.keyword,
+            location_id: post.location_id,
+            account_id: post.account_id,
+
+            // URLs
+            image_url: post.image_url,
+            link_url: post.link_url,
+
+            // Informations supplémentaires
+            informations: post.informations,
+
+            // Utilisateur
+            user_id: post.user_id,
+            user_notion_id: currentUser.notionId,
+        }
+    }
+
+    /**
+     * Crée la structure de données N8N unifiée
+     * Format identique pour envoi individuel et bulk
+     */
+    private createN8nWebhookData(posts: any[], currentUser: any, notionConfig: any, isSinglePost: boolean = false) {
+        return {
+            // Métadonnées de la requête
+            source: isSinglePost ? 'adonis-gmb-single-post' : 'adonis-gmb-posts',
+            timestamp: new Date().toISOString(),
+            bulk_operation: !isSinglePost,
+            single_post: isSinglePost,
+            total_posts: posts.length,
+
+            // Configuration Notion de l'utilisateur connecté
+            notion_config: {
+                api_key: notionConfig.apiKey,
+                database_id: notionConfig.databaseId,
+                instance: notionConfig.instance,
+            },
+
+            // Données utilisateur
+            user: {
+                id: currentUser.id,
+                username: currentUser.username,
+                email: currentUser.email,
+                notion_id: currentUser.notionId,
+            },
+
+            // 🎯 FORMAT TABLEAU UNIFORME - même structure pour bulk et individuel
+            notion_pages: posts, // Compatibilité avec workflows existants
+            gmb_posts: posts,    // Version alternative plus explicite
+
+            // Statistiques (générées même pour un seul post)
+            summary: {
+                total_posts: posts.length,
+                posts_with_text: posts.filter(p => p.text && p.text.trim() !== '').length,
+                posts_with_keyword: posts.filter(p => p.keyword).length,
+                posts_with_images: posts.filter(p => p.image_url).length,
+                posts_with_links: posts.filter(p => p.link_url).length,
+                unique_clients: [...new Set(posts.map(p => p.client))].length,
+                unique_projects: [...new Set(posts.map(p => p.project_name))].length,
+            },
+
+            // Données extraites pour compatibilité (pour un seul post)
+            ...(isSinglePost && posts.length === 1 ? {
+                extracted_data: {
+                    entreprise: posts[0].client,
+                    projet: posts[0].project_name,
+                    ville: posts[0].city,
+                    mot_cle: posts[0].keyword,
+                    texte: posts[0].text,
+                    statut: posts[0].status,
+                    location_id: posts[0].location_id,
+                    account_id: posts[0].account_id,
+                    image_url: posts[0].image_url,
+                    link_url: posts[0].link_url,
+                    informations: posts[0].informations,
+                }
+            } : {})
+        }
+    }
+    /**
      * Applique les filtres avancés à la requête
      */
     private applyAdvancedFilters(query: any, filters: any) {
@@ -1624,42 +1727,8 @@ export default class GmbPostsController {
                 })
             }
 
-            // Préparer les données du post individuel
-            const gmbPostData = {
-                // Identifiants
-                id: post.id,
-                gmb_post_id: post.id,
-                notion_id: post.notion_id,
-
-                // Informations principales
-                title: post.text || `Post GMB - ${post.client}`,
-                text: post.text,
-                status: post.status,
-
-                // Dates
-                date: post.date?.toISO(),
-                created_time: post.createdAt?.toISO(),
-                last_edited_time: post.updatedAt?.toISO(),
-
-                // Métadonnées GMB
-                client: post.client,
-                project_name: post.project_name,
-                city: post.city,
-                keyword: post.keyword,
-                location_id: post.location_id,
-                account_id: post.account_id,
-
-                // URLs
-                image_url: post.image_url,
-                link_url: post.link_url,
-
-                // Informations supplémentaires
-                informations: post.informations,
-
-                // Utilisateur
-                user_id: post.user_id,
-                user_notion_id: currentUser.notionId,
-            }
+            // Préparer les données du post individuel en utilisant la fonction utilitaire
+            const gmbPostData = this.formatPostForN8n(post, currentUser)
 
             // URL du webhook n8n
             const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL
@@ -1680,48 +1749,8 @@ export default class GmbPostsController {
                 console.log("🔐 Token d'authentification ajouté")
             }
 
-            // Préparer les données pour n8n (format similaire aux autres webhooks)
-            const webhookData = {
-                // Métadonnées de la requête
-                source: 'adonis-gmb-single-post',
-                timestamp: new Date().toISOString(),
-                bulk_operation: false,
-                single_post: true,
-
-                // Configuration Notion de l'utilisateur connecté
-                notion_config: {
-                    api_key: notionConfig.apiKey,
-                    database_id: notionConfig.databaseId,
-                    instance: notionConfig.instance,
-                },
-
-                // Données utilisateur
-                user: {
-                    id: currentUser.id,
-                    username: currentUser.username,
-                    email: currentUser.email,
-                    notion_id: currentUser.notionId,
-                },
-
-                // Post GMB individuel (utiliser la même structure que les envois en lot)
-                notion_page: gmbPostData, // Format compatible avec les workflows existants
-                gmb_post: gmbPostData, // Version alternative
-
-                // Données extraites (format compatible avec les autres webhooks)
-                extracted_data: {
-                    entreprise: post.client,
-                    projet: post.project_name,
-                    ville: post.city,
-                    mot_cle: post.keyword,
-                    texte: post.text,
-                    statut: post.status,
-                    location_id: post.location_id,
-                    account_id: post.account_id,
-                    image_url: post.image_url,
-                    link_url: post.link_url,
-                    informations: post.informations,
-                },
-            }
+            // 🎯 Utiliser la fonction unifiée pour créer les données webhook (format tableau)
+            const webhookData = this.createN8nWebhookData([gmbPostData], currentUser, notionConfig, true)
 
             console.log('🎆 Envoi post individuel vers n8n:', {
                 url: n8nWebhookUrl,
@@ -1850,42 +1879,8 @@ export default class GmbPostsController {
                 `🚀 Envoi de ${postsToGenerate.length} posts GMB vers n8n pour l'utilisateur ${currentUser.username}`
             )
 
-            // Préparer les données au même format que home.tsx mais avec les données GMB
-            const gmbPostsData = postsToGenerate.map((post) => ({
-                // Identifiants
-                id: post.id,
-                gmb_post_id: post.id, // ID spécifique GMB
-                notion_id: post.notion_id,
-
-                // Informations principales
-                title: post.text || `Post GMB - ${post.client}`,
-                text: post.text,
-                status: post.status,
-
-                // Dates
-                date: post.date?.toISO(),
-                created_time: post.createdAt?.toISO(),
-                last_edited_time: post.updatedAt?.toISO(),
-
-                // Métadonnées GMB
-                client: post.client,
-                project_name: post.project_name,
-                city: post.city,
-                keyword: post.keyword,
-                location_id: post.location_id,
-                account_id: post.account_id,
-
-                // URLs
-                image_url: post.image_url,
-                link_url: post.link_url,
-
-                // Informations supplémentaires
-                informations: post.informations,
-
-                // Utilisateur
-                user_id: post.user_id,
-                user_notion_id: currentUser.notionId, // Utiliser notionId
-            }))
+            // Préparer les données en utilisant la fonction utilitaire unifiée
+            const gmbPostsData = postsToGenerate.map((post) => this.formatPostForN8n(post, currentUser))
 
             // URL du webhook n8n (réutiliser le même que home.tsx)
             const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL
@@ -1906,45 +1901,8 @@ export default class GmbPostsController {
                 console.log("🔐 Token d'authentification ajouté")
             }
 
-            // Préparer les données pour n8n (même structure que home.tsx)
-            const webhookData = {
-                // Métadonnées de la requête
-                source: 'adonis-gmb-posts',
-                timestamp: new Date().toISOString(),
-                bulk_operation: true,
-                total_posts: gmbPostsData.length,
-
-                // Configuration Notion de l'utilisateur connecté
-                notion_config: {
-                    api_key: notionConfig.apiKey,
-                    database_id: notionConfig.databaseId,
-                    instance: notionConfig.instance,
-                },
-
-                // Données utilisateur
-                user: {
-                    id: currentUser.id,
-                    username: currentUser.username,
-                    email: currentUser.email,
-                    notion_id: currentUser.notionId, // Utiliser notionId
-                },
-
-                // Posts GMB (utiliser la même clé que home.tsx pour compatibilité)
-                notion_pages: gmbPostsData, // Garder le même nom pour compatibilité avec le workflow n8n
-                gmb_posts: gmbPostsData, // Version alternative plus explicite
-
-                // Statistiques
-                summary: {
-                    total_posts: gmbPostsData.length,
-                    posts_with_text: gmbPostsData.filter((p) => p.text && p.text.trim() !== '')
-                        .length,
-                    posts_with_keyword: gmbPostsData.filter((p) => p.keyword).length,
-                    posts_with_images: gmbPostsData.filter((p) => p.image_url).length,
-                    posts_with_links: gmbPostsData.filter((p) => p.link_url).length,
-                    unique_clients: [...new Set(gmbPostsData.map((p) => p.client))].length,
-                    unique_projects: [...new Set(gmbPostsData.map((p) => p.project_name))].length,
-                },
-            }
+            // 🎯 Utiliser la fonction unifiée pour créer les données webhook (format tableau)
+            const webhookData = this.createN8nWebhookData(gmbPostsData, currentUser, notionConfig, false)
 
             console.log('🎆 Envoi vers n8n:', {
                 url: n8nWebhookUrl,
