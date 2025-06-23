@@ -29,6 +29,7 @@ export const CreatePostModal = ({
         location_id: '',
         account_id: '',
         notion_id: '',
+        informations: '',
     })
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -116,6 +117,16 @@ export const CreatePostModal = ({
                         error={errors.text}
                         minRows={4}
                         required
+                    />
+
+                    {/* Informations supplémentaires */}
+                    <Textarea
+                        label="Informations supplémentaires"
+                        placeholder="Ajoutez des informations sur ce post (optionnel)..."
+                        value={data.informations}
+                        onChange={(e) => setData('informations', e.target.value)}
+                        error={errors.informations}
+                        minRows={3}
                     />
 
                     {/* Client et Projet */}

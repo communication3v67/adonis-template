@@ -13,6 +13,7 @@ export interface GmbPost {
     location_id: string
     account_id: string
     notion_id?: string
+    informations?: string | null
     // Nouveaux champs IA et coûts
     input_tokens?: number | null
     output_tokens?: number | null
@@ -79,6 +80,7 @@ export interface BulkEditData {
     location_id: string
     account_id: string
     notion_id: string
+    informations: string
     // Nouveaux champs IA
     input_tokens?: number
     output_tokens?: number
@@ -220,6 +222,7 @@ export const FILTERABLE_PROPERTIES: FilterProperty[] = [
   { key: 'location_id', label: 'ID de localisation', type: 'text' },
   { key: 'account_id', label: 'ID de compte', type: 'text' },
   { key: 'notion_id', label: 'ID Notion', type: 'text' },
+  { key: 'informations', label: 'Informations', type: 'text' },
 ]
 
 // Utilitaires pour les filtres avancés

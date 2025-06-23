@@ -27,6 +27,7 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
         location_id: '',
         account_id: '',
         notion_id: '',
+        informations: '',
     })
 
     // Garder une référence des valeurs originales
@@ -70,6 +71,7 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                 location_id: post.location_id || '',
                 account_id: post.account_id || '',
                 notion_id: post.notion_id || '',
+                informations: post.informations || '',
             }
 
             setData(initialData)
@@ -170,7 +172,7 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                                     backgroundColor: isFieldChanged('status') ? '#fff4e6' : undefined,
                                 },
                             }}
-                        />
+                            />
                         <TextInput
                             label="Date"
                             type="datetime-local"
@@ -228,6 +230,22 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                             input: {
                                 borderColor: isFieldChanged('text') ? '#fd7e14' : undefined,
                                 backgroundColor: isFieldChanged('text') ? '#fff4e6' : undefined,
+                            },
+                        }}
+                    />
+
+                    <Textarea
+                        label="Informations supplémentaires"
+                        placeholder="Ajoutez des informations sur ce post (optionnel)..."
+                        resize="vertical"
+                        value={data.informations}
+                        onChange={(e) => setData('informations', e.target.value)}
+                        error={errors.informations}
+                        minRows={3}
+                        styles={{
+                            input: {
+                                borderColor: isFieldChanged('informations') ? '#fd7e14' : undefined,
+                                backgroundColor: isFieldChanged('informations') ? '#fff4e6' : undefined,
                             },
                         }}
                     />

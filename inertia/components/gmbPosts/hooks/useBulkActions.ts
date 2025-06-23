@@ -15,6 +15,7 @@ export const useBulkActions = () => {
         location_id: '',
         account_id: '',
         notion_id: '',
+        informations: '',
         images: [],
     })
 
@@ -38,6 +39,7 @@ export const useBulkActions = () => {
             location_id: '',
             account_id: '',
             notion_id: '',
+            informations: '',
             images: [],
         })
     }, [])

@@ -388,6 +388,18 @@ export const PostRow = ({
                         />
                     </td>
                 )
+            case 'informations':
+                return (
+                    <td key={column.key} style={baseStyle}>
+                        <InlineEditCell
+                            value={post.informations || ''}
+                            field="informations"
+                            post={post}
+                            type="textarea"
+                            onSave={onInlineEdit}
+                        />
+                    </td>
+                )
             case 'actions':
                 return (
                     <td key={column.key} style={{ ...baseStyle, textAlign: 'center' }}>

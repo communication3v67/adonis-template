@@ -143,6 +143,14 @@ export default function GmbPostsIndex({
             maxWidth: 300,
         },
         {
+            key: 'informations',
+            label: 'Informations',
+            visible: true,
+            width: 300,
+            minWidth: 200,
+            maxWidth: 500,
+        },
+        {
             key: 'actions',
             label: 'Actions',
             visible: true,
@@ -194,6 +202,8 @@ export default function GmbPostsIndex({
                         return { ...col, width: 200 }
                     case 'notion_id':
                         return { ...col, width: 200 }
+                    case 'informations':
+                        return { ...col, width: 300 }
                     case 'actions':
                         return { ...col, width: 220 }
                     default:

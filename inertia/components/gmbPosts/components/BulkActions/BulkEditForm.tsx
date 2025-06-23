@@ -1,4 +1,4 @@
-import { Group, Select, TextInput } from '@mantine/core'
+import { Group, Select, TextInput, Textarea } from '@mantine/core'
 import { BulkEditData, FilterOptions } from '../../types'
 
 interface BulkEditFormProps {
@@ -82,6 +82,17 @@ export const BulkEditForm = ({ bulkEditData, filterOptions, onUpdateField }: Bul
                     size="sm"
                 />
             </Group>
+
+            {/* Informations supplémentaires */}
+            <Textarea
+                placeholder="Nouvelles informations (laissez vide pour ne pas modifier)"
+                value={bulkEditData.informations}
+                onChange={(e) => onUpdateField('informations', e.target.value)}
+                size="sm"
+                minRows={2}
+                maxRows={4}
+                description="Ces informations remplaceront les informations existantes sur tous les posts sélectionnés"
+            />
         </>
     )
 }
