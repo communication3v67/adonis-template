@@ -5,6 +5,7 @@ import { GmbPost, FilterOptions } from '../../types'
 import { STATUS_COLORS } from '../../utils/constants'
 import { truncateText, formatDateForEdit } from '../../utils/formatters'
 import { InlineCreatableSelect } from '../CreatableSelect'
+import { ImageHoverPreview } from '../ImageHoverPreview'
 
 interface InlineEditCellProps {
     value: string
@@ -185,26 +186,42 @@ export const InlineEditCell = ({
                     ) : field === 'date' ? (
                         <Text size="sm">{value ? new Date(value).toLocaleDateString('fr-FR') : '-'}</Text>
                     ) : (field === 'image_url' || field === 'link_url') && value ? (
-                        <Tooltip label={value}>
-                            <a
-                                href={value}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{
-                                    textDecoration: 'none',
-                                    color: '#228be6',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    cursor: 'pointer',
-                                }}
-                            >
-                                {field === 'image_url' ? (
+                        field === 'image_url' ? (
+                            <ImageHoverPreview imageUrl={value}>
+                                <a
+                                    href={value}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                        textDecoration: 'none',
+                                        color: '#228be6',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        cursor: 'pointer',
+                                    }}
+                                    title={value}
+                                >
                                     <LuImage size={16} />
-                                ) : (
+                                </a>
+                            </ImageHoverPreview>
+                        ) : (
+                            <Tooltip label={value}>
+                                <a
+                                    href={value}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                        textDecoration: 'none',
+                                        color: '#228be6',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        cursor: 'pointer',
+                                    }}
+                                >
                                     <LuLink size={16} />
-                                )}
-                            </a>
-                        </Tooltip>
+                                </a>
+                            </Tooltip>
+                        )
                     ) : (
                         <Text size="sm">{displayValue || value || '-'}</Text>
                     )}

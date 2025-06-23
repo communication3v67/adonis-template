@@ -1,6 +1,6 @@
 import { Box, Checkbox, Group, Table, Text, Tooltip } from '@mantine/core'
 import { useMemo } from 'react'
-import { LuCircleAlert, LuCircleCheck, LuShieldCheck, LuX, LuImage, LuLink } from 'react-icons/lu'
+import { LuCircleAlert, LuCircleCheck, LuImage, LuLink, LuShieldCheck, LuX } from 'react-icons/lu'
 import { FilterOptions, FilterState, GmbPost } from '../../types'
 import { ColumnConfig } from './ColumnVisibilityManager'
 import { PostRow } from './PostRow'
@@ -124,7 +124,7 @@ export const PostsTable = ({
                 </Group>
             </Box>
 
-            <Box style={{ overflowX: 'auto' }}>
+            <Box style={{ overflowX: 'auto', marginBottom: '60px' }}>
                 <Table
                     striped
                     highlightOnHover
@@ -157,7 +157,14 @@ export const PostsTable = ({
                                                 withArrow
                                                 position="bottom"
                                             >
-                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', height: '100%' }}>
+                                                <div
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'flex-start',
+                                                        height: '100%',
+                                                    }}
+                                                >
                                                     <LuShieldCheck
                                                         size={16}
                                                         style={{ color: '#495057' }}
@@ -216,12 +223,15 @@ export const PostsTable = ({
                                             }
                                             style={{ textAlign: 'left' }}
                                         >
-                                            <Tooltip
-                                                label="Image URL"
-                                                withArrow
-                                                position="bottom"
-                                            >
-                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', height: '100%' }}>
+                                            <Tooltip label="Image URL" withArrow position="bottom">
+                                                <div
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'flex-start',
+                                                        height: '100%',
+                                                    }}
+                                                >
                                                     <LuImage
                                                         size={16}
                                                         style={{ color: '#495057' }}
@@ -243,12 +253,15 @@ export const PostsTable = ({
                                             }
                                             style={{ textAlign: 'left' }}
                                         >
-                                            <Tooltip
-                                                label="Lien URL"
-                                                withArrow
-                                                position="bottom"
-                                            >
-                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', height: '100%' }}>
+                                            <Tooltip label="Lien URL" withArrow position="bottom">
+                                                <div
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'flex-start',
+                                                        height: '100%',
+                                                    }}
+                                                >
                                                     <LuLink
                                                         size={16}
                                                         style={{ color: '#495057' }}

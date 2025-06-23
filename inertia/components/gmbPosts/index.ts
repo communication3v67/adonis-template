@@ -33,6 +33,9 @@ export { ActionsCell } from './components/Table/ActionsCell'
 export { PostRow } from './components/Table/PostRow'
 export { PostsTable } from './components/Table/PostsTable'
 
+// Export des composants Utils
+export { ImageHoverPreview } from './components/ImageHoverPreview'
+
 // Export des composants BulkActions
 export { BulkEditForm } from './components/BulkActions/BulkEditForm'
 export { BulkActionBar } from './components/BulkActions/BulkActionBar'
