@@ -54,6 +54,9 @@ export default class GmbPost extends BaseModel {
     @column()
     declare notion_id: string
 
+    @column()
+    declare informations: string | null
+
     // Colonnes IA et coûts
     @column()
     declare input_tokens: number | null

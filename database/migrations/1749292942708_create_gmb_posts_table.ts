@@ -22,6 +22,7 @@ export default class extends BaseSchema {
             table.string('location_id').nullable()
             table.string('account_id').nullable()
             table.string('notion_id').nullable()
+            table.text('informations').nullable().comment('Informations supplémentaires sur le post')
 
             // Colonnes IA et coûts
             table.integer('input_tokens').nullable().comment('Nombre de tokens en entrée pour la génération IA')

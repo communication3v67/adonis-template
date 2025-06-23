@@ -1,7 +1,7 @@
+import SSEController from '#controllers/sse_controller'
 import GmbPost from '#models/gmbPost'
 import { NotionService } from '#services/notion_service'
 import type { HttpContext } from '@adonisjs/core/http'
-import SSEController from '#controllers/sse_controller'
 import vine from '@vinejs/vine'
 import { DateTime } from 'luxon'
 
@@ -20,6 +20,7 @@ const createGmbPostValidator = vine.compile(
         location_id: vine.string().trim().minLength(1),
         account_id: vine.string().trim().minLength(1),
         notion_id: vine.string().trim().optional(),
+        informations: vine.string().trim().optional(),
         // Nouveaux champs IA
         input_tokens: vine.number().min(0).optional(),
         output_tokens: vine.number().min(0).optional(),
@@ -42,6 +43,7 @@ const updateGmbPostValidator = vine.compile(
         location_id: vine.string().trim().optional(),
         account_id: vine.string().trim().optional(),
         notion_id: vine.string().trim().nullable().optional(),
+        informations: vine.string().trim().nullable().optional(),
         // Nouveaux champs IA
         input_tokens: vine.number().min(0).nullable().optional(),
         output_tokens: vine.number().min(0).nullable().optional(),
@@ -64,8 +66,9 @@ export default class GmbPostsController {
                 return
             }
 
-            const validFilters = group.filters.filter((filter: any) => 
-                filter.value !== '' && filter.value !== null && filter.value !== undefined
+            const validFilters = group.filters.filter(
+                (filter: any) =>
+                    filter.value !== '' && filter.value !== null && filter.value !== undefined
             )
 
             if (validFilters.length === 0) {
@@ -73,14 +76,14 @@ export default class GmbPostsController {
             }
 
             // Utiliser une fonction pour grouper les conditions
-            const applyGroupCondition = groupIndex === 0 ? 'where' : 
-                (group.condition === 'or' ? 'orWhere' : 'where')
+            const applyGroupCondition =
+                groupIndex === 0 ? 'where' : group.condition === 'or' ? 'orWhere' : 'where'
 
             query[applyGroupCondition]((groupBuilder: any) => {
                 validFilters.forEach((filter: any, filterIndex: number) => {
-                    const applyFilterCondition = filterIndex === 0 ? 'where' : 
-                        (group.condition === 'or' ? 'orWhere' : 'where')
-                    
+                    const applyFilterCondition =
+                        filterIndex === 0 ? 'where' : group.condition === 'or' ? 'orWhere' : 'where'
+
                     this.applySingleFilter(groupBuilder, filter, applyFilterCondition)
                 })
             })
@@ -95,16 +98,16 @@ export default class GmbPostsController {
 
         // Mapping des propriétés frontend vers les colonnes de base de données
         const columnMap: Record<string, string> = {
-            'createdAt': 'created_at',
-            'updatedAt': 'updated_at',
-            'project_name': 'project_name',
-            'location_id': 'location_id',
-            'account_id': 'account_id',
-            'notion_id': 'notion_id',
-            'image_url': 'image_url',
-            'link_url': 'link_url',
-            'input_tokens': 'input_tokens',
-            'output_tokens': 'output_tokens'
+            createdAt: 'created_at',
+            updatedAt: 'updated_at',
+            project_name: 'project_name',
+            location_id: 'location_id',
+            account_id: 'account_id',
+            notion_id: 'notion_id',
+            image_url: 'image_url',
+            link_url: 'link_url',
+            input_tokens: 'input_tokens',
+            output_tokens: 'output_tokens',
         }
 
         const column = columnMap[property] || property
@@ -117,7 +120,7 @@ export default class GmbPostsController {
                     builder[condition](column, value)
                 }
                 break
-            
+
             case 'not_equals':
                 if (Array.isArray(value)) {
                     builder[condition + 'NotIn'](column, value)
@@ -125,73 +128,84 @@ export default class GmbPostsController {
                     builder[condition](column, '!=', value)
                 }
                 break
-            
+
             case 'contains':
-                builder[condition + 'Raw'](`LOWER(${column}) LIKE ?`, [`%${value.toString().toLowerCase()}%`])
+                builder[condition + 'Raw'](`LOWER(${column}) LIKE ?`, [
+                    `%${value.toString().toLowerCase()}%`,
+                ])
                 break
-            
+
             case 'not_contains':
-                builder[condition + 'Raw'](`LOWER(${column}) NOT LIKE ?`, [`%${value.toString().toLowerCase()}%`])
+                builder[condition + 'Raw'](`LOWER(${column}) NOT LIKE ?`, [
+                    `%${value.toString().toLowerCase()}%`,
+                ])
                 break
-            
+
             case 'starts_with':
-                builder[condition + 'Raw'](`LOWER(${column}) LIKE ?`, [`${value.toString().toLowerCase()}%`])
+                builder[condition + 'Raw'](`LOWER(${column}) LIKE ?`, [
+                    `${value.toString().toLowerCase()}%`,
+                ])
                 break
-            
+
             case 'ends_with':
-                builder[condition + 'Raw'](`LOWER(${column}) LIKE ?`, [`%${value.toString().toLowerCase()}`])
+                builder[condition + 'Raw'](`LOWER(${column}) LIKE ?`, [
+                    `%${value.toString().toLowerCase()}`,
+                ])
                 break
-            
+
             case 'is_empty':
                 builder[condition]((subBuilder: any) => {
                     subBuilder.whereNull(column).orWhere(column, '')
                 })
                 break
-            
+
             case 'is_not_empty':
                 builder[condition]((subBuilder: any) => {
                     subBuilder.whereNotNull(column).where(column, '!=', '')
                 })
                 break
-            
+
             case 'before':
                 builder[condition + 'Raw'](`DATE(${column}) < ?`, [value])
                 break
-            
+
             case 'after':
                 builder[condition + 'Raw'](`DATE(${column}) > ?`, [value])
                 break
-            
+
             case 'on_or_before':
                 builder[condition + 'Raw'](`DATE(${column}) <= ?`, [value])
                 break
-            
+
             case 'on_or_after':
                 builder[condition + 'Raw'](`DATE(${column}) >= ?`, [value])
                 break
-            
+
             case 'between':
                 if (value.from && value.to) {
                     if (property.includes('date') || property.includes('At')) {
-                        builder[condition + 'Raw'](`DATE(${column}) BETWEEN ? AND ?`, [value.from, value.to])
+                        builder[condition + 'Raw'](`DATE(${column}) BETWEEN ? AND ?`, [
+                            value.from,
+                            value.to,
+                        ])
                     } else {
                         builder[condition + 'Between'](column, [value.from, value.to])
                     }
                 }
                 break
-            
+
             case 'greater_than':
                 builder[condition](column, '>', value)
                 break
-            
+
             case 'less_than':
                 builder[condition](column, '<', value)
                 break
-            
+
             case 'greater_than_or_equal':
                 builder[condition](column, '>=', value)
                 break
-            
+
             case 'less_than_or_equal':
                 builder[condition](column, '<=', value)
                 break
@@ -206,27 +220,29 @@ export default class GmbPostsController {
             const postData = {
                 ...post.serialize(),
                 action, // 'created', 'updated', 'deleted', 'status_changed'
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
             }
-            
+
             // Canal spécifique à l'utilisateur
             SSEController.broadcast(`gmb-posts/user/${userId}`, {
                 type: 'post_update',
-                data: postData
+                data: postData,
             })
-            
+
             // Canal spécifique au post
             SSEController.broadcast(`gmb-posts/post/${post.id}`, {
-                type: 'post_update', 
-                data: postData
+                type: 'post_update',
+                data: postData,
             })
-            
-            console.log(`📻 SSE: Diffusion événement ${action} pour post ${post.id} (user ${userId})`)
+
+            console.log(
+                `📻 SSE: Diffusion événement ${action} pour post ${post.id} (user ${userId})`
+            )
         } catch (error) {
             console.error('Erreur diffusion SSE:', error)
         }
     }
-    
+
     /**
      * Diffuse une notification système à l'utilisateur
      */
@@ -237,10 +253,10 @@ export default class GmbPostsController {
                 data: {
                     ...notification,
                     timestamp: new Date().toISOString(),
-                    id: Date.now().toString()
-                }
+                    id: Date.now().toString(),
+                },
             })
-            
+
             console.log(`🔔 SSE: Notification envoyée à l'utilisateur ${userId}`)
         } catch (error) {
             console.error('Erreur diffusion notification SSE:', error)
@@ -251,18 +267,22 @@ export default class GmbPostsController {
      */
     private async getUserNotionConfig(auth: any) {
         console.log('\n=== GMB POSTS - GET USER NOTION CONFIG DEBUG ===')
-        
+
         try {
             // Récupérer l'utilisateur connecté depuis la session
             const user = auth.user
-            
+
             if (!user) {
-                console.log('⚠️ Aucun utilisateur connecté, utilisation de la configuration par défaut')
+                console.log(
+                    '⚠️ Aucun utilisateur connecté, utilisation de la configuration par défaut'
+                )
                 const defaultConfig = NotionService.getNotionConfigForUser(null)
                 console.log('🔧 Configuration par défaut:', {
-                    apiKey: defaultConfig.apiKey ? defaultConfig.apiKey.substring(0, 20) + '...' : 'NON DÉFINIE',
+                    apiKey: defaultConfig.apiKey
+                        ? defaultConfig.apiKey.substring(0, 20) + '...'
+                        : 'NON DÉFINIE',
                     databaseId: defaultConfig.databaseId || 'NON DÉFINIE',
-                    instance: defaultConfig.instance
+                    instance: defaultConfig.instance,
                 })
                 console.log('=== FIN GMB POSTS - GET USER NOTION CONFIG DEBUG ===\n')
                 return defaultConfig
@@ -274,23 +294,31 @@ export default class GmbPostsController {
             console.log('  - Email:', user.email)
             console.log('  - notionDatabaseId:', user.notionDatabaseId)
             console.log('  - Type notionDatabaseId:', typeof user.notionDatabaseId)
-            
-            console.log('🔍 Appel NotionService.getNotionConfigForUser avec:', user.notionDatabaseId)
+
+            console.log(
+                '🔍 Appel NotionService.getNotionConfigForUser avec:',
+                user.notionDatabaseId
+            )
             const config = NotionService.getNotionConfigForUser(user.notionDatabaseId)
             console.log('🔧 Configuration obtenue:')
-            console.log('  - apiKey:', config.apiKey ? config.apiKey.substring(0, 20) + '...' : 'NON DÉFINIE')
+            console.log(
+                '  - apiKey:',
+                config.apiKey ? config.apiKey.substring(0, 20) + '...' : 'NON DÉFINIE'
+            )
             console.log('  - databaseId:', config.databaseId || 'NON DÉFINIE')
             console.log('  - instance:', config.instance)
             console.log('=== FIN GMB POSTS - GET USER NOTION CONFIG DEBUG ===\n')
-            
+
             return config
         } catch (error) {
-            console.error('❌ Erreur lors de la récupération de l\'utilisateur connecté:', error)
+            console.error("❌ Erreur lors de la récupération de l'utilisateur connecté:", error)
             const defaultConfig = NotionService.getNotionConfigForUser(null)
             console.log('🔧 Configuration par défaut (erreur):', {
-                apiKey: defaultConfig.apiKey ? defaultConfig.apiKey.substring(0, 20) + '...' : 'NON DÉFINIE',
+                apiKey: defaultConfig.apiKey
+                    ? defaultConfig.apiKey.substring(0, 20) + '...'
+                    : 'NON DÉFINIE',
                 databaseId: defaultConfig.databaseId || 'NON DÉFINIE',
-                instance: defaultConfig.instance
+                instance: defaultConfig.instance,
             })
             console.log('=== FIN GMB POSTS - GET USER NOTION CONFIG DEBUG ===\n')
             return defaultConfig
@@ -298,15 +326,19 @@ export default class GmbPostsController {
     }
 
     /**
-    * Attribue des images en masse aux posts sélectionnés
-    */
+     * Attribue des images en masse aux posts sélectionnés
+     */
     async bulkImages({ request, response, session, auth }: HttpContext) {
         try {
             // S'assurer qu'un utilisateur est connecté
             await auth.check()
             const currentUser = auth.user!
 
-            const { ids, images, overwriteExisting } = request.only(['ids', 'images', 'overwriteExisting'])
+            const { ids, images, overwriteExisting } = request.only([
+                'ids',
+                'images',
+                'overwriteExisting',
+            ])
 
             console.log('=== MÉTHODE BULK IMAGES ===')
             console.log('Utilisateur:', currentUser.id)
@@ -318,7 +350,7 @@ export default class GmbPostsController {
             if (!ids || !Array.isArray(ids) || ids.length === 0) {
                 session.flash('notification', {
                     type: 'error',
-                    message: 'Aucun post sélectionné pour l\'attribution d\'images.',
+                    message: "Aucun post sélectionné pour l'attribution d'images.",
                 })
                 return response.redirect().back()
             }
@@ -340,7 +372,7 @@ export default class GmbPostsController {
             if (selectedPosts.length === 0) {
                 session.flash('notification', {
                     type: 'error',
-                    message: 'Aucun post trouvé ou vous n\'avez pas l\'autorisation.',
+                    message: "Aucun post trouvé ou vous n'avez pas l'autorisation.",
                 })
                 return response.redirect().back()
             }
@@ -368,11 +400,13 @@ export default class GmbPostsController {
                     post.image_url = imageUrl
                     await post.save()
                     updatedCount++
-                    
+
                     // Diffuser l'événement SSE pour chaque post mis à jour
                     await this.broadcastPostUpdate(post, 'updated', currentUser.id)
-                    
-                    console.log(`Image attribuée au post ${post.id}: ${imageUrl} (ancienne: ${oldImageUrl || 'aucune'})`)
+
+                    console.log(
+                        `Image attribuée au post ${post.id}: ${imageUrl} (ancienne: ${oldImageUrl || 'aucune'})`
+                    )
                 } catch (error) {
                     console.error(`Erreur attribution image au post ${post.id}:`, error)
                 }
@@ -382,7 +416,7 @@ export default class GmbPostsController {
             await this.broadcastNotification(currentUser.id, {
                 type: 'success',
                 title: 'Images attribuées',
-                message: `${updatedCount} image(s) attribuée(s) avec succès !${skippedCount > 0 ? ` (${skippedCount} ignorées car image existante)` : ''}`
+                message: `${updatedCount} image(s) attribuée(s) avec succès !${skippedCount > 0 ? ` (${skippedCount} ignorées car image existante)` : ''}`,
             })
 
             console.log(`${updatedCount} posts mis à jour avec des images, ${skippedCount} ignorés`)
@@ -393,79 +427,77 @@ export default class GmbPostsController {
             })
 
             return response.redirect().toRoute('gmbPosts.index')
-
         } catch (error) {
             console.error('Erreur attribution images en masse:', error)
             console.error('Stack trace:', error.stack)
 
             session.flash('notification', {
                 type: 'error',
-                message: 'Erreur lors de l\'attribution des images en masse.',
+                message: "Erreur lors de l'attribution des images en masse.",
             })
 
             return response.redirect().back()
         }
     }
     async bulkUpdate({ request, response, session, auth }: HttpContext) {
-    try {
-    // S'assurer qu'un utilisateur est connecté
+        try {
+            // S'assurer qu'un utilisateur est connecté
             await auth.check()
-    const currentUser = auth.user!
+            const currentUser = auth.user!
 
-    const { ids, updateData } = request.only(['ids', 'updateData'])
+            const { ids, updateData } = request.only(['ids', 'updateData'])
 
             console.log('=== MÉTHODE BULK UPDATE ===')
-    console.log('Utilisateur:', currentUser.id)
-    console.log('IDs reçus:', ids)
-    console.log('Données de mise à jour:', updateData)
-    console.log('========================')
+            console.log('Utilisateur:', currentUser.id)
+            console.log('IDs reçus:', ids)
+            console.log('Données de mise à jour:', updateData)
+            console.log('========================')
 
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-        session.flash('notification', {
+            if (!ids || !Array.isArray(ids) || ids.length === 0) {
+                session.flash('notification', {
                     type: 'error',
-            message: 'Aucun post sélectionné pour la mise à jour.',
-    })
-    return response.redirect().back()
-    }
+                    message: 'Aucun post sélectionné pour la mise à jour.',
+                })
+                return response.redirect().back()
+            }
 
-    if (!updateData || Object.keys(updateData).length === 0) {
-        session.flash('notification', {
+            if (!updateData || Object.keys(updateData).length === 0) {
+                session.flash('notification', {
                     type: 'error',
-            message: 'Aucune donnée de mise à jour fournie.',
-        })
-        return response.redirect().back()
-    }
+                    message: 'Aucune donnée de mise à jour fournie.',
+                })
+                return response.redirect().back()
+            }
 
-    // Nettoyer les données pour éviter les valeurs vides
-    const cleanUpdateData: any = {}
+            // Nettoyer les données pour éviter les valeurs vides
+            const cleanUpdateData: any = {}
             Object.entries(updateData).forEach(([key, value]) => {
-        if (value && String(value).trim() !== '') {
+                if (value && String(value).trim() !== '') {
                     cleanUpdateData[key] = value
-        }
-    })
+                }
+            })
 
-    console.log('Données nettoyées:', cleanUpdateData)
+            console.log('Données nettoyées:', cleanUpdateData)
 
-    // Exécuter la mise à jour en masse SEULEMENT pour les posts de l'utilisateur connecté
+            // Exécuter la mise à jour en masse SEULEMENT pour les posts de l'utilisateur connecté
             const updatedCount = await GmbPost.query()
-        .whereIn('id', ids)
-    .where('user_id', currentUser.id) // Sécurité : seulement les posts de l'utilisateur
-    .update(cleanUpdateData)
+                .whereIn('id', ids)
+                .where('user_id', currentUser.id) // Sécurité : seulement les posts de l'utilisateur
+                .update(cleanUpdateData)
 
             console.log(`${updatedCount} post(s) mis à jour`)
 
             session.flash('notification', {
-            type: 'success',
-        message: `${updatedCount} post(s) mis à jour avec succès !`,
-    })
+                type: 'success',
+                message: `${updatedCount} post(s) mis à jour avec succès !`,
+            })
 
-    return response.redirect().toRoute('gmbPosts.index')
-
-    } catch (error) {
-    console.error('Erreur mise à jour en masse:', error)
+            return response.redirect().toRoute('gmbPosts.index')
+        } catch (error) {
+            console.error('Erreur mise à jour en masse:', error)
             console.error('Stack trace:', error.stack)
 
-        session.flash('notification', {
+            session.flash('notification', {
                 type: 'error',
                 message: 'Erreur lors de la mise à jour en masse.',
             })
@@ -560,25 +592,25 @@ export default class GmbPostsController {
 
         // Mapping des noms de colonnes pour le tri (frontend camelCase -> database snake_case)
         const sortColumnMap: Record<string, string> = {
-            'createdAt': 'created_at',
-            'updatedAt': 'updated_at',
-            'date': 'date',
-            'status': 'status',
-            'text': 'text',
-            'client': 'client',
-            'project_name': 'project_name',
-            'city': 'city',
-            'keyword': 'keyword',
-            'location_id': 'location_id',
-            'account_id': 'account_id',
-            'notion_id': 'notion_id',
-            'image_url': 'image_url',
-            'link_url': 'link_url'
+            createdAt: 'created_at',
+            updatedAt: 'updated_at',
+            date: 'date',
+            status: 'status',
+            text: 'text',
+            client: 'client',
+            project_name: 'project_name',
+            city: 'city',
+            keyword: 'keyword',
+            location_id: 'location_id',
+            account_id: 'account_id',
+            notion_id: 'notion_id',
+            image_url: 'image_url',
+            link_url: 'link_url',
         }
 
         // Utiliser le vrai nom de colonne pour le tri
         const actualSortColumn = sortColumnMap[sortBy] || sortBy
-        
+
         // Tri
         query.orderBy(actualSortColumn, sortOrder)
 
@@ -591,17 +623,22 @@ export default class GmbPostsController {
         if (loadMore) {
             const serializedPosts = posts.serialize()
             console.log(`Load More - Page ${page}: ${serializedPosts.data.length} posts chargés`)
-            
+
             return {
                 posts: serializedPosts,
-                hasMore: page < serializedPosts.meta.last_page
+                hasMore: page < serializedPosts.meta.last_page,
             }
         }
 
         // Debug : vérifier la sérialisation avec naming strategy
         const serializedPosts = posts.serialize()
-        console.log('Posts sérialisés pour utilisateur', currentUser.id, ':', serializedPosts.data.length)
-        
+        console.log(
+            'Posts sérialisés pour utilisateur',
+            currentUser.id,
+            ':',
+            serializedPosts.data.length
+        )
+
         if (serializedPosts.data && serializedPosts.data.length > 0) {
             console.log('Premier post:', serializedPosts.data[0])
             console.log('Clés disponibles:', Object.keys(serializedPosts.data[0]))
@@ -631,9 +668,9 @@ export default class GmbPostsController {
             .where('user_id', currentUser.id)
             .where('status', 'Post à générer')
             .count('* as total')
-        
+
         const postsToGenerate = Number(postsToGenerateCount[0].$extras.total)
-        
+
         console.log(`=== COMPTEUR POSTS A GENERER ===`)
         console.log(`Utilisateur ID: ${currentUser.id}`)
         console.log(`Requête count: ${JSON.stringify(postsToGenerateCount)}`)
@@ -662,9 +699,9 @@ export default class GmbPostsController {
                 id: currentUser.id,
                 username: currentUser.username,
                 email: currentUser.email,
-                notion_id: currentUser.notionId  // Convertir notionId en notion_id pour le frontend
+                notion_id: currentUser.notionId, // Convertir notionId en notion_id pour le frontend
             },
-            postsToGenerateCount: postsToGenerate
+            postsToGenerateCount: postsToGenerate,
         })
     }
 
@@ -696,8 +733,8 @@ export default class GmbPostsController {
                 id: currentUser.id,
                 username: currentUser.username,
                 email: currentUser.email,
-                notion_id: currentUser.notionId  // Convertir notionId en notion_id pour le frontend
-            }
+                notion_id: currentUser.notionId, // Convertir notionId en notion_id pour le frontend
+            },
         })
     }
 
@@ -708,18 +745,25 @@ export default class GmbPostsController {
         try {
             console.log('=== MÉTHODE STORE APPELÉE ===')
             console.log('Données reçues:', request.all())
-            
+
             // S'assurer qu'un utilisateur est connecté
             await auth.check()
             const currentUser = auth.user!
-            
+
             console.log('Utilisateur connecté:', currentUser.id)
 
             // Valider les données sans utiliser le validateur strict
             const payload = request.all()
-            
+
             // Validation manuelle plus flexible
-            if (!payload.status || !payload.text || !payload.client || !payload.project_name || !payload.location_id || !payload.account_id) {
+            if (
+                !payload.status ||
+                !payload.text ||
+                !payload.client ||
+                !payload.project_name ||
+                !payload.location_id ||
+                !payload.account_id
+            ) {
                 console.log('Validation échouée - champs manquants')
                 session.flash('notification', {
                     type: 'error',
@@ -759,24 +803,25 @@ export default class GmbPostsController {
                 location_id: payload.location_id,
                 account_id: payload.account_id,
                 notion_id: payload.notion_id || null,
+                informations: payload.informations || null,
                 input_tokens: payload.input_tokens || null,
                 output_tokens: payload.output_tokens || null,
                 model: payload.model || null,
                 price: payload.price || null,
             }
-            
+
             console.log('Données à insérer:', postData)
 
             const newPost = await GmbPost.create(postData)
-            
+
             console.log('Post créé avec succès:', newPost.id)
-            
+
             // Diffuser l'événement SSE
             await this.broadcastPostUpdate(newPost, 'created', currentUser.id)
             await this.broadcastNotification(currentUser.id, {
                 type: 'success',
                 title: 'Post créé',
-                message: 'Post GMB créé avec succès !'
+                message: 'Post GMB créé avec succès !',
             })
 
             session.flash('notification', {
@@ -788,7 +833,7 @@ export default class GmbPostsController {
         } catch (error) {
             console.error('Erreur lors de la création du post:', error)
             console.error('Stack trace:', error.stack)
-            
+
             session.flash('notification', {
                 type: 'error',
                 message: 'Erreur lors de la création du post: ' + error.message,
@@ -835,23 +880,23 @@ export default class GmbPostsController {
      */
     async update({ params, request, response, session, auth }: HttpContext) {
         console.log('=== MÉTHODE UPDATE APPELÉE ===')
-        console.log('Paramètres de l\'URL:', params)
+        console.log("Paramètres de l'URL:", params)
         console.log('Méthode HTTP:', request.method())
         console.log('URL complète:', request.url())
         console.log('================================')
-        
+
         try {
             // S'assurer qu'un utilisateur est connecté
             await auth.check()
             const currentUser = auth.user!
 
             const post = await GmbPost.findOrFail(params.id)
-            
+
             // Vérifier que le post appartient à l'utilisateur connecté
             if (post.user_id !== currentUser.id) {
                 session.flash('notification', {
                     type: 'error',
-                    message: 'Vous n\'avez pas l\'autorisation de modifier ce post.',
+                    message: "Vous n'avez pas l'autorisation de modifier ce post.",
                 })
                 return response.redirect().toRoute('gmbPosts.index')
             }
@@ -863,7 +908,7 @@ export default class GmbPostsController {
 
             // Nettoyer et préparer les données
             const updateData: any = {}
-            
+
             // Traiter chaque champ individuellement sans validation stricte
             if (payload.status !== undefined) updateData.status = payload.status || null
             if (payload.text !== undefined) updateData.text = payload.text || null
@@ -871,18 +916,24 @@ export default class GmbPostsController {
             if (payload.link_url !== undefined) updateData.link_url = payload.link_url || null
             if (payload.keyword !== undefined) updateData.keyword = payload.keyword || null
             if (payload.client !== undefined) updateData.client = payload.client || null
-            if (payload.project_name !== undefined) updateData.project_name = payload.project_name || null
+            if (payload.project_name !== undefined)
+                updateData.project_name = payload.project_name || null
             if (payload.city !== undefined) updateData.city = payload.city || null
-            if (payload.location_id !== undefined) updateData.location_id = payload.location_id || null
+            if (payload.location_id !== undefined)
+                updateData.location_id = payload.location_id || null
             if (payload.account_id !== undefined) updateData.account_id = payload.account_id || null
             if (payload.notion_id !== undefined) updateData.notion_id = payload.notion_id || null
-            
+            if (payload.informations !== undefined)
+                updateData.informations = payload.informations || null
+
             // Nouveaux champs IA
-            if (payload.input_tokens !== undefined) updateData.input_tokens = payload.input_tokens || null
-            if (payload.output_tokens !== undefined) updateData.output_tokens = payload.output_tokens || null
+            if (payload.input_tokens !== undefined)
+                updateData.input_tokens = payload.input_tokens || null
+            if (payload.output_tokens !== undefined)
+                updateData.output_tokens = payload.output_tokens || null
             if (payload.model !== undefined) updateData.model = payload.model || null
             if (payload.price !== undefined) updateData.price = payload.price || null
-            
+
             // Gestion spéciale pour la date
             if (payload.date !== undefined && payload.date) {
                 try {
@@ -896,18 +947,18 @@ export default class GmbPostsController {
             console.log('Données à mettre à jour:', updateData)
 
             // Appliquer les modifications
-            Object.keys(updateData).forEach(key => {
+            Object.keys(updateData).forEach((key) => {
                 post[key] = updateData[key]
             })
 
             await post.save()
-            
+
             // Diffuser l'événement SSE
             await this.broadcastPostUpdate(post, 'updated', currentUser.id)
             await this.broadcastNotification(currentUser.id, {
                 type: 'success',
                 title: 'Post modifié',
-                message: 'Post GMB mis à jour avec succès !'
+                message: 'Post GMB mis à jour avec succès !',
             })
 
             console.log('Post après modification:', post.toJSON())
@@ -918,7 +969,6 @@ export default class GmbPostsController {
             })
 
             return response.redirect().toRoute('gmbPosts.index')
-
         } catch (error) {
             console.error('Erreur mise à jour:', error)
             console.error('Stack trace:', error.stack)
@@ -942,25 +992,25 @@ export default class GmbPostsController {
             const currentUser = auth.user!
 
             const post = await GmbPost.findOrFail(params.id)
-            
+
             // Vérifier que le post appartient à l'utilisateur connecté
             if (post.user_id !== currentUser.id) {
                 session.flash('notification', {
                     type: 'error',
-                    message: 'Vous n\'avez pas l\'autorisation de supprimer ce post.',
+                    message: "Vous n'avez pas l'autorisation de supprimer ce post.",
                 })
                 return response.redirect().toRoute('gmbPosts.index')
             }
 
             // Diffuser l'événement SSE avant suppression
             await this.broadcastPostUpdate(post, 'deleted', currentUser.id)
-            
+
             await post.delete()
-            
+
             await this.broadcastNotification(currentUser.id, {
                 type: 'success',
                 title: 'Post supprimé',
-                message: 'Post GMB supprimé avec succès !'
+                message: 'Post GMB supprimé avec succès !',
             })
 
             session.flash('notification', {
@@ -1022,12 +1072,12 @@ export default class GmbPostsController {
             const currentUser = auth.user!
 
             const originalPost = await GmbPost.findOrFail(params.id)
-            
+
             // Vérifier que le post appartient à l'utilisateur connecté
             if (originalPost.user_id !== currentUser.id) {
                 session.flash('notification', {
                     type: 'error',
-                    message: 'Vous n\'avez pas l\'autorisation de dupliquer ce post.',
+                    message: "Vous n'avez pas l'autorisation de dupliquer ce post.",
                 })
                 return response.redirect().toRoute('gmbPosts.index')
             }
@@ -1049,13 +1099,13 @@ export default class GmbPostsController {
             }
 
             const duplicatedPost = await GmbPost.create(duplicatedData)
-            
+
             // Diffuser l'événement SSE
             await this.broadcastPostUpdate(duplicatedPost, 'created', currentUser.id)
             await this.broadcastNotification(currentUser.id, {
                 type: 'success',
                 title: 'Post dupliqué',
-                message: 'Post dupliqué avec succès !'
+                message: 'Post dupliqué avec succès !',
             })
 
             session.flash('notification', {
@@ -1103,7 +1153,7 @@ export default class GmbPostsController {
                     GmbPost.query().sum('output_tokens').as('total_output_tokens'),
                     GmbPost.query().sum('price').as('total_cost'),
                     GmbPost.query().count('*').as('ai_posts_count'),
-                    GmbPost.query().avg('price').as('avg_cost_per_post')
+                    GmbPost.query().avg('price').as('avg_cost_per_post'),
                 ])
                 .first()
 
@@ -1122,16 +1172,24 @@ export default class GmbPostsController {
             const mostExpensivePosts = await GmbPost.query()
                 .where('user_id', currentUser.id)
                 .whereNotNull('price')
-                .select('id', 'text', 'model', 'price', 'input_tokens', 'output_tokens', 'created_at')
+                .select(
+                    'id',
+                    'text',
+                    'model',
+                    'price',
+                    'input_tokens',
+                    'output_tokens',
+                    'created_at'
+                )
                 .orderBy('price', 'desc')
                 .limit(10)
 
             return inertia.render('gmbPosts/stats', {
                 stats: {
                     total: Number(totalPosts[0].$extras.total),
-                    byStatus: postsByStatus.map(s => ({
+                    byStatus: postsByStatus.map((s) => ({
                         status: s.status,
-                        count: Number(s.$extras.count)
+                        count: Number(s.$extras.count),
                     })),
                     ai: {
                         totalInputTokens: Number(aiStats?.total_input_tokens || 0),
@@ -1139,23 +1197,22 @@ export default class GmbPostsController {
                         totalCost: Number(aiStats?.total_cost || 0),
                         aiPostsCount: Number(aiStats?.ai_posts_count || 0),
                         avgCostPerPost: Number(aiStats?.avg_cost_per_post || 0),
-                        costsByModel: costsByModel.map(m => ({
+                        costsByModel: costsByModel.map((m) => ({
                             model: m.model,
                             totalCost: Number(m.$extras.total_cost),
                             postsCount: Number(m.$extras.posts_count),
-                            avgCost: Number(m.$extras.avg_cost)
+                            avgCost: Number(m.$extras.avg_cost),
                         })),
-                        mostExpensivePosts: mostExpensivePosts.map(p => p.serialize())
-                    }
+                        mostExpensivePosts: mostExpensivePosts.map((p) => p.serialize()),
+                    },
                 },
                 currentUser: {
                     id: currentUser.id,
                     username: currentUser.username,
                     email: currentUser.email,
-                    notion_id: currentUser.notionId
-                }
+                    notion_id: currentUser.notionId,
+                },
             })
-
         } catch (error) {
             console.error('Erreur récupération stats:', error)
             return inertia.render('gmbPosts/stats', {
@@ -1164,8 +1221,8 @@ export default class GmbPostsController {
                     id: auth.user?.id,
                     username: auth.user?.username,
                     email: auth.user?.email,
-                    notion_id: auth.user?.notionId
-                }
+                    notion_id: auth.user?.notionId,
+                },
             })
         }
     }
@@ -1176,7 +1233,7 @@ export default class GmbPostsController {
             const currentUser = auth.user!
 
             const { format = 'csv' } = request.qs()
-            
+
             // Récupérer les filtres depuis la requête
             const search = request.input('search', '')
             const status = request.input('status', '')
@@ -1238,20 +1295,20 @@ export default class GmbPostsController {
 
             // Mapping des noms de colonnes pour le tri
             const sortColumnMap: Record<string, string> = {
-                'createdAt': 'created_at',
-                'updatedAt': 'updated_at',
-                'date': 'date',
-                'status': 'status',
-                'text': 'text',
-                'client': 'client',
-                'project_name': 'project_name',
-                'city': 'city',
-                'keyword': 'keyword',
-                'location_id': 'location_id',
-                'account_id': 'account_id',
-                'notion_id': 'notion_id',
-                'image_url': 'image_url',
-                'link_url': 'link_url'
+                createdAt: 'created_at',
+                updatedAt: 'updated_at',
+                date: 'date',
+                status: 'status',
+                text: 'text',
+                client: 'client',
+                project_name: 'project_name',
+                city: 'city',
+                keyword: 'keyword',
+                location_id: 'location_id',
+                account_id: 'account_id',
+                notion_id: 'notion_id',
+                image_url: 'image_url',
+                link_url: 'link_url',
             }
 
             const actualSortColumn = sortColumnMap[sortBy] || sortBy
@@ -1276,15 +1333,16 @@ export default class GmbPostsController {
                     'Location ID',
                     'Account ID',
                     'Notion ID',
+                    'Informations',
                     'Prix IA',
                     'Tokens Entrée',
                     'Tokens Sortie',
                     'Modèle IA',
                     'Date Création',
-                    'Date Modification'
+                    'Date Modification',
                 ]
 
-                const csvRows = posts.map(post => [
+                const csvRows = posts.map((post) => [
                     post.id,
                     `"${(post.status || '').replace(/"/g, '""')}"`,
                     `"${(post.text || '').replace(/"/g, '""')}"`,
@@ -1298,24 +1356,25 @@ export default class GmbPostsController {
                     `"${(post.location_id || '').replace(/"/g, '""')}"`,
                     `"${(post.account_id || '').replace(/"/g, '""')}"`,
                     `"${(post.notion_id || '').replace(/"/g, '""')}"`,
+                    `"${(post.informations || '').replace(/"/g, '""')}"`,
                     post.price || '',
                     post.input_tokens || '',
                     post.output_tokens || '',
                     `"${(post.model || '').replace(/"/g, '""')}"`,
                     post.createdAt?.toFormat('yyyy-MM-dd HH:mm:ss') || '',
-                    post.updatedAt?.toFormat('yyyy-MM-dd HH:mm:ss') || ''
+                    post.updatedAt?.toFormat('yyyy-MM-dd HH:mm:ss') || '',
                 ])
 
                 const csvContent = [
                     csvHeaders.join(','),
-                    ...csvRows.map(row => row.join(','))
+                    ...csvRows.map((row) => row.join(',')),
                 ].join('\n')
 
                 const filename = `posts-gmb-${new Date().toISOString().slice(0, 10)}.csv`
-                
+
                 response.header('Content-Type', 'text/csv; charset=utf-8')
                 response.header('Content-Disposition', `attachment; filename="${filename}"`)
-                
+
                 // Ajouter le BOM UTF-8 pour Excel
                 return response.send('\ufeff' + csvContent)
             }
@@ -1330,9 +1389,11 @@ export default class GmbPostsController {
             }
 
             // Format non supporté
-            return response.badRequest({ message: "Format d'export non supporté. Utilisez 'csv' ou 'json'." })
+            return response.badRequest({
+                message: "Format d'export non supporté. Utilisez 'csv' ou 'json'.",
+            })
         } catch (error) {
-            console.error('Erreur lors de l\'export:', error)
+            console.error("Erreur lors de l'export:", error)
             return response.internalServerError({ message: "Erreur lors de l'export" })
         }
     }
@@ -1377,16 +1438,19 @@ export default class GmbPostsController {
             if (!currentUser.notionId) {
                 session.flash('notification', {
                     type: 'error',
-                    message: 'Votre compte n\'est pas lié à Notion. Veuillez configurer votre ID Notion.',
+                    message:
+                        "Votre compte n'est pas lié à Notion. Veuillez configurer votre ID Notion.",
                 })
                 return response.redirect().back()
             }
 
-            console.log(`Synchronisation Notion pour l'utilisateur ${currentUser.username} (Notion ID: ${currentUser.notionId})`)
+            console.log(
+                `Synchronisation Notion pour l'utilisateur ${currentUser.username} (Notion ID: ${currentUser.notionId})`
+            )
 
             // Utiliser la configuration de l'utilisateur connecté
             const notionService = new NotionService(currentUser.notionDatabaseId)
-            
+
             // Récupérer uniquement les pages "À générer" assignées à cet utilisateur
             const notionPages = await notionService.getPagesForUser(currentUser.notionId)
 
@@ -1419,10 +1483,12 @@ export default class GmbPostsController {
 
                     if (existingPost) {
                         // Mettre à jour le post existant
-                        await existingPost.merge({
-                            text: notionPage.title || existingPost.text,
-                            // Conserver les autres champs existants
-                        }).save()
+                        await existingPost
+                            .merge({
+                                text: notionPage.title || existingPost.text,
+                                // Conserver les autres champs existants
+                            })
+                            .save()
                         updatedCount++
                         console.log(`Post mis à jour: ${notionPage.title}`)
                     } else {
@@ -1438,7 +1504,7 @@ export default class GmbPostsController {
             }
 
             const message = `Synchronisation terminée: ${createdCount} nouveaux posts, ${updatedCount} mis à jour, ${skippedCount} ignorés`
-            
+
             session.flash('notification', {
                 type: 'success',
                 message,
@@ -1446,10 +1512,9 @@ export default class GmbPostsController {
 
             console.log(message)
             return response.redirect().toRoute('gmbPosts.index')
-
         } catch (error) {
             console.error('Erreur synchronisation Notion:', error)
-            
+
             session.flash('notification', {
                 type: 'error',
                 message: 'Erreur lors de la synchronisation avec Notion: ' + error.message,
@@ -1470,14 +1535,14 @@ export default class GmbPostsController {
 
             if (!currentUser.notionId) {
                 return inertia.render('gmbPosts/notion-preview', {
-                    error: 'Votre compte n\'est pas lié à Notion.',
+                    error: "Votre compte n'est pas lié à Notion.",
                     pages: [],
                     currentUser: {
                         id: currentUser.id,
                         username: currentUser.username,
                         email: currentUser.email,
-                        notion_id: currentUser.notionId  // Convertir pour le frontend
-                    }
+                        notion_id: currentUser.notionId, // Convertir pour le frontend
+                    },
                 })
             }
 
@@ -1490,17 +1555,16 @@ export default class GmbPostsController {
                     id: currentUser.id,
                     username: currentUser.username,
                     email: currentUser.email,
-                    notion_id: currentUser.notionId  // Convertir pour le frontend
+                    notion_id: currentUser.notionId, // Convertir pour le frontend
                 },
                 stats: {
                     totalPages: notionPages.length,
-                    toGenerate: notionPages.filter(p => p.status === 'À générer').length
-                }
+                    toGenerate: notionPages.filter((p) => p.status === 'À générer').length,
+                },
             })
-
         } catch (error) {
             console.error('Erreur prévisualisation Notion:', error)
-            
+
             return inertia.render('gmbPosts/notion-preview', {
                 error: 'Erreur lors de la récupération des données Notion: ' + error.message,
                 pages: [],
@@ -1508,8 +1572,8 @@ export default class GmbPostsController {
                     id: auth.user?.id,
                     username: auth.user?.username,
                     email: auth.user?.email,
-                    notion_id: auth.user?.notionId  // Convertir pour le frontend
-                }
+                    notion_id: auth.user?.notionId, // Convertir pour le frontend
+                },
             })
         }
     }
@@ -1523,13 +1587,13 @@ export default class GmbPostsController {
             console.log('Utilisateur connecté:', {
                 id: auth.user?.id,
                 email: auth.user?.email,
-                username: auth.user?.username
+                username: auth.user?.username,
             })
-            
+
             // S'assurer qu'un utilisateur est connecté
             await auth.check()
             const currentUser = auth.user!
-            
+
             // Récupération de la configuration Notion de l'utilisateur connecté
             const notionConfig = await this.getUserNotionConfig(auth)
 
@@ -1542,11 +1606,13 @@ export default class GmbPostsController {
             if (!post) {
                 return response.status(404).json({
                     success: false,
-                    message: 'Post non trouvé ou vous n\'avez pas l\'autorisation de l\'accéder.',
+                    message: "Post non trouvé ou vous n'avez pas l'autorisation de l'accéder.",
                 })
             }
 
-            console.log(`📝 Post trouvé: "${post.text?.substring(0, 50)}..." (Status: ${post.status})`)
+            console.log(
+                `📝 Post trouvé: "${post.text?.substring(0, 50)}..." (Status: ${post.status})`
+            )
 
             // Vérifier que le post est dans le bon statut
             if (post.status !== 'Post à générer') {
@@ -1554,7 +1620,7 @@ export default class GmbPostsController {
                     success: false,
                     message: `Ce post ne peut pas être envoyé. Statut actuel: "${post.status}". Seuls les posts "Post à générer" peuvent être envoyés.`,
                     current_status: post.status,
-                    required_status: 'Post à générer'
+                    required_status: 'Post à générer',
                 })
             }
 
@@ -1564,17 +1630,17 @@ export default class GmbPostsController {
                 id: post.id,
                 gmb_post_id: post.id,
                 notion_id: post.notion_id,
-                
+
                 // Informations principales
                 title: post.text || `Post GMB - ${post.client}`,
                 text: post.text,
                 status: post.status,
-                
+
                 // Dates
                 date: post.date?.toISO(),
                 created_time: post.createdAt?.toISO(),
                 last_edited_time: post.updatedAt?.toISO(),
-                
+
                 // Métadonnées GMB
                 client: post.client,
                 project_name: post.project_name,
@@ -1582,11 +1648,14 @@ export default class GmbPostsController {
                 keyword: post.keyword,
                 location_id: post.location_id,
                 account_id: post.account_id,
-                
+
                 // URLs
                 image_url: post.image_url,
                 link_url: post.link_url,
-                
+
+                // Informations supplémentaires
+                informations: post.informations,
+
                 // Utilisateur
                 user_id: post.user_id,
                 user_notion_id: currentUser.notionId,
@@ -1595,7 +1664,7 @@ export default class GmbPostsController {
             // URL du webhook n8n
             const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL
             const n8nAuthToken = process.env.N8N_AUTH_TOKEN
-            
+
             if (!n8nWebhookUrl) {
                 throw new Error('URL du webhook n8n non configurée (N8N_WEBHOOK_URL)')
             }
@@ -1608,7 +1677,7 @@ export default class GmbPostsController {
 
             if (n8nAuthToken) {
                 headers['Authorization'] = `Bearer ${n8nAuthToken}`
-                console.log('🔐 Token d\'authentification ajouté')
+                console.log("🔐 Token d'authentification ajouté")
             }
 
             // Préparer les données pour n8n (format similaire aux autres webhooks)
@@ -1618,14 +1687,14 @@ export default class GmbPostsController {
                 timestamp: new Date().toISOString(),
                 bulk_operation: false,
                 single_post: true,
-                
+
                 // Configuration Notion de l'utilisateur connecté
                 notion_config: {
                     api_key: notionConfig.apiKey,
                     database_id: notionConfig.databaseId,
                     instance: notionConfig.instance,
                 },
-                
+
                 // Données utilisateur
                 user: {
                     id: currentUser.id,
@@ -1633,11 +1702,11 @@ export default class GmbPostsController {
                     email: currentUser.email,
                     notion_id: currentUser.notionId,
                 },
-                
+
                 // Post GMB individuel (utiliser la même structure que les envois en lot)
                 notion_page: gmbPostData, // Format compatible avec les workflows existants
                 gmb_post: gmbPostData, // Version alternative
-                
+
                 // Données extraites (format compatible avec les autres webhooks)
                 extracted_data: {
                     entreprise: post.client,
@@ -1650,7 +1719,8 @@ export default class GmbPostsController {
                     account_id: post.account_id,
                     image_url: post.image_url,
                     link_url: post.link_url,
-                }
+                    informations: post.informations,
+                },
             }
 
             console.log('🎆 Envoi post individuel vers n8n:', {
@@ -1679,7 +1749,7 @@ export default class GmbPostsController {
             // Traitement de la réponse
             const contentType = n8nResponse.headers.get('content-type')
             const responseText = await n8nResponse.text()
-            
+
             let n8nResult
             try {
                 if (responseText.trim().startsWith('{') || responseText.trim().startsWith('[')) {
@@ -1701,9 +1771,9 @@ export default class GmbPostsController {
                     raw_response: responseText.substring(0, 300),
                 }
             }
-            
+
             console.log('✅ Réponse n8n pour post GMB individuel:', n8nResult)
-            
+
             return response.json({
                 success: true,
                 data: n8nResult,
@@ -1712,7 +1782,7 @@ export default class GmbPostsController {
                     id: post.id,
                     title: post.text?.substring(0, 50) + '...',
                     client: post.client,
-                    status: post.status
+                    status: post.status,
                 },
                 notion_config: {
                     instance: notionConfig.instance,
@@ -1724,13 +1794,12 @@ export default class GmbPostsController {
                     content_type: contentType,
                 },
             })
-
         } catch (error) {
             console.error('🚨 Erreur envoi post GMB individuel vers n8n:', error)
-            
+
             return response.status(500).json({
                 success: false,
-                message: 'Erreur lors de l\'envoi du post GMB vers n8n',
+                message: "Erreur lors de l'envoi du post GMB vers n8n",
                 error: error.message,
                 debug: {
                     webhook_url: process.env.N8N_WEBHOOK_URL || 'Non configurée',
@@ -1745,13 +1814,13 @@ export default class GmbPostsController {
             console.log('🚀 SEND GMB POSTS TO N8N - Utilisateur connecté:', {
                 id: auth.user?.id,
                 email: auth.user?.email,
-                username: auth.user?.username
+                username: auth.user?.username,
             })
-            
+
             // S'assurer qu'un utilisateur est connecté
             await auth.check()
             const currentUser = auth.user!
-            
+
             // Récupération de la configuration Notion de l'utilisateur connecté
             const notionConfig = await this.getUserNotionConfig(auth)
 
@@ -1759,7 +1828,8 @@ export default class GmbPostsController {
             if (!currentUser.notionId) {
                 return response.status(400).json({
                     success: false,
-                    message: 'Votre compte n\'est pas lié à Notion. Veuillez configurer votre notion_id.',
+                    message:
+                        "Votre compte n'est pas lié à Notion. Veuillez configurer votre notion_id.",
                 })
             }
 
@@ -1776,7 +1846,9 @@ export default class GmbPostsController {
                 })
             }
 
-            console.log(`🚀 Envoi de ${postsToGenerate.length} posts GMB vers n8n pour l'utilisateur ${currentUser.username}`)
+            console.log(
+                `🚀 Envoi de ${postsToGenerate.length} posts GMB vers n8n pour l'utilisateur ${currentUser.username}`
+            )
 
             // Préparer les données au même format que home.tsx mais avec les données GMB
             const gmbPostsData = postsToGenerate.map((post) => ({
@@ -1784,17 +1856,17 @@ export default class GmbPostsController {
                 id: post.id,
                 gmb_post_id: post.id, // ID spécifique GMB
                 notion_id: post.notion_id,
-                
+
                 // Informations principales
                 title: post.text || `Post GMB - ${post.client}`,
                 text: post.text,
                 status: post.status,
-                
+
                 // Dates
                 date: post.date?.toISO(),
                 created_time: post.createdAt?.toISO(),
                 last_edited_time: post.updatedAt?.toISO(),
-                
+
                 // Métadonnées GMB
                 client: post.client,
                 project_name: post.project_name,
@@ -1802,20 +1874,23 @@ export default class GmbPostsController {
                 keyword: post.keyword,
                 location_id: post.location_id,
                 account_id: post.account_id,
-                
+
                 // URLs
                 image_url: post.image_url,
                 link_url: post.link_url,
-                
+
+                // Informations supplémentaires
+                informations: post.informations,
+
                 // Utilisateur
                 user_id: post.user_id,
-                user_notion_id: currentUser.notionId,  // Utiliser notionId
+                user_notion_id: currentUser.notionId, // Utiliser notionId
             }))
 
             // URL du webhook n8n (réutiliser le même que home.tsx)
             const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL
             const n8nAuthToken = process.env.N8N_AUTH_TOKEN
-            
+
             if (!n8nWebhookUrl) {
                 throw new Error('URL du webhook n8n non configurée (N8N_WEBHOOK_URL)')
             }
@@ -1828,7 +1903,7 @@ export default class GmbPostsController {
 
             if (n8nAuthToken) {
                 headers['Authorization'] = `Bearer ${n8nAuthToken}`
-                console.log('🔐 Token d\'authentification ajouté')
+                console.log("🔐 Token d'authentification ajouté")
             }
 
             // Préparer les données pour n8n (même structure que home.tsx)
@@ -1838,36 +1913,37 @@ export default class GmbPostsController {
                 timestamp: new Date().toISOString(),
                 bulk_operation: true,
                 total_posts: gmbPostsData.length,
-                
+
                 // Configuration Notion de l'utilisateur connecté
                 notion_config: {
                     api_key: notionConfig.apiKey,
                     database_id: notionConfig.databaseId,
                     instance: notionConfig.instance,
                 },
-                
+
                 // Données utilisateur
                 user: {
                     id: currentUser.id,
                     username: currentUser.username,
                     email: currentUser.email,
-                    notion_id: currentUser.notionId,  // Utiliser notionId
+                    notion_id: currentUser.notionId, // Utiliser notionId
                 },
-                
+
                 // Posts GMB (utiliser la même clé que home.tsx pour compatibilité)
                 notion_pages: gmbPostsData, // Garder le même nom pour compatibilité avec le workflow n8n
                 gmb_posts: gmbPostsData, // Version alternative plus explicite
-                
+
                 // Statistiques
                 summary: {
                     total_posts: gmbPostsData.length,
-                    posts_with_text: gmbPostsData.filter(p => p.text && p.text.trim() !== '').length,
-                    posts_with_keyword: gmbPostsData.filter(p => p.keyword).length,
-                    posts_with_images: gmbPostsData.filter(p => p.image_url).length,
-                    posts_with_links: gmbPostsData.filter(p => p.link_url).length,
-                    unique_clients: [...new Set(gmbPostsData.map(p => p.client))].length,
-                    unique_projects: [...new Set(gmbPostsData.map(p => p.project_name))].length,
-                }
+                    posts_with_text: gmbPostsData.filter((p) => p.text && p.text.trim() !== '')
+                        .length,
+                    posts_with_keyword: gmbPostsData.filter((p) => p.keyword).length,
+                    posts_with_images: gmbPostsData.filter((p) => p.image_url).length,
+                    posts_with_links: gmbPostsData.filter((p) => p.link_url).length,
+                    unique_clients: [...new Set(gmbPostsData.map((p) => p.client))].length,
+                    unique_projects: [...new Set(gmbPostsData.map((p) => p.project_name))].length,
+                },
             }
 
             console.log('🎆 Envoi vers n8n:', {
@@ -1875,7 +1951,7 @@ export default class GmbPostsController {
                 total_posts: webhookData.total_posts,
                 user: currentUser.username,
                 notion_instance: notionConfig.instance,
-                summary: webhookData.summary
+                summary: webhookData.summary,
             })
 
             // Envoi vers n8n
@@ -1896,7 +1972,7 @@ export default class GmbPostsController {
             // Traitement de la réponse
             const contentType = n8nResponse.headers.get('content-type')
             const responseText = await n8nResponse.text()
-            
+
             let n8nResult
             try {
                 if (responseText.trim().startsWith('{') || responseText.trim().startsWith('[')) {
@@ -1918,15 +1994,15 @@ export default class GmbPostsController {
                     raw_response: responseText.substring(0, 300),
                 }
             }
-            
+
             console.log('✅ Réponse n8n pour posts GMB:', n8nResult)
-            
+
             return response.json({
                 success: true,
                 data: n8nResult,
                 message: `${gmbPostsData.length} posts GMB envoyés avec succès vers n8n`,
                 posts_sent: gmbPostsData.length,
-                user_notion_id: currentUser.notionId,  // Utiliser notionId
+                user_notion_id: currentUser.notionId, // Utiliser notionId
                 debug: {
                     webhook_url: n8nWebhookUrl,
                     total_posts_sent: gmbPostsData.length,
@@ -1934,13 +2010,12 @@ export default class GmbPostsController {
                     content_type: contentType,
                 },
             })
-
         } catch (error) {
             console.error('🚨 Erreur envoi posts GMB vers n8n:', error)
-            
+
             return response.status(500).json({
                 success: false,
-                message: 'Erreur lors de l\'envoi des posts GMB vers n8n',
+                message: "Erreur lors de l'envoi des posts GMB vers n8n",
                 error: error.message,
                 debug: {
                     webhook_url: process.env.N8N_WEBHOOK_URL || 'Non configurée',
