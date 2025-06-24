@@ -35,15 +35,29 @@ export const CreatePostModal = ({
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault()
         post('/gmb-posts', {
-            onSuccess: () => {
+            preserveState: true, // Préserver l'état des filtres
+            preserveScroll: true, // ✅ AJOUT: Préserver la position de scroll
+            only: ['posts'], // ✅ AJOUT: Ne rafraîchir que les données des posts
+            replace: false, // ✅ AJOUT: Ne pas remplacer l'historique
+            onStart: () => {
+                console.log('💻 Début création de post')
+            },
+            onSuccess: (page) => {
+                console.log('=== SUCCÈS CRÉATION POST ===')
                 console.log('Post créé avec succès')
+                console.log('Page reçue:', page)
+                console.log('===============================')
                 onClose()
                 reset()
-                // Rafraîchir la page pour voir le nouveau post
-                window.location.reload()
+                // ❌ SUPPRESSION: Plus de window.location.reload() !
             },
             onError: (errors) => {
+                console.log('=== ERREUR CRÉATION POST ===')
                 console.error('Erreur création post:', errors)
+                console.log('==============================')
+            },
+            onFinish: () => {
+                console.log('🏁 Création de post terminée')
             }
         })
     }

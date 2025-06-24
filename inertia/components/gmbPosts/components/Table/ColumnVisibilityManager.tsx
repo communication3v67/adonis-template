@@ -1,6 +1,6 @@
-import { ActionIcon, Button, Divider, Drawer, Group, Stack, Switch, Text } from '@mantine/core'
-import { useState } from 'react'
-import { LuEye, LuEyeOff, LuSettings2 } from 'react-icons/lu'
+import { ActionIcon, Button, Divider, Drawer, Group, Stack, Switch, Text, Badge } from '@mantine/core'
+import { useState, useEffect } from 'react'
+import { LuEye, LuEyeOff, LuSettings2, LuSave } from 'react-icons/lu'
 
 export interface ColumnConfig {
     key: string
@@ -16,25 +16,38 @@ interface ColumnVisibilityManagerProps {
     columns: ColumnConfig[]
     onColumnsChange: (columns: ColumnConfig[]) => void
     onResetWidths?: () => void
+    onResetToDefaults?: () => void
 }
 
 export const ColumnVisibilityManager = ({
     columns,
     onColumnsChange,
     onResetWidths,
+    onResetToDefaults,
 }: ColumnVisibilityManagerProps) => {
     const [drawerOpened, setDrawerOpened] = useState(false)
+    const [saveIndicator, setSaveIndicator] = useState(false)
+
+    // Afficher un indicateur temporaire lors des sauvegardes
+    useEffect(() => {
+        if (saveIndicator) {
+            const timer = setTimeout(() => setSaveIndicator(false), 1500)
+            return () => clearTimeout(timer)
+        }
+    }, [saveIndicator])
 
     const toggleColumn = (key: string) => {
         const updatedColumns = columns.map((col) =>
             col.key === key ? { ...col, visible: !col.visible } : col
         )
         onColumnsChange(updatedColumns)
+        setSaveIndicator(true)
     }
 
     const showAllColumns = () => {
         const updatedColumns = columns.map((col) => ({ ...col, visible: true }))
         onColumnsChange(updatedColumns)
+        setSaveIndicator(true)
     }
 
     const hideOptionalColumns = () => {
@@ -42,6 +55,7 @@ export const ColumnVisibilityManager = ({
             col.required ? col : { ...col, visible: false }
         )
         onColumnsChange(updatedColumns)
+        setSaveIndicator(true)
     }
 
     const visibleCount = columns.filter((col) => col.visible).length
@@ -69,11 +83,21 @@ export const ColumnVisibilityManager = ({
                 size="md"
             >
                 <Stack gap="md">
-                    {/* Statistiques */}
+                    {/* Statistiques et indicateur de sauvegarde */}
                     <Group justify="space-between">
                         <Text size="sm" c="dimmed">
                             {visibleCount} sur {totalCount} colonnes visibles
                         </Text>
+                        {saveIndicator && (
+                            <Badge
+                                variant="light"
+                                color="green"
+                                size="sm"
+                                leftSection={<LuSave size={12} />}
+                            >
+                                Sauvegardé
+                            </Badge>
+                        )}
                     </Group>
 
                     {/* Actions rapides */}
@@ -92,6 +116,16 @@ export const ColumnVisibilityManager = ({
                                 onClick={onResetWidths}
                             >
                                 Réinitialiser largeurs
+                            </Button>
+                        )}
+                        {onResetToDefaults && (
+                            <Button
+                                size="xs"
+                                variant="light"
+                                color="red"
+                                onClick={onResetToDefaults}
+                            >
+                                Réinitialiser tout
                             </Button>
                         )}
                     </Group>

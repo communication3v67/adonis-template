@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
-import { Box, Table, Text, Group } from '@mantine/core'
+import { Box, Group, Table } from '@mantine/core'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { LuGripVertical } from 'react-icons/lu'
 
 interface ResizableColumnProps {
@@ -11,34 +11,40 @@ interface ResizableColumnProps {
     style?: React.CSSProperties
 }
 
-export const ResizableColumn = ({ 
-    children, 
-    width, 
-    minWidth = 60, 
-    maxWidth = 800, 
-    onResize, 
-    style = {} 
+export const ResizableColumn = ({
+    children,
+    width,
+    minWidth = 60,
+    maxWidth = 800,
+    onResize,
+    style = {},
 }: ResizableColumnProps) => {
     const [isResizing, setIsResizing] = useState(false)
     const startXRef = useRef<number>(0)
     const startWidthRef = useRef<number>(width)
 
-    const handleMouseDown = useCallback((e: React.MouseEvent) => {
-        e.preventDefault()
-        setIsResizing(true)
-        startXRef.current = e.clientX
-        startWidthRef.current = width
-        document.body.style.cursor = 'col-resize'
-        document.body.style.userSelect = 'none'
-    }, [width])
+    const handleMouseDown = useCallback(
+        (e: React.MouseEvent) => {
+            e.preventDefault()
+            setIsResizing(true)
+            startXRef.current = e.clientX
+            startWidthRef.current = width
+            document.body.style.cursor = 'col-resize'
+            document.body.style.userSelect = 'none'
+        },
+        [width]
+    )
 
-    const handleMouseMove = useCallback((e: MouseEvent) => {
-        if (!isResizing) return
+    const handleMouseMove = useCallback(
+        (e: MouseEvent) => {
+            if (!isResizing) return
 
-        const diff = e.clientX - startXRef.current
-        const newWidth = Math.max(minWidth, Math.min(maxWidth, startWidthRef.current + diff))
-        onResize(newWidth)
-    }, [isResizing, minWidth, maxWidth, onResize])
+            const diff = e.clientX - startXRef.current
+            const newWidth = Math.max(minWidth, Math.min(maxWidth, startWidthRef.current + diff))
+            onResize(newWidth)
+        },
+        [isResizing, minWidth, maxWidth, onResize]
+    )
 
     const handleMouseUp = useCallback(() => {
         setIsResizing(false)
@@ -66,19 +72,19 @@ export const ResizableColumn = ({
                 position: 'relative',
                 padding: '8px',
                 verticalAlign: 'middle',
-                borderRight: '1px solid #e9ecef'
+                borderRight: '1px solid #ffffff',
+                background: '#ebf3fa',
+                color: '#3785d1',
             }}
         >
             <Group justify="space-between" wrap="nowrap" gap={4}>
-                <Box flex={1}>
-                    {children}
-                </Box>
+                <Box flex={1}>{children}</Box>
                 <Box
                     style={{
                         display: 'flex',
                         alignItems: 'center',
                         opacity: 0.4,
-                        transition: 'opacity 0.15s ease'
+                        transition: 'opacity 0.15s ease',
                     }}
                     onMouseEnter={(e) => {
                         e.currentTarget.style.opacity = '0.7'
@@ -87,7 +93,7 @@ export const ResizableColumn = ({
                         e.currentTarget.style.opacity = '0.4'
                     }}
                 >
-                    <LuGripVertical size={14} color="#868e96" />
+                    <LuGripVertical size={14} color="#3785d1" />
                 </Box>
             </Group>
             {/* Handle de redimensionnement */}
@@ -105,7 +111,7 @@ export const ResizableColumn = ({
                     transition: 'all 0.15s ease',
                     zIndex: 10,
                     borderRadius: '2px',
-                    boxShadow: isResizing ? '0 0 4px rgba(34, 139, 230, 0.4)' : 'none'
+                    boxShadow: isResizing ? '0 0 4px rgba(34, 139, 230, 0.4)' : 'none',
                 }}
                 onMouseEnter={(e) => {
                     e.currentTarget.style.opacity = '0.7'

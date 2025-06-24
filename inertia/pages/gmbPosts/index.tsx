@@ -1,9 +1,10 @@
 import { Head, router } from '@inertiajs/react'
 import { Stack } from '@mantine/core'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { ColumnConfig } from '../../components/gmbPosts/components/Table/ColumnVisibilityManager'
 import { SSE_CLIENT_CONFIG } from '../../config/sse'
 import { useSSE } from '../../hooks/useSSE'
+import { useColumnPersistence } from '../../hooks/useColumnPersistence'
 import { advancedFiltersToUrlParams } from '../../components/gmbPosts/components/AdvancedFilters'
 
 // Types et hooks
@@ -44,176 +45,12 @@ export default function GmbPostsIndex({
     const [pendingUpdates, setPendingUpdates] = useState<number>(0)
     const [refreshKey, setRefreshKey] = useState<number>(0) // Clé pour forcer le re-render
     const [createModalOpened, setCreateModalOpened] = useState(false)
+    const [isResetting, setIsResetting] = useState(false) // État pour la réinitialisation
 
-    // Configuration des colonnes avec largeurs par défaut
-    const [columns, setColumns] = useState<ColumnConfig[]>([
-        {
-            key: 'checkbox',
-            label: 'Sélection',
-            visible: true,
-            width: 80,
-            minWidth: 60,
-            maxWidth: 100,
-            required: true,
-        },
-        {
-            key: 'readiness',
-            label: '✓',
-            visible: true,
-            width: 50,
-            minWidth: 40,
-            maxWidth: 70,
-            required: true,
-        },
-        { key: 'status', label: 'Statut', visible: true, width: 220, minWidth: 150, maxWidth: 300 },
-        { key: 'text', label: 'Texte', visible: true, width: 600, minWidth: 250, maxWidth: 900 },
-        { key: 'date', label: 'Date', visible: true, width: 220, minWidth: 150, maxWidth: 270 },
-        {
-            key: 'keyword',
-            label: 'Mot-clé',
-            visible: true,
-            width: 200,
-            minWidth: 130,
-            maxWidth: 300,
-        },
-        { key: 'client', label: 'Client', visible: true, width: 220, minWidth: 150, maxWidth: 350 },
-        {
-            key: 'project_name',
-            label: 'Projet',
-            visible: true,
-            width: 250,
-            minWidth: 150,
-            maxWidth: 400,
-        },
-        { key: 'city', label: 'Ville', visible: true, width: 190, minWidth: 130, maxWidth: 300 },
-        { key: 'price', label: 'Prix IA', visible: true, width: 160, minWidth: 120, maxWidth: 220 },
-        {
-            key: 'model',
-            label: 'Modèle IA',
-            visible: false,
-            width: 180,
-            minWidth: 130,
-            maxWidth: 250,
-        },
-        {
-            key: 'input_tokens',
-            label: 'Tokens In',
-            visible: false,
-            width: 160,
-            minWidth: 120,
-            maxWidth: 200,
-        },
-        {
-            key: 'output_tokens',
-            label: 'Tokens Out',
-            visible: false,
-            width: 160,
-            minWidth: 120,
-            maxWidth: 200,
-        },
-        {
-            key: 'image_url',
-            label: 'Image',
-            visible: true,
-            width: 160,
-            minWidth: 120,
-            maxWidth: 250,
-        },
-        { key: 'link_url', label: 'Lien', visible: true, width: 160, minWidth: 120, maxWidth: 250 },
-        {
-            key: 'location_id',
-            label: 'Location ID',
-            visible: false,
-            width: 200,
-            minWidth: 150,
-            maxWidth: 300,
-        },
-        {
-            key: 'account_id',
-            label: 'Account ID',
-            visible: false,
-            width: 200,
-            minWidth: 150,
-            maxWidth: 300,
-        },
-        {
-            key: 'notion_id',
-            label: 'Notion ID',
-            visible: false,
-            width: 200,
-            minWidth: 150,
-            maxWidth: 300,
-        },
-        {
-            key: 'informations',
-            label: 'Informations',
-            visible: true,
-            width: 300,
-            minWidth: 200,
-            maxWidth: 500,
-        },
-        {
-            key: 'actions',
-            label: 'Actions',
-            visible: true,
-            width: 220,
-            minWidth: 180,
-            maxWidth: 280,
-            required: true,
-        },
-    ])
+    // Configuration des colonnes avec persistance
+    const { columns, setColumns, resetWidths, resetToDefaults, isLoaded: columnsLoaded, isSaving } = useColumnPersistence()
 
-    // Fonction pour réinitialiser les largeurs
-    const resetWidths = () => {
-        setColumns((prev) =>
-            prev.map((col) => {
-                switch (col.key) {
-                    case 'checkbox':
-                        return { ...col, width: 80 }
-                    case 'readiness':
-                        return { ...col, width: 50 }
-                    case 'status':
-                        return { ...col, width: 220 }
-                    case 'text':
-                        return { ...col, width: 600 }
-                    case 'date':
-                        return { ...col, width: 220 }
-                    case 'keyword':
-                        return { ...col, width: 200 }
-                    case 'client':
-                        return { ...col, width: 220 }
-                    case 'project_name':
-                        return { ...col, width: 250 }
-                    case 'city':
-                        return { ...col, width: 190 }
-                    case 'price':
-                        return { ...col, width: 160 }
-                    case 'model':
-                        return { ...col, width: 180 }
-                    case 'input_tokens':
-                        return { ...col, width: 160 }
-                    case 'output_tokens':
-                        return { ...col, width: 160 }
-                    case 'image_url':
-                        return { ...col, width: 160 }
-                    case 'link_url':
-                        return { ...col, width: 160 }
-                    case 'location_id':
-                        return { ...col, width: 200 }
-                    case 'account_id':
-                        return { ...col, width: 200 }
-                    case 'notion_id':
-                        return { ...col, width: 200 }
-                    case 'informations':
-                        return { ...col, width: 300 }
-                    case 'actions':
-                        return { ...col, width: 220 }
-                    default:
-                        return col
-                }
-            })
-        )
-    }
+
 
     // Hook pour les filtres avancés (doit être déclaré avant useFilters)
     const {
@@ -289,9 +126,11 @@ export default function GmbPostsIndex({
     } = usePostActions()
 
     // Fonction pour rafraîchir les données en préservant TOUS les filtres (base + avancés)
-    const refreshData = () => {
-        console.log('🔄 Rafraîchissement des données via Inertia...')
-        setRefreshKey((prev) => prev + 1) // Forcer le re-render des hooks
+    const refreshData = useCallback(() => {
+        console.log('🔄 Rafraîchissement fluide des données...')
+        
+        // Incrémenter la clé de rafraîchissement sans forcer un re-render brutal
+        setRefreshKey((prev) => prev + 1)
         
         // Construire les paramètres avec TOUS les filtres
         let allParams = { ...filters }
@@ -305,21 +144,28 @@ export default function GmbPostsIndex({
         
         console.log('🚀 Paramètres de rafraîchissement complets:', allParams)
         
-        // Utiliser les filtres complets pour le rafraîchissement
+        // Utiliser les filtres complets pour le rafraîchissement SANS preserveScroll pour éviter les saccades
         router.get('/gmb-posts', allParams, {
-            only: ['posts', 'postsToGenerateCount'],
-            preserveState: true,
-            replace: true,
+            only: ['posts', 'postsToGenerateCount'], // Rafraîchir seulement les données nécessaires
+            preserveState: true, // Préserver l'état des composants
+            preserveScroll: true, // Éviter les saccades de scroll
+            replace: true, // Remplacer l'historique
+            onStart: () => {
+                console.log('💻 Début du rafraîchissement des données')
+            },
             onSuccess: () => {
                 console.log('✅ Données rafraîchies avec succès (tous filtres préservés)')
                 setPendingUpdates(0)
                 setLastUpdateTime(new Date().toLocaleTimeString())
             },
-            onError: () => {
-                console.error('❌ Erreur lors du rafraîchissement')
+            onError: (errors) => {
+                console.error('❌ Erreur lors du rafraîchissement:', errors)
             },
+            onFinish: () => {
+                console.log('🏁 Rafraîchissement terminé')
+            }
         })
-    }
+    }, [filters, hasActiveAdvancedFilters, advancedFilters])
 
     // Gestion de l'hydratation et SSE
     useEffect(() => {
@@ -338,6 +184,9 @@ export default function GmbPostsIndex({
             setCallbacks({
                 onPostUpdate: (event) => {
                     console.log('📨 Post update reçu:', event)
+                    
+                    // Marquer le timestamp de la dernière mise à jour SSE
+                    window.lastSSEUpdate = window.performance.now()
 
                     setPendingUpdates((prev) => prev + 1)
 
@@ -458,45 +307,33 @@ export default function GmbPostsIndex({
     }
 
     // Gestion de la réinitialisation unifiée de tous les filtres
-    const handleResetAll = () => {
-        console.log('🔄 Réinitialisation UNIFIÉE - Version simplifiée')
+    const handleResetAll = useCallback(() => {
+        console.log('🔄 RÉINITIALISATION FLUIDE - Utilisation Inertia')
         
-        // Définir les valeurs de réinitialisation
-        const resetFiltersData = {
-            search: '',
-            status: '',
-            client: '',
-            project: '',
-            sortBy: 'date',
-            sortOrder: 'desc',
-            dateFrom: '',
-            dateTo: '',
-        }
-        
-        // 1. Réinitialiser IMMEDIATEMENT les filtres avancés
+        // 1. Réinitialiser les filtres avancés
         resetAdvancedFilters()
         
-        // 2. Forcer la mise à jour des filtres rapides
-        updateFilter('search', '')
-        updateFilter('status', '')
-        updateFilter('client', '')
-        updateFilter('project', '')
-        updateFilter('dateFrom', '')
-        updateFilter('dateTo', '')
-        updateFilter('sortBy', 'date')
-        updateFilter('sortOrder', 'desc')
-        
-        // 3. Forcer le re-render
+        // 2. Utiliser Inertia pour un rechargement plus fluide
         setTimeout(() => {
-            router.get('/gmb-posts', resetFiltersData, {
-                preserveState: true,
-                replace: true,
+            console.log('🚀 Navigation Inertia vers page vierge')
+            router.visit('/gmb-posts', {
+                method: 'get',
+                data: {}, // Aucun paramètre = filtres vides
+                preserveState: false, // Ne pas préserver l'état
+                preserveScroll: false, // Remonter en haut
+                replace: true, // Remplacer l'historique
+                onStart: () => {
+                    console.log('💻 Début navigation réinitialisation')
+                },
                 onSuccess: () => {
-                    console.log('✅ Réinitialisation unifiée terminée')
+                    console.log('✅ Réinitialisation terminée avec succès')
+                },
+                onError: (errors) => {
+                    console.error('❌ Erreur réinitialisation:', errors)
                 }
             })
-        }, 150)
-    }
+        }, 100)
+    }, [resetAdvancedFilters])
 
     // Gestion des actions en masse avec nettoyage de sélection
     const handleBulkEditWithClear = () => {
@@ -541,9 +378,56 @@ export default function GmbPostsIndex({
 
     return (
         <>
-            <Head title="Posts GMB" />
+            <Head title="Posts GMB">
+                <style>{`
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                    .loading-spinner {
+                        width: 40px;
+                        height: 40px;
+                        border: 3px solid #e9ecef;
+                        border-top: 3px solid #228be6;
+                        border-radius: 50%;
+                        animation: spin 1s linear infinite;
+                        margin: 0 auto 16px;
+                    }
+                `}</style>
+            </Head>
 
-            <Stack gap="md">
+            {/* Loader d'hydratation pour éviter l'écran noir */}
+            {(!isClient || !columnsLoaded) && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 9999,
+                    fontFamily: 'system-ui, -apple-system, sans-serif'
+                }}>
+                    <div style={{
+                        textAlign: 'center',
+                        color: '#495057'
+                    }}>
+                        <div className="loading-spinner"></div>
+                        <div style={{ 
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            color: '#6c757d'
+                        }}>Chargement de l'application...</div>
+                    </div>
+                </div>
+            )}
+
+            {/* Contenu principal - masqué jusqu'à l'hydratation complète */}
+            <div style={{ opacity: (isClient && columnsLoaded) ? 1 : 0, transition: 'opacity 0.3s ease' }}>
+                <Stack gap="md">
                 {/* En-tête */}
                 <PageHeader
                     currentUser={currentUser}
@@ -612,6 +496,7 @@ export default function GmbPostsIndex({
                         columns={columns}
                         onColumnsChange={setColumns}
                         onResetWidths={resetWidths}
+                        onResetToDefaults={resetToDefaults}
                     />
 
                     {/* Tableau des posts */}
@@ -668,7 +553,8 @@ export default function GmbPostsIndex({
                     response={webhookResponse}
                     onClose={closeWebhookModal}
                 />
-            </Stack>
+                </Stack>
+            </div>
         </>
     )
 }

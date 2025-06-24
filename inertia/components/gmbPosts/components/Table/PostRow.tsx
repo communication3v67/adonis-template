@@ -12,7 +12,7 @@ interface PostRowProps {
     sendingSinglePost: number | null
     filterOptions: FilterOptions
     visibleColumns: ColumnConfig[]
-    getColumnWidth: (key: string) => string
+    getColumnWidth: (key: string) => number
     onSelect: (postId: number) => void
     onInlineEdit: (postId: number, field: string, value: string) => Promise<void>
     onEdit: (post: GmbPost) => void
