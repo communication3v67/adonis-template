@@ -1,13 +1,12 @@
 import { Button, Card, Group, Stack, Text, Accordion, Badge, Divider } from '@mantine/core'
 import { LuSearch, LuX, LuFilter, LuSettings } from 'react-icons/lu'
-import { FilterState, FilterOptions } from '../../types'
+import { FilterState, FilterOptions, AdvancedFilterState } from '../../types'
 import { SearchInput } from './SearchInput'
 import { FilterDropdowns } from './FilterDropdowns'
 import { DateFilters } from './DateFilters'
 import { QuickFilters } from './QuickFilters'
 import { FilterBadges } from './FilterBadges'
 import { AdvancedFiltersPanel } from '../AdvancedFilters'
-import { useAdvancedFilters } from '../../hooks/useAdvancedFilters'
 
 interface FilterSectionProps {
     filters: FilterState
@@ -19,6 +18,12 @@ interface FilterSectionProps {
     onApplyFilters: () => void
     onResetFilters: () => void
     onRemoveFilter: (key: keyof FilterState) => void
+    // Props pour les filtres avancés (passés depuis la page parent)
+    advancedFilters: AdvancedFilterState
+    advancedActiveFiltersCount: number
+    hasActiveAdvancedFilters: boolean
+    onApplyAdvancedFilters: (filters: AdvancedFilterState) => void
+    onResetAdvancedFilters: () => void
 }
 
 export const FilterSection = ({
@@ -31,14 +36,21 @@ export const FilterSection = ({
     onApplyFilters,
     onResetFilters,
     onRemoveFilter,
+    // Props pour les filtres avancés
+    advancedFilters,
+    advancedActiveFiltersCount,
+    hasActiveAdvancedFilters,
+    onApplyAdvancedFilters,
+    onResetAdvancedFilters,
 }: FilterSectionProps) => {
-    const {
-        advancedFilters,
-        activeFiltersCount,
-        hasActiveAdvancedFilters,
-        applyAdvancedFilters,
-        resetAdvancedFilters
-    } = useAdvancedFilters(filters)
+    // Supprimer le hook useAdvancedFilters local car maintenant passé en props
+    // const {
+    //     advancedFilters,
+    //     activeFiltersCount,
+    //     hasActiveAdvancedFilters,
+    //     applyAdvancedFilters,
+    //     resetAdvancedFilters
+    // } = useAdvancedFilters(filters)
 
     const handleRemoveFilter = (key: keyof FilterState) => {
         if (key === 'dateFrom') {
@@ -63,7 +75,7 @@ export const FilterSection = ({
                                     color="blue" 
                                     leftSection={<LuFilter size={12} />}
                                 >
-                                    {activeFiltersCount} filtres avancés
+                                    {advancedActiveFiltersCount} filtres avancés
                                 </Badge>
                             )}
                         </Group>
@@ -144,7 +156,7 @@ export const FilterSection = ({
                                     <Text fw={500}>Filtres avancés</Text>
                                     {hasActiveAdvancedFilters && (
                                         <Badge size="sm" variant="filled" color="blue">
-                                            {activeFiltersCount}
+                                            {advancedActiveFiltersCount}
                                         </Badge>
                                     )}
                                 </Group>
@@ -153,8 +165,8 @@ export const FilterSection = ({
                                 <AdvancedFiltersPanel
                                     filters={advancedFilters}
                                     filterOptions={filterOptions}
-                                    onApply={applyAdvancedFilters}
-                                    onReset={resetAdvancedFilters}
+                                    onApply={onApplyAdvancedFilters}
+                                    onReset={onResetAdvancedFilters}
                                 />
                             </Accordion.Panel>
                         </Accordion.Item>

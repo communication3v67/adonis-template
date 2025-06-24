@@ -33,6 +33,8 @@ export const usePostActions = () => {
             console.log('========================')
 
             router.put(`/gmb-posts/${postId}`, updateData, {
+                preserveState: true, // Préserver l'état des filtres
+                preserveScroll: true, // Préserver la position de scroll
                 onSuccess: (page) => {
                     console.log('=== SUCCÈS INLINE ===')
                     console.log('Page reçue:', page)
@@ -71,6 +73,7 @@ export const usePostActions = () => {
             console.log('========================')
 
             router.delete(`/gmb-posts/${postId}`, {
+                preserveState: true, // Préserver l'état des filtres
                 onSuccess: () => {
                     console.log('=== SUCCÈS SUPPRESSION ===')
                     console.log('Post supprimé avec succès')
@@ -107,6 +110,7 @@ export const usePostActions = () => {
             `/gmb-posts/${postId}/duplicate`,
             {},
             {
+                preserveState: true, // Préserver l'état des filtres
                 onSuccess: () => {
                     console.log('=== SUCCÈS DUPLICATION ===')
                     console.log('Post dupliqué avec succès')

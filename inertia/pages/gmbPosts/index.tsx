@@ -4,12 +4,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { ColumnConfig } from '../../components/gmbPosts/components/Table/ColumnVisibilityManager'
 import { SSE_CLIENT_CONFIG } from '../../config/sse'
 import { useSSE } from '../../hooks/useSSE'
+import { advancedFiltersToUrlParams } from '../../components/gmbPosts/components/AdvancedFilters'
 
 // Types et hooks
 import {
     GmbPostsPageProps,
     useBulkActions,
     useFilters,
+    useAdvancedFilters,
     useInfiniteScroll,
     usePostActions,
     useSelection,
@@ -21,7 +23,7 @@ import {
     BulkActionBar,
     CreatePostModal,
     EditPostModal,
-    FilterSection,
+    UnifiedFilterSection,
     PageHeader,
     PostsTable,
     StatusIndicators,
@@ -213,9 +215,23 @@ export default function GmbPostsIndex({
         )
     }
 
-    // Hooks personnalisés
-    const { filters, updateFilter, isApplyingFilters, applyFilters, resetFilters, handleSort } =
-        useFilters(initialFilters)
+    // Hook pour les filtres avancés (doit être déclaré avant useFilters)
+    const {
+        advancedFilters,
+        activeFiltersCount: advancedActiveFiltersCount,
+        hasActiveAdvancedFilters,
+        applyAdvancedFilters,
+        resetAdvancedFilters,
+        hasConflictsWithBasic
+    } = useAdvancedFilters(initialFilters, (conflicts) => {
+        console.log('🚨 Conflits détectés:', conflicts)
+        // Optionnel : résoudre automatiquement les conflits
+        // clearConflictingFilters(conflicts)
+    })
+
+    // Hook personnalisé pour les filtres rapides avec harmonisation
+    const { filters, updateFilter, isApplyingFilters, applyFilters, resetFilters, resetAllFilters, handleSort, hasConflictsWithAdvanced, clearConflictingFilters, forceUpdateKey } =
+        useFilters(initialFilters, advancedFilters)
 
     // Forcer la mise à jour des hooks dépendants en cas de changement SSE
     const processedPosts = useMemo(() => {
@@ -272,14 +288,30 @@ export default function GmbPostsIndex({
         handleDuplicate,
     } = usePostActions()
 
-    // Fonction pour rafraîchir les données
+    // Fonction pour rafraîchir les données en préservant TOUS les filtres (base + avancés)
     const refreshData = () => {
         console.log('🔄 Rafraîchissement des données via Inertia...')
         setRefreshKey((prev) => prev + 1) // Forcer le re-render des hooks
-        router.reload({
+        
+        // Construire les paramètres avec TOUS les filtres
+        let allParams = { ...filters }
+        
+        // Ajouter les filtres avancés s'ils sont actifs
+        if (hasActiveAdvancedFilters) {
+            const advancedParams = advancedFiltersToUrlParams(advancedFilters)
+            allParams = { ...allParams, ...advancedParams }
+            console.log('✨ Filtres avancés inclus dans le rafraîchissement:', advancedParams)
+        }
+        
+        console.log('🚀 Paramètres de rafraîchissement complets:', allParams)
+        
+        // Utiliser les filtres complets pour le rafraîchissement
+        router.get('/gmb-posts', allParams, {
             only: ['posts', 'postsToGenerateCount'],
+            preserveState: true,
+            replace: true,
             onSuccess: () => {
-                console.log('✅ Données rafraîchies avec succès')
+                console.log('✅ Données rafraîchies avec succès (tous filtres préservés)')
                 setPendingUpdates(0)
                 setLastUpdateTime(new Date().toLocaleTimeString())
             },
@@ -358,7 +390,7 @@ export default function GmbPostsIndex({
         })
     }, [posts, refreshKey])
 
-    // Calcul du nombre de filtres actifs
+    // Calcul du nombre de filtres actifs (rapides uniquement)
     const activeFiltersCount = [
         filters.search,
         filters.status,
@@ -367,6 +399,13 @@ export default function GmbPostsIndex({
         filters.dateFrom,
         filters.dateTo,
     ].filter(Boolean).length
+
+    // Calcul du nombre total de filtres actifs (rapides + avancés)
+    const totalActiveFilters = activeFiltersCount + advancedActiveFiltersCount
+    const hasAnyActiveFilters = totalActiveFilters > 0
+
+    // Détecter les conflits entre les deux systèmes
+    const hasFilterConflicts = hasConflictsWithAdvanced() || hasConflictsWithBasic()
 
     // Filtrer les posts "Post à générer" pour validation
     const postsToGenerate = useMemo(() => {
@@ -386,7 +425,7 @@ export default function GmbPostsIndex({
         setCreateModalOpened(true)
     }
 
-    // Gestion de l'export CSV
+    // Gestion de l'export CSV avec tous les filtres (rapides + avancés)
     const handleExport = () => {
         // Construire l'URL avec les filtres actuels
         const params = new URLSearchParams()
@@ -401,12 +440,62 @@ export default function GmbPostsIndex({
         if (filters.sortBy) params.append('sortBy', filters.sortBy)
         if (filters.sortOrder) params.append('sortOrder', filters.sortOrder)
 
+        // Ajouter les filtres avancés s'ils sont actifs
+        if (hasActiveAdvancedFilters) {
+            const advancedParams = advancedFiltersToUrlParams(advancedFilters)
+            Object.entries(advancedParams).forEach(([key, value]) => {
+                params.append(key, value)
+            })
+            console.log('✨ Filtres avancés inclus dans l\'export:', advancedParams)
+        }
+
         // Forcer le format CSV
         params.append('format', 'csv')
 
         // Télécharger le fichier
         const url = `/gmb-posts/export?${params.toString()}`
         window.open(url, '_blank')
+    }
+
+    // Gestion de la réinitialisation unifiée de tous les filtres
+    const handleResetAll = () => {
+        console.log('🔄 Réinitialisation UNIFIÉE - Version simplifiée')
+        
+        // Définir les valeurs de réinitialisation
+        const resetFiltersData = {
+            search: '',
+            status: '',
+            client: '',
+            project: '',
+            sortBy: 'date',
+            sortOrder: 'desc',
+            dateFrom: '',
+            dateTo: '',
+        }
+        
+        // 1. Réinitialiser IMMEDIATEMENT les filtres avancés
+        resetAdvancedFilters()
+        
+        // 2. Forcer la mise à jour des filtres rapides
+        updateFilter('search', '')
+        updateFilter('status', '')
+        updateFilter('client', '')
+        updateFilter('project', '')
+        updateFilter('dateFrom', '')
+        updateFilter('dateTo', '')
+        updateFilter('sortBy', 'date')
+        updateFilter('sortOrder', 'desc')
+        
+        // 3. Forcer le re-render
+        setTimeout(() => {
+            router.get('/gmb-posts', resetFiltersData, {
+                preserveState: true,
+                replace: true,
+                onSuccess: () => {
+                    console.log('✅ Réinitialisation unifiée terminée')
+                }
+            })
+        }, 150)
     }
 
     // Gestion des actions en masse avec nettoyage de sélection
@@ -466,17 +555,26 @@ export default function GmbPostsIndex({
                     onExport={handleExport}
                 />
 
-                {/* Section des filtres */}
-                <FilterSection
+                {/* Section des filtres unifiée avec gestion des conflits */}
+                <UnifiedFilterSection
+                    key={`filters-${forceUpdateKey}`} // Forcer le re-render lors de la réinitialisation
                     filters={filters}
                     filterOptions={filterOptions}
                     totalResults={posts.meta.total}
                     isApplyingFilters={isApplyingFilters}
+                    basicActiveFiltersCount={activeFiltersCount}
+                    advancedActiveFiltersCount={advancedActiveFiltersCount}
+                    totalActiveFilters={totalActiveFilters}
+                    hasAnyActiveFilters={hasAnyActiveFilters}
+                    forceUpdateKey={forceUpdateKey} // Passer la clé comme prop
                     onUpdateFilter={updateFilter}
                     onUpdateDateRange={handleUpdateDateRange}
-                    onApplyFilters={applyFilters}
-                    onResetFilters={resetFilters}
-                    onRemoveFilter={(key) => updateFilter(key, '')}
+                    onResetAllFilters={handleResetAll}
+                    // Props pour les filtres avancés
+                    advancedFilters={advancedFilters}
+                    hasActiveAdvancedFilters={hasActiveAdvancedFilters}
+                    onUpdateAdvancedFilters={applyAdvancedFilters}
+                    onResetAdvancedFilters={resetAdvancedFilters}
                 />
 
                 {/* Actions en masse */}
