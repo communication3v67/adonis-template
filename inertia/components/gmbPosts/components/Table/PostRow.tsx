@@ -1,10 +1,10 @@
-import { Checkbox, Box, Group, Tooltip } from '@mantine/core'
+import { Checkbox, Tooltip } from '@mantine/core'
+import { LuCircleAlert, LuCircleCheck, LuClock, LuRefreshCw, LuX } from 'react-icons/lu'
+import { calculatePrice } from '../../../../utils/pricing'
 import { FilterOptions, GmbPost } from '../../types'
 import { ActionsCell } from './ActionsCell'
 import { ColumnConfig } from './ColumnVisibilityManager'
 import { InlineEditCell } from './InlineEditCell'
-import { calculatePrice } from '../../../../utils/pricing'
-import { LuRefreshCw, LuClock, LuCheck, LuCircleAlert, LuX, LuCircleCheck } from 'react-icons/lu'
 
 interface PostRowProps {
     post: GmbPost
@@ -51,10 +51,7 @@ export const PostRow = ({
                     withArrow
                     position="right"
                 >
-                    <LuRefreshCw 
-                        size={14} 
-                        style={{ color: '#fd7e14', cursor: 'help' }} 
-                    />
+                    <LuRefreshCw size={14} style={{ color: '#fd7e14', cursor: 'help' }} />
                 </Tooltip>
             )
         }
@@ -68,10 +65,7 @@ export const PostRow = ({
                     withArrow
                     position="right"
                 >
-                    <LuClock 
-                        size={14} 
-                        style={{ color: '#fd7e14', cursor: 'help' }} 
-                    />
+                    <LuClock size={14} style={{ color: '#fd7e14', cursor: 'help' }} />
                 </Tooltip>
             )
         }
@@ -81,21 +75,13 @@ export const PostRow = ({
             const hasText = isFieldFilled(post.text)
             const hasKeyword = isFieldFilled(post.keyword)
             const hasClient = isFieldFilled(post.client)
-            
+
             const isReadyForGeneration = hasText && hasKeyword && hasClient
-            
+
             if (isReadyForGeneration) {
                 return (
-                    <Tooltip
-                        label="Prêt pour la génération"
-                        multiline
-                        withArrow
-                        position="right"
-                    >
-                        <LuCircleCheck 
-                            size={14} 
-                            style={{ color: '#40c057', cursor: 'help' }} 
-                        />
+                    <Tooltip label="Prêt pour la génération" multiline withArrow position="right">
+                        <LuCircleCheck size={14} style={{ color: '#40c057', cursor: 'help' }} />
                     </Tooltip>
                 )
             } else {
@@ -103,22 +89,21 @@ export const PostRow = ({
                     <Tooltip
                         label={`Incomplet pour la génération - Champs manquants: ${[
                             !hasText && 'Texte',
-                            !hasKeyword && 'Mot-clé', 
-                            !hasClient && 'Client'
-                        ].filter(Boolean).join(', ')}`}
+                            !hasKeyword && 'Mot-clé',
+                            !hasClient && 'Client',
+                        ]
+                            .filter(Boolean)
+                            .join(', ')}`}
                         multiline
                         withArrow
                         position="right"
                     >
-                        <LuCircleAlert 
-                            size={14} 
-                            style={{ color: '#fd7e14', cursor: 'help' }} 
-                        />
+                        <LuCircleAlert size={14} style={{ color: '#fd7e14', cursor: 'help' }} />
                     </Tooltip>
                 )
             }
         }
-        
+
         // Logique pour "Post à publier"
         if (post.status === 'Post à publier') {
             const hasText = isFieldFilled(post.text)
@@ -126,9 +111,10 @@ export const PostRow = ({
             const hasAccountId = isFieldFilled(post.account_id)
             const hasLocationId = isFieldFilled(post.location_id)
             const hasUrl = isFieldFilled(post.link_url) || isFieldFilled(post.image_url)
-            
-            const isReadyForPublication = hasText && hasDate && hasAccountId && hasLocationId && hasUrl
-            
+
+            const isReadyForPublication =
+                hasText && hasDate && hasAccountId && hasLocationId && hasUrl
+
             if (isReadyForPublication) {
                 return (
                     <Tooltip
@@ -137,10 +123,7 @@ export const PostRow = ({
                         withArrow
                         position="right"
                     >
-                        <LuCheck 
-                            size={14} 
-                            style={{ color: '#228be6', cursor: 'help' }} 
-                        />
+                        <LuCircleCheck size={14} style={{ color: '#228be6', cursor: 'help' }} />
                     </Tooltip>
                 )
             } else {
@@ -151,21 +134,20 @@ export const PostRow = ({
                             !hasDate && 'Date',
                             !hasAccountId && 'Account ID',
                             !hasLocationId && 'Location ID',
-                            !hasUrl && 'URL (Image ou Lien)'
-                        ].filter(Boolean).join(', ')}`}
+                            !hasUrl && 'URL (Image ou Lien)',
+                        ]
+                            .filter(Boolean)
+                            .join(', ')}`}
                         multiline
                         withArrow
                         position="right"
                     >
-                        <LuX 
-                            size={14} 
-                            style={{ color: '#fa5252', cursor: 'help' }} 
-                        />
+                        <LuX size={14} style={{ color: '#fa5252', cursor: 'help' }} />
                     </Tooltip>
                 )
             }
         }
-        
+
         // Pas d'icône pour les autres statuts
         return null
     }
@@ -182,8 +164,18 @@ export const PostRow = ({
         switch (column.key) {
             case 'readiness':
                 return (
-                    <td key={column.key} style={{ ...baseStyle, textAlign: 'center', verticalAlign: 'middle' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                    <td
+                        key={column.key}
+                        style={{ ...baseStyle, textAlign: 'center', verticalAlign: 'middle' }}
+                    >
+                        <div
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                height: '100%',
+                            }}
+                        >
                             {getReadinessIcon()}
                         </div>
                     </td>
@@ -287,11 +279,15 @@ export const PostRow = ({
                             type="number"
                             onSave={onInlineEdit}
                             displayValue={
-                                post.price !== null && post.price !== undefined 
+                                post.price !== null && post.price !== undefined
                                     ? post.price.toString()
                                     : post.model && post.input_tokens && post.output_tokens
-                                        ? calculatePrice(post.model, post.input_tokens, post.output_tokens)?.toString() || '-'
-                                        : '-'
+                                      ? calculatePrice(
+                                            post.model,
+                                            post.input_tokens,
+                                            post.output_tokens
+                                        )?.toString() || '-'
+                                      : '-'
                             }
                         />
                     </td>
@@ -316,7 +312,9 @@ export const PostRow = ({
                             post={post}
                             type="number"
                             onSave={onInlineEdit}
-                            displayValue={post.input_tokens ? post.input_tokens.toLocaleString() : '-'}
+                            displayValue={
+                                post.input_tokens ? post.input_tokens.toLocaleString() : '-'
+                            }
                         />
                     </td>
                 )
@@ -329,7 +327,9 @@ export const PostRow = ({
                             post={post}
                             type="number"
                             onSave={onInlineEdit}
-                            displayValue={post.output_tokens ? post.output_tokens.toLocaleString() : '-'}
+                            displayValue={
+                                post.output_tokens ? post.output_tokens.toLocaleString() : '-'
+                            }
                         />
                     </td>
                 )

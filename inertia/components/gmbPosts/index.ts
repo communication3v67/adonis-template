@@ -9,6 +9,7 @@ export { useBulkActions } from './hooks/useBulkActions'
 export { useWebhook } from './hooks/useWebhook'
 export { usePostActions } from './hooks/usePostActions'
 export { useAdvancedFilters } from './hooks/useAdvancedFilters'
+export { useUnifiedFilters } from './hooks/useUnifiedFilters'
 
 // Export des utilitaires
 export * from './utils/constants'
@@ -25,6 +26,9 @@ export { DateFilters } from './components/Filters/DateFilters'
 export { FilterBadges } from './components/Filters/FilterBadges'
 export { QuickFilters } from './components/Filters/QuickFilters'
 export { FilterSection } from './components/Filters/FilterSection'
+
+// Export du composant de filtres unifié
+export { UnifiedFilterSection } from './components/UnifiedFilters'
 
 // Export des composants Table
 export { SortableHeader } from './components/Table/SortableHeader'

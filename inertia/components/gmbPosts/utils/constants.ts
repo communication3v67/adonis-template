@@ -2,16 +2,16 @@
 
 export const POST_STATUSES = [
     'Titre généré',
-    'Post à générer', 
+    'Post à générer',
     'Post généré',
     'Post à publier',
     'Publié',
-    'failed'
+    'failed',
 ] as const
 
 export const STATUS_COLORS: Record<string, string> = {
-    'Titre généré': 'orange',
-    'Post à générer': 'blue', 
+    'Titre généré': 'blue',
+    'Post à générer': 'yellow',
     'Post généré': 'cyan',
     'Post à publier': 'violet',
     'Publié': 'green',
@@ -19,17 +19,17 @@ export const STATUS_COLORS: Record<string, string> = {
 }
 
 export const SORT_LABELS: Record<string, string> = {
-    'date': 'Date',
-    'status': 'Statut',
-    'text': 'Texte',
-    'client': 'Client',
-    'project_name': 'Projet',
-    'keyword': 'Mot-clé',
-    'location_id': 'Location ID',
-    'account_id': 'Account ID',
-    'notion_id': 'Notion ID',
-    'createdAt': 'Créé le',
-    'updatedAt': 'Modifié le'
+    date: 'Date',
+    status: 'Statut',
+    text: 'Texte',
+    client: 'Client',
+    project_name: 'Projet',
+    keyword: 'Mot-clé',
+    location_id: 'Location ID',
+    account_id: 'Account ID',
+    notion_id: 'Notion ID',
+    createdAt: 'Créé le',
+    updatedAt: 'Modifié le',
 }
 
 // Options de périodes rapides pour les filtres

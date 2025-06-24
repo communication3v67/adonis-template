@@ -1,6 +1,6 @@
 import { Stack, Group, Button, Text, Divider, Paper } from '@mantine/core'
 import { LuFilter, LuX, LuPlus } from 'react-icons/lu'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { 
     AdvancedFilterState, 
     FilterGroup, 
@@ -28,6 +28,14 @@ export const AdvancedFiltersPanel = ({
 }: AdvancedFiltersPanelProps) => {
     const [localFilters, setLocalFilters] = useState<AdvancedFilterState>(filters)
 
+    // Synchroniser les filtres locaux avec les props quand elles changent
+    useEffect(() => {
+        console.log('=== SYNCHRONISATION FILTRES AVANCÉS PANEL ===')
+        console.log('Filters props:', filters)
+        setLocalFilters(filters)
+        console.log('=================================================')
+    }, [filters])
+
     // Enrichir les propriétés avec les options du backend
     const enrichedProperties: FilterProperty[] = FILTERABLE_PROPERTIES.map(prop => {
         if (prop.type === 'select') {
@@ -45,40 +53,70 @@ export const AdvancedFiltersPanel = ({
         return prop
     })
 
+    // Fonction utilitaire pour calculer si des filtres sont actifs
+    const calculateActiveState = (filtersState: AdvancedFilterState) => {
+        return filtersState.groups.length > 0 && 
+               filtersState.groups.some(group => 
+                   group.filters.some(filter => 
+                       filter.value !== '' && filter.value !== null && filter.value !== undefined
+                   )
+               )
+    }
+
+    // Fonction utilitaire pour appliquer automatiquement les filtres
+    const autoApplyFilters = (newFilters: AdvancedFilterState) => {
+        const activeFilters = {
+            ...newFilters,
+            isActive: calculateActiveState(newFilters)
+        }
+        
+        console.log('=== AUTO-APPLICATION FILTRES AVANCÉS ===')
+        console.log('Nouveaux filtres:', activeFilters)
+        console.log('Est actif:', activeFilters.isActive)
+        console.log('===========================================')
+        
+        onApply(activeFilters)
+    }
     const handleAddGroup = () => {
         const newGroup = createDefaultFilterGroup()
-        setLocalFilters(prev => ({
-            ...prev,
-            groups: [...prev.groups, newGroup]
-        }))
+        const newFilters = {
+            ...localFilters,
+            groups: [...localFilters.groups, newGroup]
+        }
+        setLocalFilters(newFilters)
+        // Pas d'auto-application pour l'ajout, on attend que l'utilisateur remplisse
     }
 
     const handleUpdateGroup = (groupId: string, updatedGroup: FilterGroup) => {
-        setLocalFilters(prev => ({
-            ...prev,
-            groups: prev.groups.map(group => 
+        const newFilters = {
+            ...localFilters,
+            groups: localFilters.groups.map(group => 
                 group.id === groupId ? updatedGroup : group
             )
-        }))
+        }
+        setLocalFilters(newFilters)
+        // Auto-application lors de la mise à jour
+        autoApplyFilters(newFilters)
     }
 
     const handleRemoveGroup = (groupId: string) => {
-        setLocalFilters(prev => ({
-            ...prev,
-            groups: prev.groups.filter(group => group.id !== groupId)
-        }))
+        const newFilters = {
+            ...localFilters,
+            groups: localFilters.groups.filter(group => group.id !== groupId)
+        }
+        setLocalFilters(newFilters)
+        // Auto-application lors de la suppression
+        autoApplyFilters(newFilters)
     }
 
     const handleApply = () => {
         const activeFilters = {
             ...localFilters,
-            isActive: localFilters.groups.length > 0 && 
-                     localFilters.groups.some(group => 
-                         group.filters.some(filter => 
-                             filter.value !== '' && filter.value !== null && filter.value !== undefined
-                         )
-                     )
+            isActive: calculateActiveState(localFilters)
         }
+        console.log('=== APPLICATION MANUELLE FILTRES AVANCÉS ===')
+        console.log('Filtres appliqués:', activeFilters)
+        console.log('=============================================')
         onApply(activeFilters)
     }
 
@@ -88,15 +126,14 @@ export const AdvancedFiltersPanel = ({
             isActive: false
         }
         setLocalFilters(resetFilters)
+        console.log('=== RÉINITIALISATION FILTRES AVANCÉS ===')
+        console.log('Filtres réinitialisés:', resetFilters)
+        console.log('===========================================')
         onReset()
     }
 
-    const hasActiveFilters = localFilters.groups.length > 0 && 
-                           localFilters.groups.some(group => 
-                               group.filters.some(filter => 
-                                   filter.value !== '' && filter.value !== null && filter.value !== undefined
-                               )
-                           )
+    // Utiliser la fonction utilitaire pour calculer l'état actif
+    const hasActiveFilters = calculateActiveState(localFilters)
 
     const activeFiltersCount = localFilters.groups.reduce((acc, group) => 
         acc + group.filters.filter(filter => 
