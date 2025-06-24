@@ -49,6 +49,17 @@ export const InlineEditCell = ({
         }
     }, [isEditing, type])
 
+    // Synchroniser editValue avec les changements de value (nouvelles données)
+    useEffect(() => {
+        if (!isEditing) { // Seulement si on n'est pas en train d'éditer
+            if (field === 'date' && value) {
+                setEditValue(formatDateForEdit(value))
+            } else {
+                setEditValue(value || '')
+            }
+        }
+    }, [value, field, isEditing])
+
     const handleSave = async () => {
         if (editValue === value) {
             setIsEditing(false)

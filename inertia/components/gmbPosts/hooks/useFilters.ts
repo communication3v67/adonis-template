@@ -157,10 +157,33 @@ export const useFilters = (
         hasActiveFilters.current = checkHasActiveFilters(localFilters)
     }, [localFilters])
 
+    const applyFilters = useCallback(() => {
+        console.log('=== APPLICATION DES FILTRES ===')
+        console.log('Filtres locaux:', localFilters)
+        console.log('================================')
+
+        setIsApplyingFilters(true)
+
+        router.get('/gmb-posts', localFilters, {
+            preserveState: true,
+            replace: true,
+            onFinish: () => {
+                setIsApplyingFilters(false)
+            },
+        })
+    }, [localFilters])
+
     // Application automatique des filtres avec debounce pour la recherche
     useEffect(() => {
         // Ignorer l'effet lors du premier rendu
         if (isFirstRender.current) return
+        
+        // Protection contre les mises à jour SSE qui pourraient interférer
+        const isSSEUpdate = window.performance.now() - (window.lastSSEUpdate || 0) < 1000
+        if (isSSEUpdate) {
+            console.log('📞 Évitement application filtres (mise à jour SSE récente)')
+            return
+        }
 
         // Si c'est juste un changement de texte de recherche, on debounce
         if (localFilters.search !== initialFilters.search && localFilters.search.length > 0) {
@@ -197,23 +220,8 @@ export const useFilters = (
         localFilters.sortOrder,
         localFilters.dateFrom,
         localFilters.dateTo,
+        applyFilters
     ])
-
-    const applyFilters = useCallback(() => {
-        console.log('=== APPLICATION DES FILTRES ===')
-        console.log('Filtres locaux:', localFilters)
-        console.log('================================')
-
-        setIsApplyingFilters(true)
-
-        router.get('/gmb-posts', localFilters, {
-            preserveState: true,
-            replace: true,
-            onFinish: () => {
-                setIsApplyingFilters(false)
-            },
-        })
-    }, [localFilters])
 
     const resetFilters = useCallback(() => {
         const resetFiltersData = {

@@ -1,6 +1,6 @@
 import { Head, router } from '@inertiajs/react'
 import { Stack } from '@mantine/core'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { ColumnConfig } from '../../components/gmbPosts/components/Table/ColumnVisibilityManager'
 import { SSE_CLIENT_CONFIG } from '../../config/sse'
 import { useSSE } from '../../hooks/useSSE'
@@ -44,6 +44,7 @@ export default function GmbPostsIndex({
     const [pendingUpdates, setPendingUpdates] = useState<number>(0)
     const [refreshKey, setRefreshKey] = useState<number>(0) // Clé pour forcer le re-render
     const [createModalOpened, setCreateModalOpened] = useState(false)
+    const [isResetting, setIsResetting] = useState(false) // État pour la réinitialisation
 
     // Configuration des colonnes avec largeurs par défaut
     const [columns, setColumns] = useState<ColumnConfig[]>([
@@ -289,9 +290,11 @@ export default function GmbPostsIndex({
     } = usePostActions()
 
     // Fonction pour rafraîchir les données en préservant TOUS les filtres (base + avancés)
-    const refreshData = () => {
-        console.log('🔄 Rafraîchissement des données via Inertia...')
-        setRefreshKey((prev) => prev + 1) // Forcer le re-render des hooks
+    const refreshData = useCallback(() => {
+        console.log('🔄 Rafraîchissement fluide des données...')
+        
+        // Incrémenter la clé de rafraîchissement sans forcer un re-render brutal
+        setRefreshKey((prev) => prev + 1)
         
         // Construire les paramètres avec TOUS les filtres
         let allParams = { ...filters }
@@ -305,21 +308,28 @@ export default function GmbPostsIndex({
         
         console.log('🚀 Paramètres de rafraîchissement complets:', allParams)
         
-        // Utiliser les filtres complets pour le rafraîchissement
+        // Utiliser les filtres complets pour le rafraîchissement SANS preserveScroll pour éviter les saccades
         router.get('/gmb-posts', allParams, {
-            only: ['posts', 'postsToGenerateCount'],
-            preserveState: true,
-            replace: true,
+            only: ['posts', 'postsToGenerateCount'], // Rafraîchir seulement les données nécessaires
+            preserveState: true, // Préserver l'état des composants
+            preserveScroll: true, // Éviter les saccades de scroll
+            replace: true, // Remplacer l'historique
+            onStart: () => {
+                console.log('💻 Début du rafraîchissement des données')
+            },
             onSuccess: () => {
                 console.log('✅ Données rafraîchies avec succès (tous filtres préservés)')
                 setPendingUpdates(0)
                 setLastUpdateTime(new Date().toLocaleTimeString())
             },
-            onError: () => {
-                console.error('❌ Erreur lors du rafraîchissement')
+            onError: (errors) => {
+                console.error('❌ Erreur lors du rafraîchissement:', errors)
             },
+            onFinish: () => {
+                console.log('🏁 Rafraîchissement terminé')
+            }
         })
-    }
+    }, [filters, hasActiveAdvancedFilters, advancedFilters])
 
     // Gestion de l'hydratation et SSE
     useEffect(() => {
@@ -338,6 +348,9 @@ export default function GmbPostsIndex({
             setCallbacks({
                 onPostUpdate: (event) => {
                     console.log('📨 Post update reçu:', event)
+                    
+                    // Marquer le timestamp de la dernière mise à jour SSE
+                    window.lastSSEUpdate = window.performance.now()
 
                     setPendingUpdates((prev) => prev + 1)
 
@@ -458,45 +471,33 @@ export default function GmbPostsIndex({
     }
 
     // Gestion de la réinitialisation unifiée de tous les filtres
-    const handleResetAll = () => {
-        console.log('🔄 Réinitialisation UNIFIÉE - Version simplifiée')
+    const handleResetAll = useCallback(() => {
+        console.log('🔄 RÉINITIALISATION FLUIDE - Utilisation Inertia')
         
-        // Définir les valeurs de réinitialisation
-        const resetFiltersData = {
-            search: '',
-            status: '',
-            client: '',
-            project: '',
-            sortBy: 'date',
-            sortOrder: 'desc',
-            dateFrom: '',
-            dateTo: '',
-        }
-        
-        // 1. Réinitialiser IMMEDIATEMENT les filtres avancés
+        // 1. Réinitialiser les filtres avancés
         resetAdvancedFilters()
         
-        // 2. Forcer la mise à jour des filtres rapides
-        updateFilter('search', '')
-        updateFilter('status', '')
-        updateFilter('client', '')
-        updateFilter('project', '')
-        updateFilter('dateFrom', '')
-        updateFilter('dateTo', '')
-        updateFilter('sortBy', 'date')
-        updateFilter('sortOrder', 'desc')
-        
-        // 3. Forcer le re-render
+        // 2. Utiliser Inertia pour un rechargement plus fluide
         setTimeout(() => {
-            router.get('/gmb-posts', resetFiltersData, {
-                preserveState: true,
-                replace: true,
+            console.log('🚀 Navigation Inertia vers page vierge')
+            router.visit('/gmb-posts', {
+                method: 'get',
+                data: {}, // Aucun paramètre = filtres vides
+                preserveState: false, // Ne pas préserver l'état
+                preserveScroll: false, // Remonter en haut
+                replace: true, // Remplacer l'historique
+                onStart: () => {
+                    console.log('💻 Début navigation réinitialisation')
+                },
                 onSuccess: () => {
-                    console.log('✅ Réinitialisation unifiée terminée')
+                    console.log('✅ Réinitialisation terminée avec succès')
+                },
+                onError: (errors) => {
+                    console.error('❌ Erreur réinitialisation:', errors)
                 }
             })
-        }, 150)
-    }
+        }, 100)
+    }, [resetAdvancedFilters])
 
     // Gestion des actions en masse avec nettoyage de sélection
     const handleBulkEditWithClear = () => {
