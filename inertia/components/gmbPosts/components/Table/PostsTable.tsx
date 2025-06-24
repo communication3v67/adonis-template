@@ -95,7 +95,7 @@ export const PostsTable = ({
     return (
         <>
             {/* Légende des icônes - version mise à jour */}
-            <Box mb="xs" p="xs" style={{ backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+            <Box mb="xs" p="xs" style={{ borderRadius: '4px' }}>
                 <Group gap="md" style={{ fontSize: '11px' }}>
                     <Group gap={4}>
                         <LuCircleCheck size={14} style={{ color: '#40c057' }} />
@@ -131,12 +131,12 @@ export const PostsTable = ({
                     style={{
                         'minWidth': `${totalWidth}px`,
                         'tableLayout': 'fixed',
-                        '--mantine-table-border-color': '#e9ecef',
+                        '--mantine-table-border-color': '#ffffff',
                     }}
                     verticalSpacing="lg"
                     horizontalSpacing="lg"
                 >
-                    <Table.Thead>
+                    <Table.Thead style={{ outline: '0.06rem solid #3785d1' }}>
                         <Table.Tr style={{ height: '50px' }}>
                             {visibleColumns.map((column) => {
                                 if (column.key === 'readiness') {
@@ -167,7 +167,7 @@ export const PostsTable = ({
                                                 >
                                                     <LuShieldCheck
                                                         size={16}
-                                                        style={{ color: '#495057' }}
+                                                        style={{ color: '#3785d1' }}
                                                     />
                                                 </div>
                                             </Tooltip>
@@ -234,7 +234,7 @@ export const PostsTable = ({
                                                 >
                                                     <LuImage
                                                         size={16}
-                                                        style={{ color: '#495057' }}
+                                                        style={{ color: '#3785d1' }}
                                                     />
                                                 </div>
                                             </Tooltip>
@@ -264,7 +264,7 @@ export const PostsTable = ({
                                                 >
                                                     <LuLink
                                                         size={16}
-                                                        style={{ color: '#495057' }}
+                                                        style={{ color: '#3785d1' }}
                                                     />
                                                 </div>
                                             </Tooltip>

@@ -21,24 +21,24 @@ export const ActionsCell = ({
 }: ActionsCellProps) => {
     const canSendToN8n = post.status === 'Post à générer'
     const isSending = sendingSinglePost === post.id
-    
+
     // Vérifier si les champs requis sont remplis pour l'envoi
     const hasRequiredFields = !!(post.status && post.text && post.keyword)
     const isN8nButtonDisabled = !canSendToN8n || !hasRequiredFields || isSending
-    
+
     // Message du tooltip selon l'état
     const getN8nTooltipMessage = () => {
         if (!canSendToN8n) {
             return 'Seuls les posts "Post à générer" peuvent être envoyés'
         }
         if (!post.status) {
-            return 'Le statut est requis pour l\'envoi'
+            return "Le statut est requis pour l'envoi"
         }
         if (!post.text) {
-            return 'Le texte est requis pour l\'envoi'
+            return "Le texte est requis pour l'envoi"
         }
         if (!post.keyword) {
-            return 'Le mot-clé est requis pour l\'envoi'
+            return "Le mot-clé est requis pour l'envoi"
         }
         if (isSending) {
             return 'Envoi en cours...'
@@ -47,19 +47,19 @@ export const ActionsCell = ({
     }
 
     return (
-        <Group gap={4} wrap="nowrap" justify="center">
+        <Group gap={4} wrap="nowrap" justify="start">
             {/* Bouton d'envoi vers n8n - toujours visible */}
             <Tooltip label={getN8nTooltipMessage()}>
                 <ActionIcon
                     size="sm"
-                    variant={isN8nButtonDisabled ? "subtle" : "light"}
-                    color={isN8nButtonDisabled ? "gray" : "blue"}
+                    variant={isN8nButtonDisabled ? 'subtle' : 'light'}
+                    color={isN8nButtonDisabled ? 'gray' : 'blue'}
                     onClick={() => !isN8nButtonDisabled && onSendToN8n(post)}
                     loading={isSending}
                     disabled={isN8nButtonDisabled}
-                    style={{ 
+                    style={{
                         opacity: isN8nButtonDisabled ? 0.5 : 1,
-                        cursor: isN8nButtonDisabled ? 'not-allowed' : 'pointer'
+                        cursor: isN8nButtonDisabled ? 'not-allowed' : 'pointer',
                     }}
                 >
                     <LuSend size={14} />
@@ -68,12 +68,7 @@ export const ActionsCell = ({
 
             {/* Bouton de modification */}
             <Tooltip label="Modifier">
-                <ActionIcon
-                    size="sm"
-                    variant="subtle"
-                    color="gray"
-                    onClick={() => onEdit(post)}
-                >
+                <ActionIcon size="sm" variant="subtle" color="gray" onClick={() => onEdit(post)}>
                     <LuSettings size={14} />
                 </ActionIcon>
             </Tooltip>

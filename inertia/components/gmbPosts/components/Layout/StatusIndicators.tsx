@@ -18,6 +18,7 @@ interface StatusIndicatorsProps {
     columns?: ColumnConfig[]
     onColumnsChange?: (columns: ColumnConfig[]) => void
     onResetWidths?: () => void
+    onResetToDefaults?: () => void
 }
 
 export const StatusIndicators = ({
@@ -34,6 +35,7 @@ export const StatusIndicators = ({
     columns,
     onColumnsChange,
     onResetWidths,
+    onResetToDefaults,
 }: StatusIndicatorsProps) => {
     // Déterminer l'affichage du statut SSE
     const getSSEBadge = () => {
@@ -117,6 +119,7 @@ export const StatusIndicators = ({
                             columns={columns}
                             onColumnsChange={onColumnsChange}
                             onResetWidths={onResetWidths}
+                            onResetToDefaults={onResetToDefaults}
                         />
                     )}
                     

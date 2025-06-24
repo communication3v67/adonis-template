@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import { ColumnConfig } from '../../components/gmbPosts/components/Table/ColumnVisibilityManager'
 import { SSE_CLIENT_CONFIG } from '../../config/sse'
 import { useSSE } from '../../hooks/useSSE'
+import { useColumnPersistence } from '../../hooks/useColumnPersistence'
 import { advancedFiltersToUrlParams } from '../../components/gmbPosts/components/AdvancedFilters'
 
 // Types et hooks
@@ -46,175 +47,10 @@ export default function GmbPostsIndex({
     const [createModalOpened, setCreateModalOpened] = useState(false)
     const [isResetting, setIsResetting] = useState(false) // État pour la réinitialisation
 
-    // Configuration des colonnes avec largeurs par défaut
-    const [columns, setColumns] = useState<ColumnConfig[]>([
-        {
-            key: 'checkbox',
-            label: 'Sélection',
-            visible: true,
-            width: 80,
-            minWidth: 60,
-            maxWidth: 100,
-            required: true,
-        },
-        {
-            key: 'readiness',
-            label: '✓',
-            visible: true,
-            width: 50,
-            minWidth: 40,
-            maxWidth: 70,
-            required: true,
-        },
-        { key: 'status', label: 'Statut', visible: true, width: 220, minWidth: 150, maxWidth: 300 },
-        { key: 'text', label: 'Texte', visible: true, width: 600, minWidth: 250, maxWidth: 900 },
-        { key: 'date', label: 'Date', visible: true, width: 220, minWidth: 150, maxWidth: 270 },
-        {
-            key: 'keyword',
-            label: 'Mot-clé',
-            visible: true,
-            width: 200,
-            minWidth: 130,
-            maxWidth: 300,
-        },
-        { key: 'client', label: 'Client', visible: true, width: 220, minWidth: 150, maxWidth: 350 },
-        {
-            key: 'project_name',
-            label: 'Projet',
-            visible: true,
-            width: 250,
-            minWidth: 150,
-            maxWidth: 400,
-        },
-        { key: 'city', label: 'Ville', visible: true, width: 190, minWidth: 130, maxWidth: 300 },
-        { key: 'price', label: 'Prix IA', visible: true, width: 160, minWidth: 120, maxWidth: 220 },
-        {
-            key: 'model',
-            label: 'Modèle IA',
-            visible: false,
-            width: 180,
-            minWidth: 130,
-            maxWidth: 250,
-        },
-        {
-            key: 'input_tokens',
-            label: 'Tokens In',
-            visible: false,
-            width: 160,
-            minWidth: 120,
-            maxWidth: 200,
-        },
-        {
-            key: 'output_tokens',
-            label: 'Tokens Out',
-            visible: false,
-            width: 160,
-            minWidth: 120,
-            maxWidth: 200,
-        },
-        {
-            key: 'image_url',
-            label: 'Image',
-            visible: true,
-            width: 160,
-            minWidth: 120,
-            maxWidth: 250,
-        },
-        { key: 'link_url', label: 'Lien', visible: true, width: 160, minWidth: 120, maxWidth: 250 },
-        {
-            key: 'location_id',
-            label: 'Location ID',
-            visible: false,
-            width: 200,
-            minWidth: 150,
-            maxWidth: 300,
-        },
-        {
-            key: 'account_id',
-            label: 'Account ID',
-            visible: false,
-            width: 200,
-            minWidth: 150,
-            maxWidth: 300,
-        },
-        {
-            key: 'notion_id',
-            label: 'Notion ID',
-            visible: false,
-            width: 200,
-            minWidth: 150,
-            maxWidth: 300,
-        },
-        {
-            key: 'informations',
-            label: 'Informations',
-            visible: true,
-            width: 300,
-            minWidth: 200,
-            maxWidth: 500,
-        },
-        {
-            key: 'actions',
-            label: 'Actions',
-            visible: true,
-            width: 220,
-            minWidth: 180,
-            maxWidth: 280,
-            required: true,
-        },
-    ])
+    // Configuration des colonnes avec persistance
+    const { columns, setColumns, resetWidths, resetToDefaults, isLoaded: columnsLoaded, isSaving } = useColumnPersistence()
 
-    // Fonction pour réinitialiser les largeurs
-    const resetWidths = () => {
-        setColumns((prev) =>
-            prev.map((col) => {
-                switch (col.key) {
-                    case 'checkbox':
-                        return { ...col, width: 80 }
-                    case 'readiness':
-                        return { ...col, width: 50 }
-                    case 'status':
-                        return { ...col, width: 220 }
-                    case 'text':
-                        return { ...col, width: 600 }
-                    case 'date':
-                        return { ...col, width: 220 }
-                    case 'keyword':
-                        return { ...col, width: 200 }
-                    case 'client':
-                        return { ...col, width: 220 }
-                    case 'project_name':
-                        return { ...col, width: 250 }
-                    case 'city':
-                        return { ...col, width: 190 }
-                    case 'price':
-                        return { ...col, width: 160 }
-                    case 'model':
-                        return { ...col, width: 180 }
-                    case 'input_tokens':
-                        return { ...col, width: 160 }
-                    case 'output_tokens':
-                        return { ...col, width: 160 }
-                    case 'image_url':
-                        return { ...col, width: 160 }
-                    case 'link_url':
-                        return { ...col, width: 160 }
-                    case 'location_id':
-                        return { ...col, width: 200 }
-                    case 'account_id':
-                        return { ...col, width: 200 }
-                    case 'notion_id':
-                        return { ...col, width: 200 }
-                    case 'informations':
-                        return { ...col, width: 300 }
-                    case 'actions':
-                        return { ...col, width: 220 }
-                    default:
-                        return col
-                }
-            })
-        )
-    }
+
 
     // Hook pour les filtres avancés (doit être déclaré avant useFilters)
     const {
@@ -561,7 +397,7 @@ export default function GmbPostsIndex({
             </Head>
 
             {/* Loader d'hydratation pour éviter l'écran noir */}
-            {!isClient && (
+            {(!isClient || !columnsLoaded) && (
                 <div style={{
                     position: 'fixed',
                     top: 0,
@@ -589,8 +425,8 @@ export default function GmbPostsIndex({
                 </div>
             )}
 
-            {/* Contenu principal - masqué jusqu'à l'hydratation */}
-            <div style={{ opacity: isClient ? 1 : 0, transition: 'opacity 0.3s ease' }}>
+            {/* Contenu principal - masqué jusqu'à l'hydratation complète */}
+            <div style={{ opacity: (isClient && columnsLoaded) ? 1 : 0, transition: 'opacity 0.3s ease' }}>
                 <Stack gap="md">
                 {/* En-tête */}
                 <PageHeader
@@ -660,6 +496,7 @@ export default function GmbPostsIndex({
                         columns={columns}
                         onColumnsChange={setColumns}
                         onResetWidths={resetWidths}
+                        onResetToDefaults={resetToDefaults}
                     />
 
                     {/* Tableau des posts */}
