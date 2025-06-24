@@ -74,6 +74,12 @@ export const usePostActions = () => {
 
             router.delete(`/gmb-posts/${postId}`, {
                 preserveState: true, // Préserver l'état des filtres
+                preserveScroll: true, // Préserver la position de scroll
+                only: ['posts'], // ✅ AJOUT: Ne rafraîchir que les données des posts
+                replace: false, // ✅ AJOUT: Ne pas remplacer l'historique
+                onStart: () => {
+                    console.log('💻 Début suppression du post')
+                },
                 onSuccess: () => {
                     console.log('=== SUCCÈS SUPPRESSION ===')
                     console.log('Post supprimé avec succès')
@@ -111,9 +117,16 @@ export const usePostActions = () => {
             {},
             {
                 preserveState: true, // Préserver l'état des filtres
-                onSuccess: () => {
+                preserveScroll: true, // Préserver la position de scroll
+                only: ['posts'], // ✅ AJOUT: Ne rafraîchir que les données des posts
+                replace: false, // ✅ AJOUT: Ne pas remplacer l'historique
+                onStart: () => {
+                    console.log('💻 Début duplication du post')
+                },
+                onSuccess: (page) => {
                     console.log('=== SUCCÈS DUPLICATION ===')
                     console.log('Post dupliqué avec succès')
+                    console.log('Page reçue:', page)
                     console.log('========================')
                     notifications.show({
                         title: 'Succès',
@@ -133,6 +146,9 @@ export const usePostActions = () => {
                         autoClose: 5000,
                     })
                 },
+                onFinish: () => {
+                    console.log('🏁 Duplication terminée')
+                }
             }
         )
     }, [])

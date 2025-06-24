@@ -542,9 +542,56 @@ export default function GmbPostsIndex({
 
     return (
         <>
-            <Head title="Posts GMB" />
+            <Head title="Posts GMB">
+                <style>{`
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                    .loading-spinner {
+                        width: 40px;
+                        height: 40px;
+                        border: 3px solid #e9ecef;
+                        border-top: 3px solid #228be6;
+                        border-radius: 50%;
+                        animation: spin 1s linear infinite;
+                        margin: 0 auto 16px;
+                    }
+                `}</style>
+            </Head>
 
-            <Stack gap="md">
+            {/* Loader d'hydratation pour éviter l'écran noir */}
+            {!isClient && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 9999,
+                    fontFamily: 'system-ui, -apple-system, sans-serif'
+                }}>
+                    <div style={{
+                        textAlign: 'center',
+                        color: '#495057'
+                    }}>
+                        <div className="loading-spinner"></div>
+                        <div style={{ 
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            color: '#6c757d'
+                        }}>Chargement de l'application...</div>
+                    </div>
+                </div>
+            )}
+
+            {/* Contenu principal - masqué jusqu'à l'hydratation */}
+            <div style={{ opacity: isClient ? 1 : 0, transition: 'opacity 0.3s ease' }}>
+                <Stack gap="md">
                 {/* En-tête */}
                 <PageHeader
                     currentUser={currentUser}
@@ -669,7 +716,8 @@ export default function GmbPostsIndex({
                     response={webhookResponse}
                     onClose={closeWebhookModal}
                 />
-            </Stack>
+                </Stack>
+            </div>
         </>
     )
 }

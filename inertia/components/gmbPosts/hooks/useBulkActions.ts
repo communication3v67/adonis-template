@@ -92,6 +92,13 @@ export const useBulkActions = () => {
                     updateData: updateData,
                 },
                 {
+                    preserveState: true, // Préserver l'état des filtres
+                    preserveScroll: true, // Préserver la position de scroll
+                    only: ['posts'], // ✅ AJOUT: Ne rafraîchir que les données des posts
+                    replace: false, // ✅ AJOUT: Ne pas remplacer l'historique
+                    onStart: () => {
+                        console.log('💻 Début édition en masse')
+                    },
                     onSuccess: () => {
                         console.log('=== SUCCÈS ÉDITION MASSE ===')
                         resetBulkEdit()
@@ -136,6 +143,13 @@ export const useBulkActions = () => {
             
             router.delete('/gmb-posts', {
                 data: { ids: selectedPosts },
+                preserveState: true, // Préserver l'état des filtres
+                preserveScroll: true, // Préserver la position de scroll
+                only: ['posts'], // ✅ AJOUT: Ne rafraîchir que les données des posts
+                replace: false, // ✅ AJOUT: Ne pas remplacer l'historique
+                onStart: () => {
+                    console.log('💻 Début suppression en masse')
+                },
                 onSuccess: () => {
                     console.log('=== SUCCÈS SUPPRESSION MASSE ===')
                     console.log('Posts supprimés avec succès')
@@ -207,6 +221,13 @@ export const useBulkActions = () => {
                     overwriteExisting: overwriteExisting,
                 },
                 {
+                    preserveState: true, // Préserver l'état des filtres
+                    preserveScroll: true, // Préserver la position de scroll
+                    only: ['posts'], // ✅ AJOUT: Ne rafraîchir que les données des posts
+                    replace: false, // ✅ AJOUT: Ne pas remplacer l'historique
+                    onStart: () => {
+                        console.log('💻 Début attribution d\'images en masse')
+                    },
                     onSuccess: () => {
                         console.log('=== SUCCÈS ATTRIBUTION IMAGES ===')
                         notifications.show({

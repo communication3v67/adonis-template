@@ -113,7 +113,18 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
         }
 
         put(`/gmb-posts/${post.id}`, {
-            onSuccess: () => {
+            preserveState: true, // Préserver l'état des filtres
+            preserveScroll: true, // ✅ AJOUT: Préserver la position de scroll
+            only: ['posts'], // ✅ AJOUT: Ne rafraîchir que les données des posts
+            replace: false, // ✅ AJOUT: Ne pas remplacer l'historique
+            onStart: () => {
+                console.log('💻 Début édition via modale')
+            },
+            onSuccess: (page) => {
+                console.log('=== SUCCÈS ÉDITION MODALE ===')
+                console.log('Page reçue:', page)
+                console.log('Champs modifiés:', Object.keys(changedFields))
+                console.log('================================')
                 notifications.show({
                     title: 'Succès',
                     message: `${Object.keys(changedFields).length} champ(s) mis à jour avec succès !`,
@@ -123,13 +134,19 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                 reset()
                 setOriginalData({})
             },
-            onError: () => {
+            onError: (errors) => {
+                console.log('=== ERREUR ÉDITION MODALE ===')
+                console.log('Erreurs reçues:', errors)
+                console.log('===============================')
                 notifications.show({
                     title: 'Erreur',
                     message: 'Erreur lors de la mise à jour',
                     color: 'red',
                 })
             },
+            onFinish: () => {
+                console.log('🏁 Édition modale terminée')
+            }
         })
     }
 
