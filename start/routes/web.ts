@@ -41,6 +41,7 @@ router
                 router.delete('/', [GmbPostsController, 'bulkDestroy']).as('bulk_destroy'),
                 router.post('/bulk-update', [GmbPostsController, 'bulkUpdate']).as('bulk_update'),
                 router.post('/bulk-images', [GmbPostsController, 'bulkImages']).as('bulk_images'),
+                router.post('/bulk-search-replace', [GmbPostsController, 'bulkSearchReplace']).as('bulk_search_replace'),
                 
                 // Action webhook pour envoyer les posts à générer vers n8n
                 router.post('/send-to-n8n', [GmbPostsController, 'sendPostsToN8n']).as('send_to_n8n'),

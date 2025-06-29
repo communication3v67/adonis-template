@@ -429,6 +429,107 @@ export default class GmbPostsController {
     }
 
     /**
+     * Effectue un rechercher/remplacer sur les posts sélectionnés
+     */
+    async bulkSearchReplace({ request, response, session, auth }: HttpContext) {
+        try {
+            // S'assurer qu'un utilisateur est connecté
+            await auth.check()
+            const currentUser = auth.user!
+
+            const { replacements } = request.only(['replacements'])
+
+            console.log('=== MÉTHODE BULK SEARCH REPLACE ===')  
+            console.log('Utilisateur:', currentUser.id)
+            console.log('Remplacements reçus:', replacements)
+            console.log('=================================')
+
+            if (!replacements || !Array.isArray(replacements) || replacements.length === 0) {
+                session.flash('notification', {
+                    type: 'error',
+                    message: 'Aucun remplacement à effectuer.',
+                })
+                return response.redirect().back()
+            }
+
+            // Grouper les remplacements par post ID
+            const replacementsByPost = replacements.reduce((acc, rep) => {
+                if (!acc[rep.postId]) {
+                    acc[rep.postId] = []
+                }
+                acc[rep.postId].push(rep)
+                return acc
+            }, {} as Record<number, Array<{ field: string; newValue: string }>>)
+
+            let updatedCount = 0
+            let errorCount = 0
+
+            // Traiter chaque post
+            for (const [postId, postReplacements] of Object.entries(replacementsByPost)) {
+                try {
+                    // Récupérer le post et vérifier la propriété
+                    const post = await GmbPost.query()
+                        .where('id', parseInt(postId))
+                        .where('user_id', currentUser.id)
+                        .first()
+
+                    if (!post) {
+                        console.log(`Post ${postId} non trouvé ou non autorisé`)
+                        errorCount++
+                        continue
+                    }
+
+                    // Appliquer tous les remplacements pour ce post
+                    let hasChanges = false
+                    postReplacements.forEach(({ field, newValue }) => {
+                        if (post[field] !== newValue) {
+                            post[field] = newValue
+                            hasChanges = true
+                        }
+                    })
+
+                    if (hasChanges) {
+                        await post.save()
+                        updatedCount++
+
+                        // Diffuser l'événement SSE
+                        await this.broadcastPostUpdate(post, 'updated', currentUser.id)
+                    }
+                } catch (error) {
+                    console.error(`Erreur remplacement pour post ${postId}:`, error)
+                    errorCount++
+                }
+            }
+
+            // Diffuser une notification globale
+            await this.broadcastNotification(currentUser.id, {
+                type: 'success',
+                title: 'Remplacements effectués',
+                message: `${updatedCount} post(s) modifié(s) avec succès !${errorCount > 0 ? ` (${errorCount} erreur(s))` : ''}`,
+            })
+
+            console.log(`${updatedCount} posts mis à jour, ${errorCount} erreurs`)
+
+            session.flash('notification', {
+                type: 'success',
+                message: `${updatedCount} post(s) modifié(s) avec succès !${errorCount > 0 ? ` (${errorCount} erreur(s))` : ''}`,
+            })
+
+            return response.redirect().toRoute('gmbPosts.index')
+        } catch (error) {
+            console.error('Erreur rechercher/remplacer en masse:', error)
+            console.error('Stack trace:', error.stack)
+
+            session.flash('notification', {
+                type: 'error',
+                message: 'Erreur lors du rechercher/remplacer en masse.',
+            })
+
+            return response.redirect().back()
+        }
+    }
+
+    /**
      * Attribue des images en masse aux posts sélectionnés
      */
     async bulkImages({ request, response, session, auth }: HttpContext) {

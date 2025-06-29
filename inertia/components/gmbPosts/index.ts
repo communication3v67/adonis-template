@@ -52,3 +52,6 @@ export { CreatePostModal } from './components/Modals/CreatePostModal'
 
 // Export des composants AdvancedFilters
 export * from './components/AdvancedFilters'
+
+// Export du composant SearchReplace
+export { SearchReplaceModal } from './components/SearchReplace'

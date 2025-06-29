@@ -5,6 +5,7 @@ import { ColumnConfig } from '../../components/gmbPosts/components/Table/ColumnV
 import { SSE_CLIENT_CONFIG } from '../../config/sse'
 import { useSSE } from '../../hooks/useSSE'
 import { useColumnPersistence } from '../../hooks/useColumnPersistence'
+import { useSearchReplace } from '../../hooks/useSearchReplace'
 import { advancedFiltersToUrlParams } from '../../components/gmbPosts/components/AdvancedFilters'
 
 // Types et hooks
@@ -29,6 +30,7 @@ import {
     PostsTable,
     StatusIndicators,
     WebhookModal,
+    SearchReplaceModal,
 } from '../../components/gmbPosts'
 
 export default function GmbPostsIndex({
@@ -111,6 +113,15 @@ export default function GmbPostsIndex({
         sendSinglePostToN8n,
         closeWebhookModal,
     } = useWebhook()
+
+    // Hook pour la fonctionnalité de recherche/remplacement
+    const {
+        isProcessing: isSearchReplaceProcessing,
+        searchReplaceModalOpened,
+        openSearchReplaceModal,
+        closeSearchReplaceModal,
+        performSearchReplace
+    } = useSearchReplace()
 
     // Hook SSE personnalisé
     const { isConnected, connectionStatus, reconnect, setCallbacks } = useSSE(currentUser.id)
@@ -499,6 +510,7 @@ export default function GmbPostsIndex({
                         pendingUpdates={pendingUpdates}
                         lastUpdateTime={lastUpdateTime}
                         onRefresh={refreshData}
+                        onSearchReplace={openSearchReplaceModal}
                         columns={columns}
                         onColumnsChange={setColumns}
                         onResetWidths={resetWidths}
@@ -558,6 +570,15 @@ export default function GmbPostsIndex({
                     opened={showWebhookModal}
                     response={webhookResponse}
                     onClose={closeWebhookModal}
+                />
+
+                {/* Modal Rechercher/Remplacer */}
+                <SearchReplaceModal
+                    opened={searchReplaceModalOpened}
+                    onClose={closeSearchReplaceModal}
+                    posts={infinitePosts}
+                    selectedPosts={selectedPosts}
+                    onReplace={performSearchReplace}
                 />
                 </Stack>
             </div>

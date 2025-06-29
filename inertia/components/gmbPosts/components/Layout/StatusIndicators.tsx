@@ -1,7 +1,7 @@
 import { Badge, Box, Button, Group, Text } from '@mantine/core'
-import { LuRefreshCw } from 'react-icons/lu'
+import { LuRefreshCw, LuReplace } from 'react-icons/lu'
 import { CurrentUser } from '../../types'
-import { ColumnVisibilityManager, ColumnConfig } from '../Table/ColumnVisibilityManager'
+import { ColumnConfig, ColumnVisibilityManager } from '../Table/ColumnVisibilityManager'
 
 interface StatusIndicatorsProps {
     postsLoaded: number
@@ -14,6 +14,7 @@ interface StatusIndicatorsProps {
     pendingUpdates?: number
     lastUpdateTime?: string | null
     onRefresh?: () => void
+    onSearchReplace?: () => void
     // Props pour la gestion des colonnes
     columns?: ColumnConfig[]
     onColumnsChange?: (columns: ColumnConfig[]) => void
@@ -32,6 +33,7 @@ export const StatusIndicators = ({
     pendingUpdates = 0,
     lastUpdateTime = null,
     onRefresh,
+    onSearchReplace,
     columns,
     onColumnsChange,
     onResetWidths,
@@ -69,50 +71,69 @@ export const StatusIndicators = ({
                         {postsLoaded > 1 ? 's' : ''}
                         {hasMore && <> sur {totalPosts} total</>}
                     </Text>
-                    
-                    <Text size="sm" c="dimmed">•</Text>
-                    
+
+                    <Text size="sm" c="dimmed">
+                        •
+                    </Text>
+
                     <Badge variant="outline" color="blue" size="sm">
                         👤 {currentUser.username}
                     </Badge>
-                    
+
                     {currentUser.notion_id && (
                         <Badge variant="outline" color="violet" size="sm">
                             🔗 Notion
                         </Badge>
                     )}
-                    
+
                     {/* Indicateur SSE */}
                     {getSSEBadge()}
-                    
+
                     {/* Indicateur de mises à jour en attente */}
                     {pendingUpdates > 0 && (
                         <Badge variant="filled" color="orange" size="sm">
                             📽 {pendingUpdates} mise{pendingUpdates > 1 ? 's' : ''} à jour
                         </Badge>
                     )}
-                    
+
                     {activeFiltersCount > 0 && (
                         <>
-                            <Text size="sm" c="dimmed">•</Text>
+                            <Text size="sm" c="dimmed">
+                                •
+                            </Text>
                             <Badge variant="outline" color="orange" size="sm">
-                                🔍 {activeFiltersCount} filtre{activeFiltersCount > 1 ? 's' : ''} actif{activeFiltersCount > 1 ? 's' : ''}
+                                🔍 {activeFiltersCount} filtre{activeFiltersCount > 1 ? 's' : ''}{' '}
+                                actif{activeFiltersCount > 1 ? 's' : ''}
                             </Badge>
                         </>
                     )}
-                    
+
                     {lastUpdateTime && (
                         <>
-                            <Text size="sm" c="dimmed">•</Text>
+                            <Text size="sm" c="dimmed">
+                                •
+                            </Text>
                             <Text size="xs" c="dimmed">
                                 Dernière MAJ: {lastUpdateTime}
                             </Text>
                         </>
                     )}
                 </Group>
-                
+
                 {/* Boutons d'actions */}
                 <Group gap="xs">
+                    {/* Bouton Rechercher/Remplacer */}
+                    {onSearchReplace && (
+                        <Button
+                            variant="subtle"
+                            size="xs"
+                            leftSection={<LuReplace size={14} />}
+                            onClick={onSearchReplace}
+                        >
+                            Rechercher/Remplacer
+                        </Button>
+                    )}
+
                     {/* Gestionnaire de colonnes */}
                     {columns && onColumnsChange && (
                         <ColumnVisibilityManager
@@ -122,7 +143,7 @@ export const StatusIndicators = ({
                             onResetToDefaults={onResetToDefaults}
                         />
                     )}
-                    
+
                     {/* Bouton de rafraîchissement manuel */}
                     {onRefresh && (
                         <Button
