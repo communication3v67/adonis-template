@@ -4,13 +4,13 @@ import { FilterState, AdvancedFilterState } from '../types'
 
 /**
  * Hook personnalisé pour gérer les filtres avec harmonisation avancée
- * Version améliorée qui gère les conflits avec les filtres avancés
+ * VERSION CORRIGÉE : Résout le problème d'effacement du champ de recherche
  * 
- * NOUVELLES FONCTIONNALITÉS :
- * - Détection des conflits avec les filtres avancés
- * - Synchronisation intelligente entre les deux systèmes
- * - Préservation des filtres lors des mises à jour
- * - Gestion unifiée des actions de réinitialisation
+ * PRINCIPALES CORRECTIONS :
+ * - Préservation stricte des filtres locaux après le premier rendu
+ * - Protection contre les écrasements lors des mises à jour SSE
+ * - Gestion plus fine du debounce pour la recherche
+ * - Séparation claire entre saisie utilisateur et synchronisation serveur
  */
 export const useFilters = (
     initialFilters: FilterState, 
@@ -18,15 +18,15 @@ export const useFilters = (
 ) => {
     const [localFilters, setLocalFilters] = useState(initialFilters)
     const [isApplyingFilters, setIsApplyingFilters] = useState(false)
-    const [forceUpdateKey, setForceUpdateKey] = useState(0) // Clé pour forcer le re-render
+    const [forceUpdateKey, setForceUpdateKey] = useState(0)
     
-    // Refs pour le tracking d'état
+    // Refs pour le tracking d'état et la protection
     const isFirstRender = useRef(true)
-    // Ref pour tracker si nous avons des filtres locaux actifs
-    const hasActiveFilters = useRef(false)
-    // Ref pour tracker l'état des filtres avancés
-    const lastAdvancedFiltersState = useRef<string>('')
-
+    const hasUserInteracted = useRef(false) // Nouveau : tracker les interactions utilisateur
+    const debounceTimeoutRef = useRef<NodeJS.Timeout>()
+    const lastSSEUpdateRef = useRef(0)
+    const pendingSearchValue = useRef<string | null>(null)
+    
     // Fonction pour vérifier si des filtres sont actifs
     const checkHasActiveFilters = (filters: FilterState) => {
         return !!(
@@ -72,95 +72,63 @@ export const useFilters = (
             }
         })
 
-        // Vérifier les dates
-        if ((basicFilters.dateFrom || basicFilters.dateTo)) {
-            const hasAdvancedDateFilter = advFilters.groups.some(group =>
-                group.filters.some(filter =>
-                    filter.property === 'date' && 
-                    filter.value !== '' && 
-                    filter.value !== null
-                )
-            )
-            if (hasAdvancedDateFilter) {
-                conflicts.push({ basic: 'date', advanced: 'date', value: 'date_range' })
-            }
-        }
-
         return conflicts
     }, [])
 
     // Fonction pour nettoyer les filtres en conflit
     const clearConflictingFilters = useCallback((conflicts: any[]) => {
-        const updatedFilters = { ...localFilters }
-        
-        conflicts.forEach(({ basic }) => {
-            if (basic === 'date') {
-                updatedFilters.dateFrom = ''
-                updatedFilters.dateTo = ''
-            } else {
-                updatedFilters[basic as keyof FilterState] = ''
-            }
+        setLocalFilters(currentFilters => {
+            const updatedFilters = { ...currentFilters }
+            
+            conflicts.forEach(({ basic }) => {
+                if (basic === 'date') {
+                    updatedFilters.dateFrom = ''
+                    updatedFilters.dateTo = ''
+                } else {
+                    updatedFilters[basic as keyof FilterState] = ''
+                }
+            })
+            
+            console.log('🧹 Nettoyage des filtres en conflit:', conflicts.map(c => c.basic))
+            return updatedFilters
         })
-        
-        console.log('🧹 Nettoyage des filtres en conflit:', conflicts.map(c => c.basic))
-        setLocalFilters(updatedFilters)
-        return updatedFilters
-    }, [localFilters])
+    }, [])
 
-    // Synchroniser les filtres locaux avec les props avec gestion des conflits
+    // Synchronisation ULTRA-RESTRICTIVE - seulement au premier rendu
     useEffect(() => {
-        const hasLocalActiveFilters = checkHasActiveFilters(localFilters)
-        const hasIncomingActiveFilters = checkHasActiveFilters(initialFilters)
-        const advancedStateChanged = JSON.stringify(advancedFilters) !== lastAdvancedFiltersState.current
-        
         if (isFirstRender.current) {
-            // Premier rendu : prendre les filtres du serveur
-            console.log('=== INITIALISATION FILTRES HARMONISÉS (PREMIER RENDU) ===')
-            console.log('Filtres props:', initialFilters)
-            console.log('Filtres avancés:', advancedFilters)
+            // Premier rendu UNIQUEMENT : prendre les filtres du serveur
+            console.log('=== INITIALISATION FILTRES (PREMIÈRE FOIS SEULEMENT) ===')
+            console.log('Filtres initiaux du serveur:', initialFilters)
             setLocalFilters(initialFilters)
-            hasActiveFilters.current = hasIncomingActiveFilters
             isFirstRender.current = false
-            lastAdvancedFiltersState.current = JSON.stringify(advancedFilters)
-            console.log('===========================================================')
-        } else if (!hasLocalActiveFilters && hasIncomingActiveFilters && !advancedStateChanged) {
-            // Si aucun filtre local actif mais des filtres arrivent du serveur (et pas de changement avancé)
-            console.log('=== SYNCHRONISATION FILTRES (PAS DE FILTRES LOCAUX) ===')
-            console.log('Filtres props:', initialFilters)
-            setLocalFilters(initialFilters)
-            hasActiveFilters.current = hasIncomingActiveFilters
-            console.log('=========================================================')
-        } else if (advancedStateChanged) {
-            // Si les filtres avancés ont changé, vérifier les conflits
-            console.log('=== GESTION CONFLITS AVEC FILTRES AVANCÉS ===')
+            console.log('========================================================')
+        } else {
+            // Après le premier rendu : JAMAIS écraser les filtres locaux
+            console.log('=== PROTECTION FILTRES LOCAUX ACTIVÉE ===')
+            console.log('Filtres locaux protégés:', localFilters)
+            console.log('Props serveur ignorées:', initialFilters)
+            console.log('=====================================')
+        }
+    }, [initialFilters])
+
+    // Gestion séparée des conflits avec filtres avancés
+    useEffect(() => {
+        if (!isFirstRender.current && advancedFilters) {
             const conflicts = detectConflictsWithAdvanced(localFilters, advancedFilters)
             
             if (conflicts.length > 0) {
-                console.log('⚠️ Conflits détectés:', conflicts)
+                console.log('⚠️ Conflits détectés avec filtres avancés:', conflicts)
                 console.log('🔧 Résolution automatique : priorité aux filtres avancés')
                 clearConflictingFilters(conflicts)
             }
-            
-            lastAdvancedFiltersState.current = JSON.stringify(advancedFilters)
-            console.log('=============================================')
-        } else {
-            // Conserver les filtres locaux lors des mises à jour de données
-            console.log('=== FILTRES LOCAUX PRÉSERVÉS ===')
-            console.log('Filtres locaux maintenus:', localFilters)
-            console.log('Filtres props ignorés:', initialFilters)
-            console.log('=================================')
         }
-    }, [initialFilters, advancedFilters, detectConflictsWithAdvanced, clearConflictingFilters])
+    }, [advancedFilters, detectConflictsWithAdvanced, clearConflictingFilters])
 
-    // Mettre à jour le tracking des filtres actifs quand les filtres locaux changent
-    useEffect(() => {
-        hasActiveFilters.current = checkHasActiveFilters(localFilters)
-    }, [localFilters])
-
+    // Application des filtres avec debounce amélioré
     const applyFilters = useCallback(() => {
         console.log('=== APPLICATION DES FILTRES ===')
-        console.log('Filtres locaux:', localFilters)
-        console.log('================================')
+        console.log('Filtres à appliquer:', localFilters)
 
         setIsApplyingFilters(true)
 
@@ -169,35 +137,32 @@ export const useFilters = (
             replace: true,
             onFinish: () => {
                 setIsApplyingFilters(false)
+                // Marquer que l'application est terminée
+                pendingSearchValue.current = null
             },
         })
     }, [localFilters])
 
-    // Application automatique des filtres avec debounce pour la recherche
+    // Auto-application avec protection SSE et debounce intelligent
     useEffect(() => {
         // Ignorer l'effet lors du premier rendu
         if (isFirstRender.current) return
         
-        // Protection contre les mises à jour SSE qui pourraient interférer
-        const isSSEUpdate = window.performance.now() - (window.lastSSEUpdate || 0) < 1000
-        if (isSSEUpdate) {
-            console.log('📞 Évitement application filtres (mise à jour SSE récente)')
+        // Nettoyer le timeout précédent
+        if (debounceTimeoutRef.current) {
+            clearTimeout(debounceTimeoutRef.current)
+        }
+
+        // Protection contre les mises à jour SSE récentes
+        const timeSinceSSE = Date.now() - lastSSEUpdateRef.current
+        if (timeSinceSSE < 1000) {
+            console.log('📞 Auto-application bloquée (mise à jour SSE récente)')
             return
         }
 
-        // Si c'est juste un changement de texte de recherche, on debounce
-        if (localFilters.search !== initialFilters.search && localFilters.search.length > 0) {
-            const timeoutId = setTimeout(() => {
-                console.log('=== AUTO-APPLICATION FILTRES (SEARCH) ===')
-                console.log('Recherche auto-appliquée:', localFilters.search)
-                console.log('==========================================')
-                applyFilters()
-            }, 800) // Délai de 800ms pour la recherche
-
-            return () => clearTimeout(timeoutId)
-        }
-        // Pour les autres filtres, application immédiate si différents des props
-        else if (
+        // Vérifier si les filtres ont réellement changé par rapport aux props initiales
+        const searchChanged = localFilters.search !== initialFilters.search
+        const otherFiltersChanged = (
             localFilters.status !== initialFilters.status ||
             localFilters.client !== initialFilters.client ||
             localFilters.project !== initialFilters.project ||
@@ -205,11 +170,32 @@ export const useFilters = (
             localFilters.sortOrder !== initialFilters.sortOrder ||
             localFilters.dateFrom !== initialFilters.dateFrom ||
             localFilters.dateTo !== initialFilters.dateTo
-        ) {
-            console.log('=== AUTO-APPLICATION FILTRES ===')
-            console.log('Filtres auto-appliqués:', localFilters)
-            console.log('================================')
+        )
+
+        if (searchChanged) {
+            // Debounce pour la recherche
+            console.log('🔍 Préparation auto-application recherche avec debounce')
+            pendingSearchValue.current = localFilters.search
+            
+            debounceTimeoutRef.current = setTimeout(() => {
+                // Vérifier que la valeur n'a pas changé entre temps
+                if (pendingSearchValue.current === localFilters.search) {
+                    console.log('=== AUTO-APPLICATION RECHERCHE (DEBOUNCE) ===')
+                    console.log('Recherche appliquée:', localFilters.search)
+                    applyFilters()
+                }
+            }, 800)
+        } else if (otherFiltersChanged) {
+            // Application immédiate pour les autres filtres
+            console.log('=== AUTO-APPLICATION FILTRES (IMMÉDIATE) ===')
             applyFilters()
+        }
+
+        // Cleanup
+        return () => {
+            if (debounceTimeoutRef.current) {
+                clearTimeout(debounceTimeoutRef.current)
+            }
         }
     }, [
         localFilters.search,
@@ -220,11 +206,29 @@ export const useFilters = (
         localFilters.sortOrder,
         localFilters.dateFrom,
         localFilters.dateTo,
-        applyFilters
+        applyFilters,
+        initialFilters
     ])
 
+    // Fonction de mise à jour avec protection
+    const updateFilter = useCallback((key: keyof FilterState, value: string) => {
+        console.log(`=== MISE À JOUR FILTRE ${key.toUpperCase()} ===`)
+        console.log('Ancienne valeur:', localFilters[key])
+        console.log('Nouvelle valeur:', value)
+        
+        // Marquer l'interaction utilisateur
+        hasUserInteracted.current = true
+        
+        setLocalFilters((prev) => {
+            const newFilters = { ...prev, [key]: value }
+            console.log('Nouveaux filtres locaux:', newFilters)
+            return newFilters
+        })
+    }, [localFilters])
+
+    // Réinitialisation simple
     const resetFilters = useCallback(() => {
-        const resetFiltersData = {
+        const resetData = {
             search: '',
             status: '',
             client: '',
@@ -234,21 +238,20 @@ export const useFilters = (
             dateFrom: '',
             dateTo: '',
         }
-        console.log('=== RÉINITIALISATION DES FILTRES RAPIDES ===')
-        console.log('Données de réinitialisation:', resetFiltersData)
-        console.log('=============================================')
-
-        setLocalFilters(resetFiltersData)
-        hasActiveFilters.current = false
-        router.get('/gmb-posts', resetFiltersData, {
+        
+        console.log('=== RÉINITIALISATION FILTRES ===')
+        hasUserInteracted.current = false
+        setLocalFilters(resetData)
+        
+        router.get('/gmb-posts', resetData, {
             preserveState: true,
             replace: true,
         })
     }, [])
 
-    // Nouvelle fonction pour réinitialiser TOUS les filtres (rapides + avancés)
+    // Réinitialisation globale
     const resetAllFilters = useCallback((onResetAdvanced?: () => void) => {
-        const resetFiltersData = {
+        const resetData = {
             search: '',
             status: '',
             client: '',
@@ -259,59 +262,53 @@ export const useFilters = (
             dateTo: '',
         }
         
-        console.log('=== RÉINITIALISATION DES FILTRES RAPIDES ===')
-        console.log('Données de réinitialisation:', resetFiltersData)
-        console.log('=============================================')
-
-        // FORCER la mise à jour immédiate de l'état local
-        setLocalFilters(resetFiltersData)
-        hasActiveFilters.current = false
+        console.log('=== RÉINITIALISATION GLOBALE ===')
         
-        // Forcer un re-render de tous les composants
+        // Réinitialiser les états de tracking
+        hasUserInteracted.current = false
+        pendingSearchValue.current = null
+        
+        // Mettre à jour l'état local
+        setLocalFilters(resetData)
+        
+        // Forcer un re-render
         setForceUpdateKey(prev => prev + 1)
         
-        // Réinitialiser les filtres avancés si la fonction est fournie
+        // Réinitialiser les filtres avancés
         if (onResetAdvanced) {
-            console.log('🔄 Réinitialisation des filtres avancés demandée')
             onResetAdvanced()
         }
         
-        // Appel immédiat sans timeout pour éviter les conflits
-        router.get('/gmb-posts', resetFiltersData, {
+        // Navigation
+        router.get('/gmb-posts', resetData, {
             preserveState: true,
             replace: true,
-            onSuccess: () => {
-                console.log('✅ Réinitialisation des filtres rapides terminée')
-            },
-            onError: () => {
-                console.error('❌ Erreur lors de la réinitialisation des filtres rapides')
-            }
         })
     }, [])
 
-    // Fonction pour vérifier s'il y a des conflits actifs
-    const hasConflictsWithAdvanced = useCallback(() => {
-        return detectConflictsWithAdvanced(localFilters, advancedFilters).length > 0
-    }, [localFilters, advancedFilters, detectConflictsWithAdvanced])
-
-    const updateFilter = useCallback((key: keyof FilterState, value: string) => {
-        setLocalFilters((prev) => ({
-            ...prev,
-            [key]: value,
-        }))
-    }, [])
-
+    // Gestionnaire de tri
     const handleSort = useCallback((sortBy: string, sortOrder: string) => {
         console.log('=== CHANGEMENT DE TRI ===')
         console.log('Nouveau tri:', sortBy, sortOrder)
-        console.log('===========================')
-
+        
+        hasUserInteracted.current = true
         setLocalFilters((prev) => ({
             ...prev,
             sortBy,
             sortOrder,
         }))
     }, [])
+
+    // Fonction pour marquer les mises à jour SSE
+    const markSSEUpdate = useCallback(() => {
+        lastSSEUpdateRef.current = Date.now()
+        console.log('📡 Mise à jour SSE marquée - protection activée')
+    }, [])
+
+    // Fonction pour vérifier les conflits
+    const hasConflictsWithAdvanced = useCallback(() => {
+        return detectConflictsWithAdvanced(localFilters, advancedFilters).length > 0
+    }, [localFilters, advancedFilters, detectConflictsWithAdvanced])
 
     return {
         filters: localFilters,
@@ -322,10 +319,11 @@ export const useFilters = (
         resetFilters,
         resetAllFilters,
         handleSort,
-        forceUpdateKey, // Exposer la clé pour forcer les re-renders
-        // Nouvelles fonctions pour la gestion des conflits
+        forceUpdateKey,
+        markSSEUpdate,
         hasConflictsWithAdvanced,
         detectConflictsWithAdvanced: () => detectConflictsWithAdvanced(localFilters, advancedFilters),
         clearConflictingFilters,
+        hasActiveFilters: checkHasActiveFilters(localFilters),
     }
 }

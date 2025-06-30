@@ -5,6 +5,7 @@ import { ColumnConfig } from '../../components/gmbPosts/components/Table/ColumnV
 import { SSE_CLIENT_CONFIG } from '../../config/sse'
 import { useSSE } from '../../hooks/useSSE'
 import { useColumnPersistence } from '../../hooks/useColumnPersistence'
+import { useSearchReplace } from '../../hooks/useSearchReplace'
 import { advancedFiltersToUrlParams } from '../../components/gmbPosts/components/AdvancedFilters'
 
 // Types et hooks
@@ -29,6 +30,7 @@ import {
     PostsTable,
     StatusIndicators,
     WebhookModal,
+    SearchReplaceModal,
 } from '../../components/gmbPosts'
 
 export default function GmbPostsIndex({
@@ -67,7 +69,7 @@ export default function GmbPostsIndex({
     })
 
     // Hook personnalisé pour les filtres rapides avec harmonisation
-    const { filters, updateFilter, isApplyingFilters, applyFilters, resetFilters, resetAllFilters, handleSort, hasConflictsWithAdvanced, clearConflictingFilters, forceUpdateKey } =
+    const { filters, updateFilter, isApplyingFilters, applyFilters, resetFilters, resetAllFilters, handleSort, hasConflictsWithAdvanced, clearConflictingFilters, forceUpdateKey, markSSEUpdate } =
         useFilters(initialFilters, advancedFilters)
 
     // Forcer la mise à jour des hooks dépendants en cas de changement SSE
@@ -112,6 +114,15 @@ export default function GmbPostsIndex({
         closeWebhookModal,
     } = useWebhook()
 
+    // Hook pour la fonctionnalité de recherche/remplacement
+    const {
+        isProcessing: isSearchReplaceProcessing,
+        searchReplaceModalOpened,
+        openSearchReplaceModal,
+        closeSearchReplaceModal,
+        performSearchReplace
+    } = useSearchReplace()
+
     // Hook SSE personnalisé
     const { isConnected, connectionStatus, reconnect, setCallbacks } = useSSE(currentUser.id)
 
@@ -128,6 +139,9 @@ export default function GmbPostsIndex({
     // Fonction pour rafraîchir les données en préservant TOUS les filtres (base + avancés)
     const refreshData = useCallback(() => {
         console.log('🔄 Rafraîchissement fluide des données...')
+        
+        // Marquer la mise à jour pour éviter les conflits avec les filtres
+        markSSEUpdate()
         
         // Incrémenter la clé de rafraîchissement sans forcer un re-render brutal
         setRefreshKey((prev) => prev + 1)
@@ -165,7 +179,7 @@ export default function GmbPostsIndex({
                 console.log('🏁 Rafraîchissement terminé')
             }
         })
-    }, [filters, hasActiveAdvancedFilters, advancedFilters])
+    }, [filters, hasActiveAdvancedFilters, advancedFilters, markSSEUpdate])
 
     // Gestion de l'hydratation et SSE
     useEffect(() => {
@@ -187,6 +201,9 @@ export default function GmbPostsIndex({
                     
                     // Marquer le timestamp de la dernière mise à jour SSE
                     window.lastSSEUpdate = window.performance.now()
+                    
+                    // Informer le hook useFilters de la mise à jour SSE pour éviter les conflits
+                    markSSEUpdate()
 
                     setPendingUpdates((prev) => prev + 1)
 
@@ -493,6 +510,7 @@ export default function GmbPostsIndex({
                         pendingUpdates={pendingUpdates}
                         lastUpdateTime={lastUpdateTime}
                         onRefresh={refreshData}
+                        onSearchReplace={openSearchReplaceModal}
                         columns={columns}
                         onColumnsChange={setColumns}
                         onResetWidths={resetWidths}
@@ -552,6 +570,15 @@ export default function GmbPostsIndex({
                     opened={showWebhookModal}
                     response={webhookResponse}
                     onClose={closeWebhookModal}
+                />
+
+                {/* Modal Rechercher/Remplacer */}
+                <SearchReplaceModal
+                    opened={searchReplaceModalOpened}
+                    onClose={closeSearchReplaceModal}
+                    posts={infinitePosts}
+                    selectedPosts={selectedPosts}
+                    onReplace={performSearchReplace}
                 />
                 </Stack>
             </div>
