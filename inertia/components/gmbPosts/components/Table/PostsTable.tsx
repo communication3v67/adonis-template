@@ -194,6 +194,27 @@ export const PostsTable = ({
                                         </ResizableColumn>
                                     )
                                 }
+                                if (column.key === 'id') {
+                                    return (
+                                        <ResizableColumn
+                                            key={column.key}
+                                            width={column.width}
+                                            minWidth={column.minWidth}
+                                            maxWidth={column.maxWidth}
+                                            onResize={(newWidth) =>
+                                                handleColumnResize(column.key, newWidth)
+                                            }
+                                        >
+                                            <SortableHeader
+                                                label={column.label}
+                                                sortKey={column.key}
+                                                currentSortBy={filters.sortBy}
+                                                currentSortOrder={filters.sortOrder}
+                                                onSort={onSort}
+                                            />
+                                        </ResizableColumn>
+                                    )
+                                }
                                 if (column.key === 'actions') {
                                     return (
                                         <ResizableColumn
@@ -272,6 +293,7 @@ export const PostsTable = ({
                                     )
                                 }
                                 const sortableColumns = [
+                                    'id',
                                     'status',
                                     'text',
                                     'date',

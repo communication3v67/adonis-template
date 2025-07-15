@@ -796,6 +796,7 @@ export default class GmbPostsController {
 
         // Mapping des noms de colonnes pour le tri (frontend camelCase -> database snake_case)
         const sortColumnMap: Record<string, string> = {
+            id: 'id',
             createdAt: 'created_at',
             updatedAt: 'updated_at',
             date: 'date',
