@@ -186,6 +186,12 @@ export const PostRow = ({
                         <Checkbox checked={isSelected} onChange={() => onSelect(post.id)} />
                     </td>
                 )
+            case 'id':
+                return (
+                    <td key={column.key} style={{ ...baseStyle, textAlign: 'center', fontWeight: 'bold', fontSize: '12px', color: '#6c757d' }}>
+                        {post.id}
+                    </td>
+                )
             case 'status':
                 return (
                     <td key={column.key} style={baseStyle}>

@@ -15,6 +15,14 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
         required: true,
     },
     {
+        key: 'id',
+        label: 'ID',
+        visible: true,
+        width: 80,
+        minWidth: 60,
+        maxWidth: 120,
+    },
+    {
         key: 'readiness',
         label: '✓',
         visible: true,
