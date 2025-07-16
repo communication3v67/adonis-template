@@ -1,11 +1,13 @@
 import { Head, router } from '@inertiajs/react'
 import { Stack } from '@mantine/core'
+import { notifications } from '@mantine/notifications'
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { ColumnConfig } from '../../components/gmbPosts/components/Table/ColumnVisibilityManager'
 import { SSE_CLIENT_CONFIG } from '../../config/sse'
 import { useSSE } from '../../hooks/useSSE'
 import { useColumnPersistence } from '../../hooks/useColumnPersistence'
 import { useSearchReplace } from '../../hooks/useSearchReplace'
+import { useCapitalizeFirstLetter } from '../../hooks/useCapitalizeFirstLetter'
 import { advancedFiltersToUrlParams } from '../../components/gmbPosts/components/AdvancedFilters'
 
 // Types et hooks
@@ -122,6 +124,12 @@ export default function GmbPostsIndex({
         closeSearchReplaceModal,
         performSearchReplace
     } = useSearchReplace()
+
+    // Hook pour la fonctionnalité de mise en majuscule
+    const {
+        isProcessing: isCapitalizeProcessing,
+        capitalizeFirstLetter
+    } = useCapitalizeFirstLetter()
 
     // Hook SSE personnalisé
     const { isConnected, connectionStatus, reconnect, setCallbacks } = useSSE(currentUser.id)
@@ -374,6 +382,18 @@ export default function GmbPostsIndex({
         updateFilter('dateTo', dateTo)
     }
 
+    // Gestion de la capitalisation - uniquement sur les posts sélectionnés
+    const handleCapitalizeFirstLetter = () => {
+        // Le bouton est désactivé si aucun post n'est sélectionné, mais vérification de sécurité
+        if (selectedPosts.length === 0) return
+        
+        // Appliquer uniquement aux posts sélectionnés
+        capitalizeFirstLetter(selectedPosts)
+        
+        // Nettoyer la sélection après traitement
+        clearSelection()
+    }
+
     // Créer un tableau des posts sélectionnés avec leurs données complètes
     const selectedPostsData = useMemo(() => {
         if (
@@ -511,6 +531,8 @@ export default function GmbPostsIndex({
                         lastUpdateTime={lastUpdateTime}
                         onRefresh={refreshData}
                         onSearchReplace={openSearchReplaceModal}
+                        onCapitalizeFirstLetter={handleCapitalizeFirstLetter}
+                        selectedCount={selectedCount}
                         columns={columns}
                         onColumnsChange={setColumns}
                         onResetWidths={resetWidths}

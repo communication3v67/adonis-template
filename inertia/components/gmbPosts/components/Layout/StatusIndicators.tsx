@@ -1,5 +1,5 @@
 import { Badge, Box, Button, Group, Text } from '@mantine/core'
-import { LuRefreshCw, LuReplace } from 'react-icons/lu'
+import { LuRefreshCw, LuReplace, LuType } from 'react-icons/lu'
 import { CurrentUser } from '../../types'
 import { ColumnConfig, ColumnVisibilityManager } from '../Table/ColumnVisibilityManager'
 
@@ -15,6 +15,8 @@ interface StatusIndicatorsProps {
     lastUpdateTime?: string | null
     onRefresh?: () => void
     onSearchReplace?: () => void
+    onCapitalizeFirstLetter?: () => void
+    selectedCount?: number // Ajout du nombre d'éléments sélectionnés
     // Props pour la gestion des colonnes
     columns?: ColumnConfig[]
     onColumnsChange?: (columns: ColumnConfig[]) => void
@@ -34,6 +36,8 @@ export const StatusIndicators = ({
     lastUpdateTime = null,
     onRefresh,
     onSearchReplace,
+    onCapitalizeFirstLetter,
+    selectedCount = 0,
     columns,
     onColumnsChange,
     onResetWidths,
@@ -131,6 +135,24 @@ export const StatusIndicators = ({
                             onClick={onSearchReplace}
                         >
                             Rechercher/Remplacer
+                        </Button>
+                    )}
+
+                    {/* Bouton Mettre en majuscule */}
+                    {onCapitalizeFirstLetter && (
+                        <Button
+                            variant="subtle"
+                            size="xs"
+                            leftSection={<LuType size={14} />}
+                            onClick={onCapitalizeFirstLetter}
+                            color="blue"
+                            disabled={selectedCount === 0}
+                            title={selectedCount === 0 
+                                ? "Sélectionnez des posts pour mettre en majuscule la première lettre" 
+                                : `Mettre en majuscule la première lettre de ${selectedCount} post(s) sélectionné(s)`
+                            }
+                        >
+                            Majuscule
                         </Button>
                     )}
 

@@ -530,6 +530,112 @@ export default class GmbPostsController {
     }
 
     /**
+     * Applique la mise en majuscule de la première lettre du champ texte
+     */
+    async capitalizeFirstLetter({ request, response, session, auth }: HttpContext) {
+        try {
+            // S'assurer qu'un utilisateur est connecté
+            await auth.check()
+            const currentUser = auth.user!
+
+            const { ids } = request.only(['ids'])
+
+            console.log('=== MÉTHODE CAPITALIZE FIRST LETTER ===')
+            console.log('Utilisateur:', currentUser.id)
+            console.log('IDs reçus:', ids)
+            console.log('========================================')
+
+            if (!ids || !Array.isArray(ids) || ids.length === 0) {
+                session.flash('notification', {
+                    type: 'error',
+                    message: 'Aucun post sélectionné pour le traitement.',
+                })
+                return response.redirect().back()
+            }
+
+            // Récupérer les posts sélectionnés (seulement ceux de l'utilisateur)
+            const selectedPosts = await GmbPost.query()
+                .whereIn('id', ids)
+                .where('user_id', currentUser.id)
+                .orderBy('id')
+
+            if (selectedPosts.length === 0) {
+                session.flash('notification', {
+                    type: 'error',
+                    message: "Aucun post trouvé ou vous n'avez pas l'autorisation.",
+                })
+                return response.redirect().back()
+            }
+
+            console.log(`${selectedPosts.length} posts trouvés sur ${ids.length} demandés`)
+
+            let updatedCount = 0
+            let skippedCount = 0
+
+            // Traiter chaque post pour mettre en majuscule la première lettre
+            for (const post of selectedPosts) {
+                try {
+                    // Vérifier si le post a du texte
+                    if (!post.text || typeof post.text !== 'string' || post.text.trim() === '') {
+                        console.log(`Post ${post.id} ignoré - pas de texte`)
+                        skippedCount++
+                        continue
+                    }
+
+                    // Appliquer la mise en majuscule de la première lettre
+                    const originalText = post.text
+                    const capitalizedText = originalText.charAt(0).toUpperCase() + originalText.slice(1)
+
+                    // Vérifier si le texte a réellement changé
+                    if (originalText === capitalizedText) {
+                        console.log(`Post ${post.id} ignoré - première lettre déjà en majuscule`)
+                        skippedCount++
+                        continue
+                    }
+
+                    post.text = capitalizedText
+                    await post.save()
+                    updatedCount++
+
+                    // Diffuser l'événement SSE
+                    await this.broadcastPostUpdate(post, 'updated', currentUser.id)
+
+                    console.log(`Post ${post.id} traité: "${originalText.substring(0, 30)}..." -> "${capitalizedText.substring(0, 30)}..."`)
+                } catch (error) {
+                    console.error(`Erreur traitement post ${post.id}:`, error)
+                    skippedCount++
+                }
+            }
+
+            // Diffuser une notification globale
+            await this.broadcastNotification(currentUser.id, {
+                type: 'success',
+                title: 'Traitement terminé',
+                message: `${updatedCount} post(s) traité(s) avec succès !${skippedCount > 0 ? ` (${skippedCount} ignoré(s))` : ''}`,
+            })
+
+            console.log(`${updatedCount} posts traités, ${skippedCount} ignorés`)
+
+            session.flash('notification', {
+                type: 'success',
+                message: `${updatedCount} post(s) traité(s) avec succès !${skippedCount > 0 ? ` (${skippedCount} posts ignorés)` : ''}`,
+            })
+
+            return response.redirect().toRoute('gmbPosts.index')
+        } catch (error) {
+            console.error('Erreur mise en majuscule première lettre:', error)
+            console.error('Stack trace:', error.stack)
+
+            session.flash('notification', {
+                type: 'error',
+                message: 'Erreur lors du traitement des posts.',
+            })
+
+            return response.redirect().back()
+        }
+    }
+
+    /**
      * Attribue des images en masse aux posts sélectionnés
      */
     async bulkImages({ request, response, session, auth }: HttpContext) {
