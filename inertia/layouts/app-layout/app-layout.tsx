@@ -88,9 +88,13 @@ export default function AppLayout(
                     {props.user && (
                         <Stack gap="sm" mt="auto">
                             <Box p="sm" style={{ borderTop: '1px solid #e9ecef' }}>
-                                <Group gap="sm">
+                                <Group gap="sm" wrap="nowrap">
                                     {props.user.avatar ? (
-                                        <Avatar src={props.user.avatar} alt={props.user.username} size={32} />
+                                        <Avatar
+                                            src={props.user.avatar}
+                                            alt={props.user.username}
+                                            size={32}
+                                        />
                                     ) : (
                                         <Avatar size={32} color="blue">
                                             <Text size="xs" fw={500}>
