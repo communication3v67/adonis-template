@@ -5,12 +5,14 @@ import {
     AppShellHeader,
     AppShellMain,
     AppShellNavbar,
+    Avatar,
     Box,
     Burger,
     Button,
     Group,
     Image,
     MantineProvider,
+    Stack,
     Text,
     ThemeIcon,
     UnstyledButton,
@@ -19,6 +21,15 @@ import { useLocalStorage } from '@mantine/hooks'
 import { PropsWithChildren } from 'react'
 import { LuLayoutDashboard, LuLogOut, LuNewspaper } from 'react-icons/lu'
 import classes from './app-layout.module.css'
+
+// Fonction pour générer les initiales
+function getInitials(name: string): string {
+    return name
+        .split(' ')
+        .map((word) => word.charAt(0).toUpperCase())
+        .slice(0, 2)
+        .join('')
+}
 
 export default function AppLayout(
     props: PropsWithChildren<SharedProps & { sidebarOpened?: boolean }>
@@ -75,16 +86,39 @@ export default function AppLayout(
                         </Group>
                     </UnstyledButton>
                     {props.user && (
-                        <Button
-                            mt="auto"
-                            leftSection={<LuLogOut size={14} />}
-                            component={Link}
-                            href="/logout"
-                            method="post"
-                            variant="light"
-                        >
-                            {`Se déconnecter`}
-                        </Button>
+                        <Stack gap="sm" mt="auto">
+                            <Box p="sm" style={{ borderTop: '1px solid #e9ecef' }}>
+                                <Group gap="sm">
+                                    {props.user.avatar ? (
+                                        <Avatar src={props.user.avatar} alt={props.user.username} size={32} />
+                                    ) : (
+                                        <Avatar size={32} color="blue">
+                                            <Text size="xs" fw={500}>
+                                                {getInitials(props.user.username)}
+                                            </Text>
+                                        </Avatar>
+                                    )}
+                                    <Box style={{ flex: 1 }}>
+                                        <Text size="sm" fw={500} truncate>
+                                            {props.user.username}
+                                        </Text>
+                                        <Text size="xs" c="dimmed" truncate>
+                                            {props.user.email}
+                                        </Text>
+                                    </Box>
+                                </Group>
+                            </Box>
+                            <Button
+                                leftSection={<LuLogOut size={14} />}
+                                component={Link}
+                                href="/logout"
+                                method="post"
+                                variant="light"
+                                fullWidth
+                            >
+                                {`Se déconnecter`}
+                            </Button>
+                        </Stack>
                     )}
                 </AppShellNavbar>
                 <AppShellMain className={classes.main}>{props.children}</AppShellMain>
