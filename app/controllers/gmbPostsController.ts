@@ -1187,13 +1187,15 @@ export default class GmbPostsController {
     }
 
     /**
-     * Met à jour un post existant
+     * Met à jour un post existant - Version optimisée pour l'édition inline
      */
     async update({ params, request, response, session, auth }: HttpContext) {
         console.log('=== MÉTHODE UPDATE APPELÉE ===')
         console.log("Paramètres de l'URL:", params)
         console.log('Méthode HTTP:', request.method())
         console.log('URL complète:', request.url())
+        console.log('Content-Type:', request.header('content-type'))
+        console.log('Accept:', request.header('accept'))
         console.log('================================')
 
         try {
@@ -1205,91 +1207,142 @@ export default class GmbPostsController {
 
             // Vérifier que le post appartient à l'utilisateur connecté
             if (post.user_id !== currentUser.id) {
-                session.flash('notification', {
-                    type: 'error',
-                    message: "Vous n'avez pas l'autorisation de modifier ce post.",
+                return response.status(403).json({
+                    success: false,
+                    message: "Vous n'avez pas l'autorisation de modifier ce post."
                 })
-                return response.redirect().toRoute('gmbPosts.index')
             }
 
             const payload = request.all()
-
             console.log('Payload reçu:', payload)
-            console.log('Post avant modification:', post.toJSON())
-
-            // Nettoyer et préparer les données
-            const updateData: any = {}
-
-            // Traiter chaque champ individuellement sans validation stricte
-            if (payload.status !== undefined) updateData.status = payload.status || null
-            if (payload.text !== undefined) updateData.text = payload.text || null
-            if (payload.image_url !== undefined) updateData.image_url = payload.image_url || null
-            if (payload.link_url !== undefined) updateData.link_url = payload.link_url || null
-            if (payload.keyword !== undefined) updateData.keyword = payload.keyword || null
-            if (payload.client !== undefined) updateData.client = payload.client || null
-            if (payload.project_name !== undefined)
-                updateData.project_name = payload.project_name || null
-            if (payload.city !== undefined) updateData.city = payload.city || null
-            if (payload.location_id !== undefined)
-                updateData.location_id = payload.location_id || null
-            if (payload.account_id !== undefined) updateData.account_id = payload.account_id || null
-            if (payload.notion_id !== undefined) updateData.notion_id = payload.notion_id || null
-            if (payload.informations !== undefined)
-                updateData.informations = payload.informations || null
-
-            // Nouveaux champs IA
-            if (payload.input_tokens !== undefined)
-                updateData.input_tokens = payload.input_tokens || null
-            if (payload.output_tokens !== undefined)
-                updateData.output_tokens = payload.output_tokens || null
-            if (payload.model !== undefined) updateData.model = payload.model || null
-            if (payload.price !== undefined) updateData.price = payload.price || null
-
-            // Gestion spéciale pour la date
-            if (payload.date !== undefined && payload.date) {
-                try {
-                    updateData.date = DateTime.fromISO(payload.date)
-                } catch (error) {
-                    console.error('Erreur parsing date:', error)
-                    // Si erreur de parsing, garder la date originale
+            
+            // NOUVEAU : Gestion des conflits basée sur timestamp (sans migration)
+            const clientLastModified = payload.last_modified
+            const forceUpdate = payload.force_update
+            
+            if (clientLastModified && !forceUpdate) {
+                // Vérifier si le post a été modifié depuis que le client l'a chargé
+                const clientTime = DateTime.fromISO(clientLastModified)
+                if (post.updatedAt > clientTime) {
+                    console.log(`⚠️ Conflit de modification détecté:`)
+                    console.log(`  - Client timestamp: ${clientLastModified}`)
+                    console.log(`  - Serveur updated_at: ${post.updatedAt.toISO()}`)
+                    
+                    return response.status(409).json({
+                        success: false,
+                        message: 'Ce post a été modifié par quelqu\'un d\'autre.',
+                        version_conflict: {
+                            current_post: {
+                                ...post.serialize(),
+                                last_modified: post.updatedAt.toISO(),
+                                version_timestamp: post.updatedAt.toMillis(),
+                            },
+                            client_timestamp: clientLastModified,
+                            server_timestamp: post.updatedAt.toISO(),
+                            conflict_detected_at: DateTime.now().toISO()
+                        }
+                    })
                 }
             }
+            
+            console.log('Post avant modification:', post.toJSON())
 
-            console.log('Données à mettre à jour:', updateData)
+            // Détecter si c'est une requête AJAX/API (pour l'édition inline) vs Modal Inertia
+            const isApiRequest = request.header('accept')?.includes('application/json') && 
+                                request.header('x-requested-with') === 'XMLHttpRequest'
+            
+            // Les modals Inertia n'envoient pas ces headers spécifiques
+            const isInertiaModal = !isApiRequest && request.header('x-inertia')
 
-            // Appliquer les modifications
-            Object.keys(updateData).forEach((key) => {
-                post[key] = updateData[key]
+            console.log('Type de requête détecté:', {
+                isApiRequest,
+                isInertiaModal,
+                accept: request.header('accept'),
+                xRequestedWith: request.header('x-requested-with'),
+                xInertia: request.header('x-inertia')
+            })
+
+            // Mise à jour directe et efficace pour l'édition inline
+            Object.keys(payload).forEach((key) => {
+                // Ignorer les champs méta et de contrôle - AMÉLIORÉ
+                if (['last_modified', 'force_update', 'client_timestamp', 'version_timestamp'].includes(key)) {
+                    return
+                }
+                
+                if (payload[key] !== undefined) {
+                    // Gestion spéciale pour la date
+                    if (key === 'date' && payload[key]) {
+                        try {
+                            post[key] = DateTime.fromISO(payload[key])
+                        } catch (error) {
+                            console.error('Erreur parsing date:', error)
+                            // Garder la date originale en cas d'erreur
+                        }
+                    } else {
+                        post[key] = payload[key] || null
+                    }
+                }
             })
 
             await post.save()
 
-            // Diffuser l'événement SSE
+            // Diffuser l'événement SSE pour synchronisation temps réel
             await this.broadcastPostUpdate(post, 'updated', currentUser.id)
-            await this.broadcastNotification(currentUser.id, {
-                type: 'success',
-                title: 'Post modifié',
-                message: 'Post GMB mis à jour avec succès !',
-            })
 
             console.log('Post après modification:', post.toJSON())
 
-            session.flash('notification', {
-                type: 'success',
-                message: 'Post GMB mis à jour avec succès !',
-            })
+            // Réponse adaptée selon le type de requête
+            if (isApiRequest) {
+                // Réponse JSON pour les requêtes AJAX (inline edit)
+                console.log('🚀 Réponse JSON pour édition inline')
+                return response.json({
+                    success: true,
+                    message: 'Post mis à jour avec succès',
+                    post: {
+                        ...post.serialize(),
+                        last_modified: post.updatedAt.toISO(), // Inclure timestamp mis à jour
+                        version_timestamp: post.updatedAt.toMillis(),
+                    },
+                    timestamp: new Date().toISOString()
+                })
+            } else {
+                // Réponse Inertia pour les modals et formulaires
+                console.log('🚀 Réponse Inertia pour modal/formulaire')
+                
+                await this.broadcastNotification(currentUser.id, {
+                    type: 'success',
+                    title: 'Post modifié',
+                    message: 'Post GMB mis à jour avec succès !',
+                })
 
-            return response.redirect().toRoute('gmbPosts.index')
+                session.flash('notification', {
+                    type: 'success',
+                    message: 'Post GMB mis à jour avec succès !',
+                })
+
+                return response.redirect().toRoute('gmbPosts.index')
+            }
         } catch (error) {
             console.error('Erreur mise à jour:', error)
             console.error('Stack trace:', error.stack)
 
-            session.flash('notification', {
-                type: 'error',
-                message: 'Erreur lors de la mise à jour du post.',
-            })
+            // Réponse d'erreur adaptée
+            const isApiRequest = request.header('accept')?.includes('application/json') && 
+                                request.header('x-requested-with') === 'XMLHttpRequest'
 
-            return response.redirect().back()
+            if (isApiRequest) {
+                return response.status(500).json({
+                    success: false,
+                    message: 'Erreur lors de la mise à jour du post',
+                    error: error.message
+                })
+            } else {
+                session.flash('notification', {
+                    type: 'error',
+                    message: 'Erreur lors de la mise à jour du post.',
+                })
+                return response.redirect().back()
+            }
         }
     }
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { notifications } from '@mantine/notifications'
+import { SSE_CLIENT_CONFIG } from '../config/sse'
 
 // Types pour les événements
 interface PostUpdateEvent {
@@ -29,7 +30,7 @@ interface NotificationEvent {
 type SSEEvent = PostUpdateEvent | NotificationEvent
 
 /**
- * Hook pour gérer les connexions SSE personnalisées
+ * Hook pour gérer les connexions SSE personnalisées avec gestion avancée des conflits
  */
 export const useSSE = (userId: number) => {
     const [isConnected, setIsConnected] = useState(false)
@@ -37,7 +38,11 @@ export const useSSE = (userId: number) => {
     const eventSourceRef = useRef<EventSource | null>(null)
     const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
     const [reconnectAttempts, setReconnectAttempts] = useState(0)
-    const maxReconnectAttempts = 5
+    const maxReconnectAttempts = SSE_CLIENT_CONFIG.MAX_RECONNECT_ATTEMPTS || 15
+    
+    // Gestion des actions utilisateur en cours pour éviter les conflits
+    const [pendingUserActions, setPendingUserActions] = useState<Set<number>>(new Set())
+    const pendingTimeouts = useRef<Map<number, NodeJS.Timeout>>(new Map())
 
     // Callbacks pour les événements
     const callbacksRef = useRef<{
@@ -118,10 +123,14 @@ export const useSSE = (userId: number) => {
                 setIsConnected(false)
                 setConnectionStatus('error')
                 
-                // Tentative de reconnexion
+                // Tentative de reconnexion avec backoff amélioré
                 if (reconnectAttempts < maxReconnectAttempts) {
-                    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000) // Backoff exponentiel
-                    console.log(`🔄 SSE: Reconnexion dans ${delay}ms (tentative ${reconnectAttempts + 1}/${maxReconnectAttempts})`)
+                    // Backoff exponentiel avec jitter pour éviter l'effet "thundering herd"
+                    const baseDelay = 1000 * Math.pow(2, Math.min(reconnectAttempts, 6)) // Max 64 secondes de base
+                    const jitter = Math.random() * 1000 // Ajout aléatoire de 0-1s
+                    const delay = Math.min(baseDelay + jitter, 60000) // Max 1 minute
+                    
+                    console.log(`🔄 SSE: Reconnexion dans ${Math.round(delay)}ms (tentative ${reconnectAttempts + 1}/${maxReconnectAttempts})`)
                     
                     reconnectTimeoutRef.current = setTimeout(() => {
                         setReconnectAttempts(prev => prev + 1)
@@ -130,11 +139,18 @@ export const useSSE = (userId: number) => {
                 } else {
                     console.error('❌ SSE: Nombre maximum de tentatives de reconnexion atteint')
                     setConnectionStatus('error')
+                    
+                    // Reset automatique du compteur après 5 minutes
+                    setTimeout(() => {
+                        console.log('🔄 SSE: Reset du compteur de reconnexion après timeout')
+                        setReconnectAttempts(0)
+                    }, 300000) // 5 minutes
+                    
                     notifications.show({
                         title: 'Connexion perdue',
-                        message: 'La connexion temps réel a été perdue. Actualisez la page si nécessaire.',
+                        message: `La connexion temps réel a été perdue après ${maxReconnectAttempts} tentatives. Elle sera réactivée automatiquement dans 5 minutes.`,
                         color: 'orange',
-                        autoClose: 10000,
+                        autoClose: 15000,
                     })
                 }
             }
@@ -145,18 +161,88 @@ export const useSSE = (userId: number) => {
         }
     }
 
-    // Gestionnaire de mise à jour des posts
+    // Fonction pour marquer une action utilisateur - VERSION AMÉLIORÉE AVEC PROTECTION ADAPTATIVE
+    const markUserAction = (postId: number) => {
+        // Marquer l'action utilisateur globalement
+        window.lastUserAction = Date.now()
+        
+        setPendingUserActions(prev => new Set(prev).add(postId))
+        
+        // Nettoyer le timeout précédent s'il existe
+        const existingTimeout = pendingTimeouts.current.get(postId)
+        if (existingTimeout) {
+            clearTimeout(existingTimeout)
+        }
+        
+        // NOUVEAU : Délai adaptatif selon la qualité du réseau
+        const baseProtection = SSE_CLIENT_CONFIG.USER_ACTION_PROTECTION
+        const networkQuality = window.networkQuality || 'normal'
+        
+        let adaptiveDelay = baseProtection
+        if (networkQuality === 'slow') {
+            adaptiveDelay = Math.max(baseProtection, SSE_CLIENT_CONFIG.ADAPTIVE_PROTECTION.SLOW_NETWORK)
+        } else if (networkQuality === 'very_slow') {
+            adaptiveDelay = Math.max(baseProtection, SSE_CLIENT_CONFIG.ADAPTIVE_PROTECTION.SLOW_NETWORK * 1.5)
+        }
+        
+        // Programmer le nettoyage de la protection avec délai adaptatif
+        const timeout = setTimeout(() => {
+            setPendingUserActions(prev => {
+                const newSet = new Set(prev)
+                newSet.delete(postId)
+                return newSet
+            })
+            pendingTimeouts.current.delete(postId)
+            console.log(`🛡️ Protection SSE retirée pour post ${postId} (réseau: ${networkQuality})`)
+        }, adaptiveDelay)
+        
+        pendingTimeouts.current.set(postId, timeout)
+        console.log(`🛡️ Protection SSE activée pour post ${postId} (${adaptiveDelay / 1000}s, réseau: ${networkQuality})`)
+    }
+
+    // Gestionnaire de mise à jour des posts avec gestion améliorée des conflits
     const handlePostUpdate = (event: PostUpdateEvent) => {
-        const { action, text, client } = event.data
+        const { action, text, client, id } = event.data
         console.log(`📨 Post ${action}:`, text?.substring(0, 50))
         
-        // Affichage optionnel de notification pour les actions importantes
+        // 🛡️ PROTECTION MULTI-NIVEAUX :
+        
+        // 1. Vérifier si une action utilisateur est en cours sur ce post spécifique
+        if (pendingUserActions.has(id)) {
+            console.log(`🙅 Événement SSE ignoré pour post ${id} - action utilisateur en cours`)
+            return
+        }
+        
+        // 2. Vérifier si une édition inline est en cours (protection globale)
+        if (window._isInlineEditing) {
+            console.log(`🙅 Événement SSE ignoré - édition inline globale en cours`)
+            return
+        }
+        
+        // 3. Vérifier le timing des actions utilisateur récentes avec délai adaptatif
+        const timeSinceUserAction = Date.now() - (window.lastUserAction || 0)
+        const networkQuality = window.networkQuality || 'normal'
+        const adaptiveStabilization = networkQuality === 'slow' || networkQuality === 'very_slow' 
+            ? SSE_CLIENT_CONFIG.STABILIZATION_DELAY * 1.5 
+            : SSE_CLIENT_CONFIG.STABILIZATION_DELAY
+            
+        if (timeSinceUserAction < adaptiveStabilization) {
+            console.log(`🙅 Événement SSE ignoré - action utilisateur trop récente (${timeSinceUserAction}ms < ${adaptiveStabilization}ms, réseau: ${networkQuality})`)
+            return
+        }
+        
+        // 4. Marquer le timestamp SSE global pour coordination
+        window.lastSSEUpdate = Date.now()
+        
+        // ✅ Événement SSE traité - logging selon le type d'action
         if (action === 'created') {
-            console.log('🆕 Nouveau post créé:', text)
+            console.log('🆕 Nouveau post créé (SSE):', text)
         } else if (action === 'updated') {
-            console.log('✏️ Post mis à jour:', text)
+            console.log('✏️ Post mis à jour (SSE):', text)
         } else if (action === 'deleted') {
-            console.log('🗑️ Post supprimé:', event.data.id)
+            console.log('🗑️ Post supprimé (SSE):', id)
+        } else if (action === 'status_changed') {
+            console.log('🔄 Statut changé (SSE):', event.data.status)
         }
     }
 
@@ -206,6 +292,30 @@ export const useSSE = (userId: number) => {
     }) => {
         callbacksRef.current = callbacks
     }
+    
+    // Nettoyage amélioré des timeouts au démontage - PROTECTION ANTI-LEAKS
+    useEffect(() => {
+        return () => {
+            console.log('🧹 Nettoyage complet des timeouts SSE - protection anti-leaks')
+            
+            // Nettoyage sécurisé avec compteur
+            let timeoutCount = 0
+            pendingTimeouts.current.forEach((timeout, postId) => {
+                try {
+                    clearTimeout(timeout)
+                    timeoutCount++
+                } catch (error) {
+                    console.warn(`⚠️ Erreur nettoyage timeout post ${postId}:`, error)
+                }
+            })
+            
+            pendingTimeouts.current.clear()
+            console.log(`✅ ${timeoutCount} timeouts nettoyés avec succès`)
+            
+            // Nettoyer aussi les actions en attente
+            setPendingUserActions(new Set())
+        }
+    }, [])
 
     return {
         isConnected,
@@ -214,5 +324,7 @@ export const useSSE = (userId: number) => {
         reconnectAttempts,
         maxReconnectAttempts,
         setCallbacks,
+        markUserAction,
+        pendingUserActions,
     }
 }

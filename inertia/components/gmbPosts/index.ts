@@ -10,10 +10,13 @@ export { useWebhook } from './hooks/useWebhook'
 export { usePostActions } from './hooks/usePostActions'
 export { useAdvancedFilters } from './hooks/useAdvancedFilters'
 export { useUnifiedFilters } from './hooks/useUnifiedFilters'
+export { useOptimisticUpdates } from './hooks/useOptimisticUpdates'
+export { useScrollInfiniDebug } from './hooks/useScrollInfiniDebug'
 
 // Export des utilitaires
 export * from './utils/constants'
 export * from './utils/formatters'
+export * from './utils/advancedFiltersUtils'
 
 // Export des composants Layout
 export { PageHeader } from './components/Layout/PageHeader'

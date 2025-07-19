@@ -28,10 +28,13 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
         account_id: '',
         notion_id: '',
         informations: '',
+        last_modified: '', // NOUVEAU : Timestamp au lieu de version
     })
 
     // Garder une référence des valeurs originales
     const [originalData, setOriginalData] = useState<any>({})
+    const [conflictData, setConflictData] = useState<any>(null) // NOUVEAU : Données en conflit
+    const [showConflictModal, setShowConflictModal] = useState(false) // NOUVEAU : Modal de résolution de conflit
 
     // Options pour le statut
     const [statusOptions, setStatusOptions] = useState([
@@ -72,6 +75,7 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                 account_id: post.account_id || '',
                 notion_id: post.notion_id || '',
                 informations: post.informations || '',
+                last_modified: post.updatedAt || post.updated_at || '', // TIMESTAMP
             }
 
             setData(initialData)
@@ -87,17 +91,93 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
         return data[fieldName] !== originalData[fieldName]
     }
 
-    // Compter le nombre de champs modifiés
-    const changedFieldsCount = Object.keys(data).filter((key) => isFieldChanged(key)).length
+    // Compter le nombre de champs modifiés (exclure last_modified)
+    const changedFieldsCount = Object.keys(data)
+        .filter((key) => !['last_modified'].includes(key))
+        .filter((key) => isFieldChanged(key)).length
+
+    // NOUVEAU : Fonction pour gérer les conflits de version
+    const handleVersionConflict = (conflictResponse: any) => {
+        setConflictData(conflictResponse.current_post)
+        setShowConflictModal(true)
+        console.log('⚠️ Conflit de version détecté:', conflictResponse)
+    }
+    
+    // NOUVEAU : Résoudre le conflit en faveur des données locales
+    const resolveConflictKeepLocal = () => {
+        if (!post || !conflictData) return
+        
+        const forceUpdateData = { ...changedFields, force_update: true, last_modified: conflictData.last_modified }
+        
+        put(`/gmb-posts/${post.id}`, forceUpdateData, {
+            preserveState: true,
+            preserveScroll: true,
+            only: ['posts'],
+            replace: false,
+            onSuccess: () => {
+                notifications.show({
+                    title: 'Succès',
+                    message: 'Post mis à jour avec vos modifications (conflit résolu)',
+                    color: 'green',
+                })
+                setShowConflictModal(false)
+                setConflictData(null)
+                onClose()
+                reset()
+                setOriginalData({})
+            },
+            onError: () => {
+                notifications.show({
+                    title: 'Erreur',
+                    message: 'Erreur lors de la résolution du conflit',
+                    color: 'red',
+                })
+            }
+        })
+    }
+    
+    // NOUVEAU : Résoudre le conflit en faveur des données serveur
+    const resolveConflictKeepServer = () => {
+        if (!conflictData) return
+        
+        // Mettre à jour les données locales avec les données serveur
+        const serverData = {
+            status: conflictData.status || '',
+            text: conflictData.text || '',
+            date: conflictData.date ? new Date(conflictData.date).toISOString().slice(0, 16) : '',
+            image_url: conflictData.image_url || '',
+            link_url: conflictData.link_url || '',
+            keyword: conflictData.keyword || '',
+            client: conflictData.client || '',
+            project_name: conflictData.project_name || '',
+            city: conflictData.city || '',
+            location_id: conflictData.location_id || '',
+            account_id: conflictData.account_id || '',
+            notion_id: conflictData.notion_id || '',
+            informations: conflictData.informations || '',
+            last_modified: conflictData.updated_at || conflictData.updatedAt || '',
+        }
+        
+        setData(serverData)
+        setOriginalData(serverData)
+        setShowConflictModal(false)
+        setConflictData(null)
+        
+        notifications.show({
+            title: 'Données actualisées',
+            message: 'Les données ont été mises à jour avec la version serveur',
+            color: 'blue',
+        })
+    }
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault()
         if (!post) return
 
-        // Comparer les données actuelles avec les originales
+        // Vérifier s'il y a des modifications (exclure last_modified)
         const changedFields: any = {}
         Object.keys(data).forEach((key) => {
-            if (data[key] !== originalData[key]) {
+            if (!['last_modified'].includes(key) && data[key] !== originalData[key]) {
                 changedFields[key] = data[key]
             }
         })
@@ -112,7 +192,14 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
             return
         }
 
-        put(`/gmb-posts/${post.id}`, {
+        // NOUVEAU : Ajouter les métadonnées de timestamp pour détection de conflit
+        const submitData = {
+            ...changedFields,
+            last_modified: data.last_modified, // Timestamp pour vérification
+            client_timestamp: Date.now(), // Timestamp client pour debugging
+        }
+        
+        put(`/gmb-posts/${post.id}`, submitData, {
             preserveState: true, // Préserver l'état des filtres
             preserveScroll: true, // ✅ AJOUT: Préserver la position de scroll
             only: ['posts'], // ✅ AJOUT: Ne rafraîchir que les données des posts
@@ -137,10 +224,17 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
             onError: (errors) => {
                 console.log('=== ERREUR ÉDITION MODALE ===')
                 console.log('Erreurs reçues:', errors)
+                
+                // NOUVEAU : Gestion spécifique des conflits de timestamp
+                if (errors.version_conflict) {
+                    handleVersionConflict(errors.version_conflict)
+                    return
+                }
+                
                 console.log('===============================')
                 notifications.show({
                     title: 'Erreur',
-                    message: 'Erreur lors de la mise à jour',
+                    message: errors.message || 'Erreur lors de la mise à jour',
                     color: 'red',
                 })
             },
@@ -397,6 +491,69 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                     </Group>
                 </Stack>
             </form>
+            
+            {/* NOUVEAU : Modal de résolution de conflit */}
+            <Modal
+                opened={showConflictModal}
+                onClose={() => setShowConflictModal(false)}
+                title="Conflit de version détecté"
+                size="lg"
+                centered
+            >
+                <Stack gap="md">
+                    <Text size="sm" c="orange">
+                        ⚠️ Ce post a été modifié par quelqu'un d'autre pendant que vous l'éditiez.
+                        Choisissez quelle version conserver :
+                    </Text>
+                    
+                    <Group grow>
+                        <div style={{ padding: '12px', border: '1px solid #e9ecef', borderRadius: '8px' }}>
+                            <Text fw={500} size="sm" mb="xs">Vos modifications</Text>
+                            <Text size="xs" c="dimmed">Version locale avec vos changements</Text>
+                            {changedFieldsCount > 0 && (
+                                <Badge color="blue" variant="light" size="sm" mt="xs">
+                                    {changedFieldsCount} champ(s) modifié(s)
+                                </Badge>
+                            )}
+                        </div>
+                        
+                        <div style={{ padding: '12px', border: '1px solid #e9ecef', borderRadius: '8px' }}>
+                            <Text fw={500} size="sm" mb="xs">Version serveur</Text>
+                            <Text size="xs" c="dimmed">
+                                Modifié le {conflictData?.updated_at ? 
+                                    new Date(conflictData.updated_at).toLocaleString() : 
+                                    'Récemment'
+                                }
+                            </Text>
+                            <Badge color="green" variant="light" size="sm" mt="xs">
+                                Version la plus récente
+                            </Badge>
+                        </div>
+                    </Group>
+                    
+                    <Group justify="flex-end" mt="md">
+                        <Button 
+                            variant="light" 
+                            onClick={() => setShowConflictModal(false)}
+                        >
+                            Annuler
+                        </Button>
+                        <Button 
+                            color="blue" 
+                            onClick={resolveConflictKeepLocal}
+                            loading={processing}
+                        >
+                            Garder mes modifications
+                        </Button>
+                        <Button 
+                            color="green" 
+                            onClick={resolveConflictKeepServer}
+                        >
+                            Utiliser la version serveur
+                        </Button>
+                    </Group>
+                </Stack>
+            </Modal>
         </Modal>
     )
 }

@@ -21,6 +21,7 @@ interface PostsTableProps {
     onSelectPost: (postId: number) => void
     onSort: (sortBy: string, sortOrder: string) => void
     onInlineEdit: (postId: number, field: string, value: string) => Promise<void>
+    onOptimisticUpdate?: (postId: number, updates: Partial<GmbPost>) => void // NOUVEAU
     onEdit: (post: GmbPost) => void
     onDelete: (postId: number) => void
     onDuplicate: (postId: number) => void
@@ -45,6 +46,7 @@ export const PostsTable = ({
     onSelectPost,
     onSort,
     onInlineEdit,
+    onOptimisticUpdate, // NOUVEAU
     onEdit,
     onDelete,
     onDuplicate,
@@ -354,6 +356,7 @@ export const PostsTable = ({
                                 getColumnWidth={getColumnWidth}
                                 onSelect={onSelectPost}
                                 onInlineEdit={onInlineEdit}
+                                onOptimisticUpdate={onOptimisticUpdate} // NOUVEAU
                                 onEdit={onEdit}
                                 onDelete={onDelete}
                                 onDuplicate={onDuplicate}

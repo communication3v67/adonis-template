@@ -8,7 +8,8 @@ import { useSSE } from '../../hooks/useSSE'
 import { useColumnPersistence } from '../../hooks/useColumnPersistence'
 import { useSearchReplace } from '../../hooks/useSearchReplace'
 import { useCapitalizeFirstLetter } from '../../hooks/useCapitalizeFirstLetter'
-import { advancedFiltersToUrlParams } from '../../components/gmbPosts/components/AdvancedFilters'
+import { useOptimisticUpdates } from '../../components/gmbPosts/hooks/useOptimisticUpdates'
+import { advancedFiltersToUrlParams, getAdvancedFiltersSignature } from '../../components/gmbPosts/utils/advancedFiltersUtils'
 
 // Types et hooks
 import {
@@ -20,6 +21,7 @@ import {
     usePostActions,
     useSelection,
     useWebhook,
+    useScrollInfiniDebug,
 } from '../../components/gmbPosts'
 
 // Composants
@@ -83,7 +85,23 @@ export default function GmbPostsIndex({
         }
     }, [posts, refreshKey])
 
-    const { posts: infinitePosts, hasMore, isLoading } = useInfiniteScroll(processedPosts, filters)
+    const { posts: infinitePosts, hasMore, isLoading, updatePostOptimistically, refreshFromServer } = useInfiniteScroll(
+        processedPosts, 
+        filters, 
+        advancedFilters, 
+        hasActiveAdvancedFilters
+    )
+    
+    // Hook de debug pour monitoring (dev uniquement)
+    const { renderCount, triggerDebugLog } = useScrollInfiniDebug(
+        infinitePosts,
+        hasMore,
+        isLoading,
+        filters
+    )
+
+    // ✨ Hook pour les mises à jour optimistes
+    const { applyOptimisticUpdate } = useOptimisticUpdates()
 
     const {
         selectedPosts,
@@ -131,8 +149,8 @@ export default function GmbPostsIndex({
         capitalizeFirstLetter
     } = useCapitalizeFirstLetter()
 
-    // Hook SSE personnalisé
-    const { isConnected, connectionStatus, reconnect, setCallbacks } = useSSE(currentUser.id)
+    // Hook SSE personnalisé avec gestion avancée des conflits
+    const { isConnected, connectionStatus, reconnect, setCallbacks, markUserAction } = useSSE(currentUser.id)
 
     const {
         editingPost,
@@ -147,6 +165,9 @@ export default function GmbPostsIndex({
     // Fonction pour rafraîchir les données en préservant TOUS les filtres (base + avancés)
     const refreshData = useCallback(() => {
         console.log('🔄 Rafraîchissement fluide des données...')
+        
+        // Sauvegarder la position de scroll actuelle
+        const currentScrollPosition = window.scrollY
         
         // Marquer la mise à jour pour éviter les conflits avec les filtres
         markSSEUpdate()
@@ -166,11 +187,11 @@ export default function GmbPostsIndex({
         
         console.log('🚀 Paramètres de rafraîchissement complets:', allParams)
         
-        // Utiliser les filtres complets pour le rafraîchissement SANS preserveScroll pour éviter les saccades
+        // Utiliser les filtres complets pour le rafraîchissement avec gestion manuelle du scroll
         router.get('/gmb-posts', allParams, {
             only: ['posts', 'postsToGenerateCount'], // Rafraîchir seulement les données nécessaires
             preserveState: true, // Préserver l'état des composants
-            preserveScroll: true, // Éviter les saccades de scroll
+            preserveScroll: false, // Gérer manuellement pour éviter les saccades
             replace: true, // Remplacer l'historique
             onStart: () => {
                 console.log('💻 Début du rafraîchissement des données')
@@ -184,6 +205,16 @@ export default function GmbPostsIndex({
                 console.error('❌ Erreur lors du rafraîchissement:', errors)
             },
             onFinish: () => {
+                // Restaurer la position de scroll après le rendu avec un délai pour la stabilité
+                requestAnimationFrame(() => {
+                    setTimeout(() => {
+                        window.scrollTo({
+                            top: currentScrollPosition,
+                            behavior: 'auto' // Pas d'animation pour éviter les saccades
+                        })
+                        console.log('📍 Position de scroll restaurée:', currentScrollPosition)
+                    }, 50) // Délai minimal pour s'assurer que le DOM est mis à jour
+                })
                 console.log('🏁 Rafraîchissement terminé')
             }
         })
@@ -201,32 +232,57 @@ export default function GmbPostsIndex({
         console.log('SSE Is Connected:', isConnected)
         console.log('=====================')
 
-        // Configurer les callbacks SSE
+        // Configurer les callbacks SSE avec mises à jour optimistes
         if (isConnected) {
             setCallbacks({
                 onPostUpdate: (event) => {
                     console.log('📨 Post update reçu:', event)
                     
                     // Marquer le timestamp de la dernière mise à jour SSE
-                    window.lastSSEUpdate = window.performance.now()
+                    window.lastSSEUpdate = Date.now()
                     
                     // Informer le hook useFilters de la mise à jour SSE pour éviter les conflits
                     markSSEUpdate()
 
                     setPendingUpdates((prev) => prev + 1)
 
-                    if (event.data.action === 'created') {
-                        console.log('🆕 Nouveau post créé:', event.data.text)
-                        // Rafraîchir avec délai configurable
-                        setTimeout(refreshData, SSE_CLIENT_CONFIG.REFRESH_DELAY)
-                    } else if (event.data.action === 'updated') {
-                        console.log('✏️ Post mis à jour:', event.data.text)
-                        // Rafraîchir avec délai configurable
-                        setTimeout(refreshData, SSE_CLIENT_CONFIG.REFRESH_DELAY)
-                    } else if (event.data.action === 'deleted') {
-                        console.log('🗑️ Post supprimé:', event.data.id)
-                        // Rafraîchir avec délai configurable
-                        setTimeout(refreshData, SSE_CLIENT_CONFIG.REFRESH_DELAY)
+                    // **MISE À JOUR OPTIMISTE AU LIEU DE RECHARGEMENT SERVEUR**
+                    try {
+                        updatePostOptimistically(event.data.action, event.data)
+                        console.log(`✨ Mise à jour optimiste appliquée: ${event.data.action} pour post ${event.data.id}`)
+                        
+                        // Marquer comme traité sans délai
+                        setPendingUpdates(0)
+                        setLastUpdateTime(new Date().toLocaleTimeString())
+                        
+                        // Actions logging
+                        if (event.data.action === 'created') {
+                            console.log('🆕 Nouveau post ajouté à la liste (filtres préservés):', event.data.text)
+                        } else if (event.data.action === 'updated') {
+                            console.log('✏️ Post mis à jour dans la liste (filtres préservés):', event.data.text)
+                        } else if (event.data.action === 'deleted') {
+                            console.log('🗑️ Post supprimé de la liste (filtres préservés):', event.data.id)
+                        } else if (event.data.action === 'status_changed') {
+                            console.log('🔄 Statut changé dans la liste (filtres préservés) pour post:', event.data.id)
+                        }
+                        
+                        // 🚫 PAS DE RECHARGEMENT SERVEUR - éviter de casser les filtres actifs
+                        console.log('🛡️ Rechargement serveur évité pour préserver les filtres avancés')
+                        
+                    } catch (error) {
+                        console.error('❌ Erreur mise à jour optimiste, fallback conditionnel:', error)
+                        
+                        // Fallback conditionnel : seulement si pas de filtres avancés
+                        if (!hasActiveAdvancedFilters) {
+                            console.log('🔄 Fallback rechargement autorisé (pas de filtres avancés)')
+                            const action = event.data.action as keyof typeof SSE_CLIENT_CONFIG.REFRESH_DELAYS
+                            const delay = SSE_CLIENT_CONFIG.REFRESH_DELAYS[action] || SSE_CLIENT_CONFIG.REFRESH_DELAYS.updated
+                            setTimeout(refreshData, delay)
+                        } else {
+                            console.log('🚫 Fallback rechargement bloqué pour préserver les filtres avancés')
+                            // Log d'erreur pour debugging mais pas de rechargement
+                            console.warn('Mise à jour optimiste échouée avec filtres avancés:', error)
+                        }
                     }
                 },
                 onNotification: (event) => {
@@ -242,6 +298,9 @@ export default function GmbPostsIndex({
         isConnected,
         connectionStatus,
         setCallbacks,
+        updatePostOptimistically,
+        markSSEUpdate,
+        refreshData,
     ])
 
     // Effet pour détecter les changements de posts et s'assurer que les hooks dépendants se mettent à jour
@@ -553,7 +612,19 @@ export default function GmbPostsIndex({
                         onSelectAll={toggleSelectAll}
                         onSelectPost={toggleSelectPost}
                         onSort={handleSort}
-                        onInlineEdit={handleInlineEdit}
+                        onInlineEdit={(postId, field, value) => {
+                    // Marquer l'action utilisateur avant l'édition
+                    markUserAction(postId)
+                    return handleInlineEdit(postId, field, value)
+                }}
+                        onOptimisticUpdate={(postId, updates) => {
+                    // ✨ Appliquer immédiatement la mise à jour dans l'interface
+                    const updatedPosts = applyOptimisticUpdate(infinitePosts, {
+                        action: 'updated',
+                        data: { id: postId, ...updates }
+                    }, filters.sortBy, filters.sortOrder)
+                    console.log(`✨ Mise à jour optimiste appliquée dans le tableau pour post ${postId}`)
+                }}
                         onEdit={handleEdit}
                         onDelete={handleDelete}
                         onDuplicate={handleDuplicate}

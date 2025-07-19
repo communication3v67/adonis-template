@@ -15,6 +15,7 @@ interface PostRowProps {
     getColumnWidth: (key: string) => number
     onSelect: (postId: number) => void
     onInlineEdit: (postId: number, field: string, value: string) => Promise<void>
+    onOptimisticUpdate?: (postId: number, updates: Partial<GmbPost>) => void // NOUVEAU
     onEdit: (post: GmbPost) => void
     onDelete: (postId: number) => void
     onDuplicate: (postId: number) => void
@@ -30,6 +31,7 @@ export const PostRow = ({
     getColumnWidth,
     onSelect,
     onInlineEdit,
+    onOptimisticUpdate, // NOUVEAU
     onEdit,
     onDelete,
     onDuplicate,
@@ -202,6 +204,7 @@ export const PostRow = ({
                             type="select"
                             filterOptions={filterOptions}
                             onSave={onInlineEdit}
+                            onOptimisticUpdate={onOptimisticUpdate}
                         />
                     </td>
                 )
@@ -214,6 +217,7 @@ export const PostRow = ({
                             post={post}
                             type="textarea"
                             onSave={onInlineEdit}
+                            onOptimisticUpdate={onOptimisticUpdate}
                         />
                     </td>
                 )
@@ -226,6 +230,7 @@ export const PostRow = ({
                             post={post}
                             type="datetime-local"
                             onSave={onInlineEdit}
+                            onOptimisticUpdate={onOptimisticUpdate}
                         />
                     </td>
                 )
@@ -237,6 +242,7 @@ export const PostRow = ({
                             field="keyword"
                             post={post}
                             onSave={onInlineEdit}
+                            onOptimisticUpdate={onOptimisticUpdate}
                         />
                     </td>
                 )
@@ -250,6 +256,7 @@ export const PostRow = ({
                             type="select"
                             filterOptions={filterOptions}
                             onSave={onInlineEdit}
+                            onOptimisticUpdate={onOptimisticUpdate}
                         />
                     </td>
                 )
@@ -261,6 +268,7 @@ export const PostRow = ({
                             field="project_name"
                             post={post}
                             onSave={onInlineEdit}
+                            onOptimisticUpdate={onOptimisticUpdate}
                         />
                     </td>
                 )
@@ -272,6 +280,7 @@ export const PostRow = ({
                             field="city"
                             post={post}
                             onSave={onInlineEdit}
+                            onOptimisticUpdate={onOptimisticUpdate}
                         />
                     </td>
                 )
@@ -284,6 +293,7 @@ export const PostRow = ({
                             post={post}
                             type="number"
                             onSave={onInlineEdit}
+                            onOptimisticUpdate={onOptimisticUpdate}
                             displayValue={
                                 post.price !== null && post.price !== undefined
                                     ? post.price.toString()
@@ -306,6 +316,7 @@ export const PostRow = ({
                             field="model"
                             post={post}
                             onSave={onInlineEdit}
+                            onOptimisticUpdate={onOptimisticUpdate}
                         />
                     </td>
                 )
@@ -318,6 +329,7 @@ export const PostRow = ({
                             post={post}
                             type="number"
                             onSave={onInlineEdit}
+                            onOptimisticUpdate={onOptimisticUpdate}
                             displayValue={
                                 post.input_tokens ? post.input_tokens.toLocaleString() : '-'
                             }
@@ -333,6 +345,7 @@ export const PostRow = ({
                             post={post}
                             type="number"
                             onSave={onInlineEdit}
+                            onOptimisticUpdate={onOptimisticUpdate}
                             displayValue={
                                 post.output_tokens ? post.output_tokens.toLocaleString() : '-'
                             }
@@ -347,6 +360,7 @@ export const PostRow = ({
                             field="image_url"
                             post={post}
                             onSave={onInlineEdit}
+                            onOptimisticUpdate={onOptimisticUpdate}
                         />
                     </td>
                 )
@@ -358,6 +372,7 @@ export const PostRow = ({
                             field="link_url"
                             post={post}
                             onSave={onInlineEdit}
+                            onOptimisticUpdate={onOptimisticUpdate}
                         />
                     </td>
                 )
@@ -369,6 +384,7 @@ export const PostRow = ({
                             field="location_id"
                             post={post}
                             onSave={onInlineEdit}
+                            onOptimisticUpdate={onOptimisticUpdate}
                         />
                     </td>
                 )
@@ -380,6 +396,7 @@ export const PostRow = ({
                             field="account_id"
                             post={post}
                             onSave={onInlineEdit}
+                            onOptimisticUpdate={onOptimisticUpdate}
                         />
                     </td>
                 )
@@ -391,6 +408,7 @@ export const PostRow = ({
                             field="notion_id"
                             post={post}
                             onSave={onInlineEdit}
+                            onOptimisticUpdate={onOptimisticUpdate}
                         />
                     </td>
                 )
@@ -403,6 +421,7 @@ export const PostRow = ({
                             post={post}
                             type="textarea"
                             onSave={onInlineEdit}
+                            onOptimisticUpdate={onOptimisticUpdate}
                         />
                     </td>
                 )

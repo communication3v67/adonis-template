@@ -4,9 +4,9 @@ import { notifications } from '@mantine/notifications'
 import { GmbPost } from '../types'
 
 /**
- * Hook personnalisé pour gérer les actions individuelles sur les posts
+ * Hook personnalisé pour gérer les actions individuelles sur les posts avec protection SSE
  */
-export const usePostActions = () => {
+export const usePostActions = (markUserAction?: (postId: number) => void) => {
     const [editingPost, setEditingPost] = useState<GmbPost | null>(null)
     const [editModalOpened, setEditModalOpened] = useState(false)
 
@@ -21,47 +21,74 @@ export const usePostActions = () => {
         setEditingPost(null)
     }, [])
 
-    // Gestion de l'édition inline
+    // Gestion de l'édition inline avec requêtes API pures (sans Inertia)
     const handleInlineEdit = useCallback(async (postId: number, field: string, value: string) => {
-        return new Promise((resolve, reject) => {
+        return new Promise(async (resolve, reject) => {
             const updateData = { [field]: value }
 
-            console.log('=== ÉDITION INLINE ===')
+            console.log('=== ÉDITION INLINE API ===')
             console.log('Post ID:', postId)
             console.log('Champ:', field)
             console.log('Nouvelle valeur:', value)
-            console.log('========================')
+            console.log('==========================')
+            
+            // Marquer l'action utilisateur AVANT la requête pour éviter les conflits SSE
+            if (markUserAction) {
+                markUserAction(postId)
+                console.log(`🛡️ Protection SSE activée pour post ${postId} (action utilisateur)`)
+            }
 
-            router.put(`/gmb-posts/${postId}`, updateData, {
-                preserveState: true, // Préserver l'état des filtres
-                preserveScroll: true, // Préserver la position de scroll
-                onSuccess: (page) => {
-                    console.log('=== SUCCÈS INLINE ===')
-                    console.log('Page reçue:', page)
-                    console.log('========================')
-                    notifications.show({
-                        title: 'Succès',
-                        message: `Champ "${field}" mis à jour avec succès !`,
-                        color: 'green',
-                        autoClose: 3000,
-                    })
-                    resolve(page)
-                },
-                onError: (errors) => {
-                    console.log('=== ERREUR INLINE ===')
-                    console.log('Erreurs reçues:', errors)
-                    console.log('========================')
-                    notifications.show({
-                        title: 'Erreur',
-                        message: `Erreur lors de la mise à jour du champ "${field}". Vérifiez la valeur saisie.`,
-                        color: 'red',
-                        autoClose: 5000,
-                    })
-                    reject(errors)
-                },
-            })
+            // Marquer qu'une édition inline est en cours
+            window._isInlineEditing = true
+            
+            try {
+                // Utiliser fetch au lieu d'Inertia pour éviter les rechargements
+                const response = await fetch(`/gmb-posts/${postId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                    },
+                    body: JSON.stringify(updateData)
+                })
+
+                if (!response.ok) {
+                    const errorData = await response.json()
+                    throw new Error(errorData.message || `Erreur HTTP: ${response.status}`)
+                }
+
+                const result = await response.json()
+                
+                console.log('=== SUCCÈS INLINE API ===')
+                console.log('Mise à jour réussie - attente SSE pour synchronisation')
+                console.log('Résultat:', result)
+                console.log('==========================')
+                
+                // PAS de notification - la mise à jour optimiste SSE s'en charge
+                // PAS de rechargement - l'état est entièrement préservé
+                
+                resolve(result)
+            } catch (error) {
+                console.log('=== ERREUR INLINE API ===')
+                console.log('Erreur:', error)
+                console.log('==========================')
+                
+                notifications.show({
+                    title: 'Erreur',
+                    message: `Erreur lors de la mise à jour du champ "${field}". ${error.message}`,
+                    color: 'red',
+                    autoClose: 5000,
+                })
+                reject(error)
+            } finally {
+                // Nettoyer le flag d'édition
+                window._isInlineEditing = false
+                console.log(`🏁 Édition ${field} terminée pour post ${postId}`)
+            }
         })
-    }, [])
+    }, [markUserAction])
 
     // Gestion de la suppression
     const handleDelete = useCallback((postId: number) => {
@@ -75,21 +102,18 @@ export const usePostActions = () => {
             router.delete(`/gmb-posts/${postId}`, {
                 preserveState: true, // Préserver l'état des filtres
                 preserveScroll: true, // Préserver la position de scroll
-                only: ['posts'], // ✅ AJOUT: Ne rafraîchir que les données des posts
+                only: [], // NE RIEN RAFRAÎCHIR - le SSE s'en chargera
                 replace: false, // ✅ AJOUT: Ne pas remplacer l'historique
                 onStart: () => {
                     console.log('💻 Début suppression du post')
                 },
                 onSuccess: () => {
                     console.log('=== SUCCÈS SUPPRESSION ===')
-                    console.log('Post supprimé avec succès')
-                    console.log('========================')
-                    notifications.show({
-                        title: 'Succès',
-                        message: 'Post supprimé avec succès',
-                        color: 'green',
-                        autoClose: 3000,
-                    })
+                    console.log('Suppression réussie - attente SSE pour synchronisation')
+                    console.log('============================')
+                    
+                    // PAS de notification immédiate - attendre la mise à jour optimiste
+                    // Le SSE va déclencher la suppression dans la liste
                 },
                 onError: (errors) => {
                     console.log('=== ERREUR SUPPRESSION ===')
@@ -118,22 +142,18 @@ export const usePostActions = () => {
             {
                 preserveState: true, // Préserver l'état des filtres
                 preserveScroll: true, // Préserver la position de scroll
-                only: ['posts'], // ✅ AJOUT: Ne rafraîchir que les données des posts
+                only: [], // NE RIEN RAFRAÎCHIR - le SSE s'en chargera
                 replace: false, // ✅ AJOUT: Ne pas remplacer l'historique
                 onStart: () => {
                     console.log('💻 Début duplication du post')
                 },
                 onSuccess: (page) => {
                     console.log('=== SUCCÈS DUPLICATION ===')
-                    console.log('Post dupliqué avec succès')
-                    console.log('Page reçue:', page)
-                    console.log('========================')
-                    notifications.show({
-                        title: 'Succès',
-                        message: 'Post dupliqué avec succès ! Le nouveau post est maintenant disponible.',
-                        color: 'green',
-                        autoClose: 4000,
-                    })
+                    console.log('Duplication réussie - attente SSE pour synchronisation')
+                    console.log('==============================')
+                    
+                    // PAS de notification immédiate - attendre la mise à jour optimiste
+                    // Le SSE va ajouter le nouveau post dans la liste
                 },
                 onError: (errors) => {
                     console.log('=== ERREUR DUPLICATION ===')
