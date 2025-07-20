@@ -268,16 +268,29 @@ export class NotionService {
                 .map((page: any, index: number) => {
                     console.log(`\n📄 === PAGE ${index + 1} ===`)
 
-                    // Extraction du titre
+                    // Extraction du titre - CORRIGÉ pour éviter la troncature
                     let title = 'Sans titre'
                     const titleProperty = Object.values(page.properties).find(
                         (prop: any) => prop.type === 'title'
                     ) as any
 
-                    if (titleProperty && titleProperty.title && titleProperty.title[0]) {
-                        title = titleProperty.title[0].text.content
+                    if (titleProperty && titleProperty.title && Array.isArray(titleProperty.title)) {
+                        // ✅ CORRECTION : Concaténer TOUS les segments de rich text
+                        title = titleProperty.title
+                            .map((segment: any) => segment.text?.content || '')
+                            .join('')
+                            .trim()
+                        
+                        // Debug pour tracer la reconstruction complète
+                        console.log(`  📝 Titre reconstruit (${titleProperty.title.length} segments): "${title}"`)
+                        if (titleProperty.title.length > 1) {
+                            console.log(`  🔍 Détail des segments:`)
+                            titleProperty.title.forEach((segment: any, i: number) => {
+                                console.log(`    ${i + 1}. "${segment.text?.content || ''}"${segment.text?.link ? ' (avec lien)' : ''}`)
+                            })
+                        }
                     }
-                    console.log(`  📝 Titre: "${title}"`)
+                    console.log(`  📝 Titre final: "${title}"`)
 
                     // Extraction du référenceur
                     const referenceurProperty = page.properties[referenceurPropertyId]
