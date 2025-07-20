@@ -72,11 +72,13 @@ export const InlineEditCell = ({
         // Si on n'est PAS en cours d'édition, mettre à jour editValue immédiatement
         if (!isEditing) {
             if (field === 'date' && value) {
-                setEditValue(formatDateForEdit(value))
+                const formattedDate = formatDateForEdit(value)
+                setEditValue(formattedDate)
+                console.log(`🔄 Date ${field} mise à jour pour post ${post.id}: "${value}" -> "${formattedDate}"`)
             } else {
                 setEditValue(value || '')
+                console.log(`🔄 Valeur ${field} mise à jour pour post ${post.id}: "${value}"`)
             }
-            console.log(`🔄 Valeur ${field} mise à jour pour post ${post.id}: "${value}"`)
         } else {
             // Si on est en édition, stocker la nouvelle valeur pour l'utiliser après annulation
             valueUpdateRef.current = value
@@ -129,8 +131,18 @@ export const InlineEditCell = ({
             // Formatage spécial pour les dates
             let valueToSave = editValue
             if (field === 'date' && editValue) {
-                const date = new Date(editValue)
-                valueToSave = date.toISOString()
+                // CORRECTION : Créer une date en respectant le fuseau horaire local
+                // puis convertir en ISO pour le serveur
+                const localDate = new Date(editValue)
+                if (!isNaN(localDate.getTime())) {
+                    // Le serveur attend une date ISO, mais on s'assure qu'elle représente
+                    // la bonne date/heure locale choisie par l'utilisateur
+                    valueToSave = localDate.toISOString()
+                    console.log(`📅 Date à sauvegarder: "${editValue}" (local) -> "${valueToSave}" (ISO)`)
+                } else {
+                    console.error('Date invalide lors de la sauvegarde:', editValue)
+                    throw new Error('Format de date invalide')
+                }
             }
 
             await onSave(post.id, field, valueToSave)
@@ -231,7 +243,9 @@ export const InlineEditCell = ({
         if (pendingValue !== null) {
             console.log(`✨ Application valeur SSE avant édition ${field} pour post ${post.id}: "${pendingValue}"`)
             if (field === 'date' && pendingValue) {
-                setEditValue(formatDateForEdit(pendingValue))
+                const formattedDate = formatDateForEdit(pendingValue)
+                setEditValue(formattedDate)
+                console.log(`📅 Date formatée: "${pendingValue}" -> "${formattedDate}"`)
             } else {
                 setEditValue(pendingValue || '')
             }
@@ -240,7 +254,9 @@ export const InlineEditCell = ({
         } else {
             // S'assurer que editValue est à jour avec la valeur actuelle
             if (field === 'date' && value) {
-                setEditValue(formatDateForEdit(value))
+                const formattedDate = formatDateForEdit(value)
+                setEditValue(formattedDate)
+                console.log(`📅 Date formatée au démarrage: "${value}" -> "${formattedDate}"`)
             } else {
                 setEditValue(value || '')
             }

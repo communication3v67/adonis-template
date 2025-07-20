@@ -36,11 +36,37 @@ export const formatDate = (dateString: string, isClient: boolean = true): string
 
 /**
  * Formate une date pour l'édition (input datetime-local)
+ * CORRIGÉ : Préserve le fuseau horaire local pour éviter les décalages
  */
 export const formatDateForEdit = (dateString: string): string => {
     if (!dateString) return ''
+    
     const date = new Date(dateString)
-    return date.toISOString().slice(0, 16) // Format YYYY-MM-DDTHH:MM
+    
+    // Vérifier si la date est valide
+    if (isNaN(date.getTime())) {
+        console.warn('Date invalide reçue pour formatage:', dateString)
+        return ''
+    }
+    
+    // CORRECTION : Utiliser les méthodes locales au lieu de toISOString()
+    // pour éviter les décalages de fuseau horaire
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    
+    const formattedDate = `${year}-${month}-${day}T${hours}:${minutes}`
+    
+    console.log(`📅 formatDateForEdit: "${dateString}" -> "${formattedDate}"`, {
+        original: dateString,
+        parsed: date.toString(),
+        formatted: formattedDate,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+    })
+    
+    return formattedDate
 }
 
 /**
