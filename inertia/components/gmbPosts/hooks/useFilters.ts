@@ -143,10 +143,22 @@ export const useFilters = (
         })
     }, [localFilters])
 
-    // Auto-application avec protection SSE et debounce intelligent
+    // Auto-application avec protection SSE et debounce intelligent + sauvegarde session
     useEffect(() => {
         // Ignorer l'effet lors du premier rendu
         if (isFirstRender.current) return
+        
+        // Sauvegarder les filtres en session pour récupération en cas de problème
+        try {
+            const filtersBackup = {
+                filters: localFilters,
+                timestamp: Date.now(),
+                url: window.location.href
+            }
+            sessionStorage.setItem('gmb_filters_current', JSON.stringify(filtersBackup))
+        } catch (error) {
+            console.warn('⚠️ Impossible de sauvegarder les filtres en session:', error)
+        }
         
         // Nettoyer le timeout précédent
         if (debounceTimeoutRef.current) {
@@ -268,6 +280,14 @@ export const useFilters = (
         hasUserInteracted.current = false
         pendingSearchValue.current = null
         
+        // Nettoyer la session
+        try {
+            sessionStorage.removeItem('gmb_filters_current')
+            sessionStorage.removeItem('gmb_filters_backup')
+        } catch (error) {
+            console.warn('Erreur nettoyage session:', error)
+        }
+        
         // Mettre à jour l'état local
         setLocalFilters(resetData)
         
@@ -284,6 +304,27 @@ export const useFilters = (
             preserveState: true,
             replace: true,
         })
+    }, [])
+    
+    // Fonction pour récupérer les filtres depuis la session en cas de problème
+    const restoreFiltersFromSession = useCallback(() => {
+        try {
+            const backup = sessionStorage.getItem('gmb_filters_current')
+            if (backup) {
+                const parsedBackup = JSON.parse(backup)
+                const age = Date.now() - parsedBackup.timestamp
+                
+                // Utiliser seulement si moins de 10 minutes
+                if (age < 10 * 60 * 1000) {
+                    console.log('📋 Récupération des filtres depuis la session')
+                    setLocalFilters(parsedBackup.filters)
+                    return true
+                }
+            }
+        } catch (error) {
+            console.warn('⚠️ Erreur récupération filtres session:', error)
+        }
+        return false
     }, [])
 
     // Gestionnaire de tri
@@ -325,5 +366,6 @@ export const useFilters = (
         detectConflictsWithAdvanced: () => detectConflictsWithAdvanced(localFilters, advancedFilters),
         clearConflictingFilters,
         hasActiveFilters: checkHasActiveFilters(localFilters),
+        restoreFiltersFromSession, // Nouvelle fonction de récupération
     }
 }

@@ -1293,14 +1293,14 @@ export default class GmbPostsController {
 
             // Réponse adaptée selon le type de requête
             if (isApiRequest) {
-                // Réponse JSON pour les requêtes AJAX (inline edit)
-                console.log('🚀 Réponse JSON pour édition inline')
+                // Réponse JSON pour les requêtes AJAX (inline edit et modal edit avec fetch)
+                console.log('🚀 Réponse JSON pour édition API (inline/modal)')
                 return response.json({
                     success: true,
                     message: 'Post mis à jour avec succès',
                     post: {
                         ...post.serialize(),
-                        last_modified: post.updatedAt.toISO(), // Inclure timestamp mis à jour
+                        last_modified: post.updatedAt.toISO(),
                         version_timestamp: post.updatedAt.toMillis(),
                     },
                     timestamp: new Date().toISOString()

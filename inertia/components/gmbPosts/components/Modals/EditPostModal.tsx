@@ -1,5 +1,4 @@
 import { Badge, Button, Group, Modal, NumberInput, Textarea, TextInput, Stack, Text } from '@mantine/core'
-import { useForm } from '@inertiajs/react'
 import { notifications } from '@mantine/notifications'
 import React, { useEffect, useState } from 'react'
 import { LuSave, LuX } from 'react-icons/lu'
@@ -14,7 +13,7 @@ interface EditPostModalProps {
 }
 
 export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPostModalProps) => {
-    const { data, setData, put, processing, errors, reset } = useForm({
+    const [data, setData] = useState({
         status: '',
         text: '',
         date: '',
@@ -28,13 +27,16 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
         account_id: '',
         notion_id: '',
         informations: '',
-        last_modified: '', // NOUVEAU : Timestamp au lieu de version
+        last_modified: '',
     })
+    
+    const [processing, setProcessing] = useState(false)
+    const [errors, setErrors] = useState<any>({})
 
     // Garder une référence des valeurs originales
     const [originalData, setOriginalData] = useState<any>({})
-    const [conflictData, setConflictData] = useState<any>(null) // NOUVEAU : Données en conflit
-    const [showConflictModal, setShowConflictModal] = useState(false) // NOUVEAU : Modal de résolution de conflit
+    const [conflictData, setConflictData] = useState<any>(null)
+    const [showConflictModal, setShowConflictModal] = useState(false)
 
     // Options pour le statut
     const [statusOptions, setStatusOptions] = useState([
@@ -58,6 +60,19 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
         filterOptions.projects.map(project => ({ value: project, label: project }))
     )
 
+    // Protection pour éviter les conflits SSE pendant l'édition
+    useEffect(() => {
+        if (opened) {
+            window._isModalEditing = true
+        } else {
+            window._isModalEditing = false
+        }
+        
+        return () => {
+            window._isModalEditing = false
+        }
+    }, [opened])
+
     // Mettre à jour le formulaire quand le post change
     useEffect(() => {
         if (post && opened) {
@@ -75,16 +90,38 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                 account_id: post.account_id || '',
                 notion_id: post.notion_id || '',
                 informations: post.informations || '',
-                last_modified: post.updatedAt || post.updated_at || '', // TIMESTAMP
+                last_modified: post.updatedAt || post.updated_at || '',
             }
 
             setData(initialData)
             setOriginalData(initialData)
+            setErrors({})
         } else if (!opened) {
             reset()
-            setOriginalData({})
         }
     }, [post, opened])
+
+    const reset = () => {
+        setData({
+            status: '',
+            text: '',
+            date: '',
+            image_url: '',
+            link_url: '',
+            keyword: '',
+            client: '',
+            project_name: '',
+            city: '',
+            location_id: '',
+            account_id: '',
+            notion_id: '',
+            informations: '',
+            last_modified: '',
+        })
+        setOriginalData({})
+        setErrors({})
+        setProcessing(false)
+    }
 
     // Fonction pour vérifier si un champ a été modifié
     const isFieldChanged = (fieldName: string) => {
@@ -96,47 +133,71 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
         .filter((key) => !['last_modified'].includes(key))
         .filter((key) => isFieldChanged(key)).length
 
-    // NOUVEAU : Fonction pour gérer les conflits de version
+    // Fonction pour gérer les conflits de version
     const handleVersionConflict = (conflictResponse: any) => {
         setConflictData(conflictResponse.current_post)
         setShowConflictModal(true)
         console.log('⚠️ Conflit de version détecté:', conflictResponse)
     }
     
-    // NOUVEAU : Résoudre le conflit en faveur des données locales
-    const resolveConflictKeepLocal = () => {
+    // Résoudre le conflit en faveur des données locales
+    const resolveConflictKeepLocal = async () => {
         if (!post || !conflictData) return
         
-        const forceUpdateData = { ...changedFields, force_update: true, last_modified: conflictData.last_modified }
-        
-        put(`/gmb-posts/${post.id}`, forceUpdateData, {
-            preserveState: true,
-            preserveScroll: true,
-            only: ['posts'],
-            replace: false,
-            onSuccess: () => {
-                notifications.show({
-                    title: 'Succès',
-                    message: 'Post mis à jour avec vos modifications (conflit résolu)',
-                    color: 'green',
-                })
-                setShowConflictModal(false)
-                setConflictData(null)
-                onClose()
-                reset()
-                setOriginalData({})
-            },
-            onError: () => {
-                notifications.show({
-                    title: 'Erreur',
-                    message: 'Erreur lors de la résolution du conflit',
-                    color: 'red',
-                })
+        const changedFields: any = {}
+        Object.keys(data).forEach((key) => {
+            if (!['last_modified'].includes(key) && data[key] !== originalData[key]) {
+                changedFields[key] = data[key]
             }
         })
+        
+        const forceUpdateData = { 
+            ...changedFields, 
+            force_update: true, 
+            last_modified: conflictData.last_modified 
+        }
+        
+        try {
+            setProcessing(true)
+            
+            const response = await fetch(`/gmb-posts/${post.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                body: JSON.stringify(forceUpdateData)
+            })
+
+            if (!response.ok) {
+                const errorData = await response.json()
+                throw new Error(errorData.message || `Erreur HTTP: ${response.status}`)
+            }
+
+            notifications.show({
+                title: 'Succès',
+                message: 'Post mis à jour avec vos modifications (conflit résolu)',
+                color: 'green',
+            })
+            
+            setShowConflictModal(false)
+            setConflictData(null)
+            onClose()
+            
+        } catch (error) {
+            notifications.show({
+                title: 'Erreur',
+                message: 'Erreur lors de la résolution du conflit',
+                color: 'red',
+            })
+        } finally {
+            setProcessing(false)
+        }
     }
     
-    // NOUVEAU : Résoudre le conflit en faveur des données serveur
+    // Résoudre le conflit en faveur des données serveur
     const resolveConflictKeepServer = () => {
         if (!conflictData) return
         
@@ -170,7 +231,7 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
         })
     }
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!post) return
 
@@ -192,56 +253,74 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
             return
         }
 
-        // NOUVEAU : Ajouter les métadonnées de timestamp pour détection de conflit
+        // Ajouter les métadonnées de timestamp pour détection de conflit
         const submitData = {
             ...changedFields,
-            last_modified: data.last_modified, // Timestamp pour vérification
-            client_timestamp: Date.now(), // Timestamp client pour debugging
+            last_modified: data.last_modified,
+            client_timestamp: Date.now(),
         }
         
-        put(`/gmb-posts/${post.id}`, submitData, {
-            preserveState: true, // Préserver l'état des filtres
-            preserveScroll: true, // ✅ AJOUT: Préserver la position de scroll
-            only: ['posts'], // ✅ AJOUT: Ne rafraîchir que les données des posts
-            replace: false, // ✅ AJOUT: Ne pas remplacer l'historique
-            onStart: () => {
-                console.log('💻 Début édition via modale')
-            },
-            onSuccess: (page) => {
-                console.log('=== SUCCÈS ÉDITION MODALE ===')
-                console.log('Page reçue:', page)
-                console.log('Champs modifiés:', Object.keys(changedFields))
-                console.log('================================')
-                notifications.show({
-                    title: 'Succès',
-                    message: `${Object.keys(changedFields).length} champ(s) mis à jour avec succès !`,
-                    color: 'green',
-                })
-                onClose()
-                reset()
-                setOriginalData({})
-            },
-            onError: (errors) => {
-                console.log('=== ERREUR ÉDITION MODALE ===')
-                console.log('Erreurs reçues:', errors)
+        try {
+            setProcessing(true)
+            setErrors({})
+            
+            console.log('=== ÉDITION MODAL AVEC FETCH API ===')
+            console.log('Post ID:', post.id)
+            console.log('Champs modifiés:', Object.keys(changedFields))
+            console.log('====================================')
+            
+            // ✅ UTILISER FETCH au lieu d'Inertia pour cohérence avec inline edit
+            const response = await fetch(`/gmb-posts/${post.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                body: JSON.stringify(submitData)
+            })
+
+            if (!response.ok) {
+                const errorData = await response.json()
                 
-                // NOUVEAU : Gestion spécifique des conflits de timestamp
-                if (errors.version_conflict) {
-                    handleVersionConflict(errors.version_conflict)
+                // Gestion spécifique des conflits de timestamp
+                if (errorData.version_conflict) {
+                    handleVersionConflict(errorData.version_conflict)
                     return
                 }
                 
-                console.log('===============================')
-                notifications.show({
-                    title: 'Erreur',
-                    message: errors.message || 'Erreur lors de la mise à jour',
-                    color: 'red',
-                })
-            },
-            onFinish: () => {
-                console.log('🏁 Édition modale terminée')
+                throw new Error(errorData.message || `Erreur HTTP: ${response.status}`)
             }
-        })
+
+            const result = await response.json()
+            
+            console.log('=== SUCCÈS ÉDITION MODALE ===')
+            console.log('Résultat:', result)
+            console.log('Champs modifiés:', Object.keys(changedFields))
+            console.log('================================')
+            
+            notifications.show({
+                title: 'Succès',
+                message: `${Object.keys(changedFields).length} champ(s) mis à jour avec succès !`,
+                color: 'green',
+            })
+            
+            // ✅ FERMETURE IMMÉDIATE sans attendre de rechargement
+            onClose()
+            
+        } catch (error: any) {
+            console.error('Erreur édition modal:', error)
+            
+            setErrors({ message: error.message })
+            notifications.show({
+                title: 'Erreur',
+                message: error.message || 'Erreur lors de la mise à jour',
+                color: 'red',
+            })
+        } finally {
+            setProcessing(false)
+        }
     }
 
     if (!post) return null
@@ -270,11 +349,11 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                             placeholder="Sélectionner un statut"
                             data={statusOptions}
                             value={data.status}
-                            onChange={(value) => setData('status', value || '')}
+                            onChange={(value) => setData(prev => ({ ...prev, status: value || '' }))}
                             onCreate={(query) => {
                                 const newOption = { value: query, label: query }
                                 setStatusOptions(prev => [...prev, newOption])
-                                setData('status', query)
+                                setData(prev => ({ ...prev, status: query }))
                             }}
                             error={errors.status}
                             styles={{
@@ -288,7 +367,7 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                             label="Date"
                             type="datetime-local"
                             value={data.date}
-                            onChange={(e) => setData('date', e.target.value)}
+                            onChange={(e) => setData(prev => ({ ...prev, date: e.target.value }))}
                             error={errors.date}
                             styles={{
                                 input: {
@@ -305,7 +384,7 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                             label="URL de l'image"
                             placeholder="https://..."
                             value={data.image_url}
-                            onChange={(e) => setData('image_url', e.target.value)}
+                            onChange={(e) => setData(prev => ({ ...prev, image_url: e.target.value }))}
                             error={errors.image_url}
                             styles={{
                                 input: {
@@ -318,7 +397,7 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                             label="URL du lien"
                             placeholder="https://..."
                             value={data.link_url}
-                            onChange={(e) => setData('link_url', e.target.value)}
+                            onChange={(e) => setData(prev => ({ ...prev, link_url: e.target.value }))}
                             error={errors.link_url}
                             styles={{
                                 input: {
@@ -334,7 +413,7 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                         placeholder="Contenu du post..."
                         resize="vertical"
                         value={data.text}
-                        onChange={(e) => setData('text', e.target.value)}
+                        onChange={(e) => setData(prev => ({ ...prev, text: e.target.value }))}
                         error={errors.text}
                         minRows={3}
                         styles={{
@@ -350,7 +429,7 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                         placeholder="Ajoutez des informations sur ce post (optionnel)..."
                         resize="vertical"
                         value={data.informations}
-                        onChange={(e) => setData('informations', e.target.value)}
+                        onChange={(e) => setData(prev => ({ ...prev, informations: e.target.value }))}
                         error={errors.informations}
                         minRows={3}
                         styles={{
@@ -367,11 +446,11 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                             placeholder="Sélectionner un client"
                             data={clientOptions}
                             value={data.client}
-                            onChange={(value) => setData('client', value || '')}
+                            onChange={(value) => setData(prev => ({ ...prev, client: value || '' }))}
                             onCreate={(query) => {
                                 const newOption = { value: query, label: query }
                                 setClientOptions(prev => [...prev, newOption])
-                                setData('client', query)
+                                setData(prev => ({ ...prev, client: query }))
                             }}
                             error={errors.client}
                             styles={{
@@ -386,11 +465,11 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                             placeholder="Sélectionner un projet"
                             data={projectOptions}
                             value={data.project_name}
-                            onChange={(value) => setData('project_name', value || '')}
+                            onChange={(value) => setData(prev => ({ ...prev, project_name: value || '' }))}
                             onCreate={(query) => {
                                 const newOption = { value: query, label: query }
                                 setProjectOptions(prev => [...prev, newOption])
-                                setData('project_name', query)
+                                setData(prev => ({ ...prev, project_name: query }))
                             }}
                             error={errors.project_name}
                             styles={{
@@ -407,7 +486,7 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                             label="Mot-clé"
                             placeholder="Mot-clé principal"
                             value={data.keyword}
-                            onChange={(e) => setData('keyword', e.target.value)}
+                            onChange={(e) => setData(prev => ({ ...prev, keyword: e.target.value }))}
                             error={errors.keyword}
                             styles={{
                                 input: {
@@ -420,7 +499,7 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                             label="Ville"
                             placeholder="Ville"
                             value={data.city}
-                            onChange={(e) => setData('city', e.target.value)}
+                            onChange={(e) => setData(prev => ({ ...prev, city: e.target.value }))}
                             error={errors.city}
                             styles={{
                                 input: {
@@ -437,7 +516,7 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                             label="Location ID"
                             placeholder="ID de la localisation"
                             value={data.location_id}
-                            onChange={(e) => setData('location_id', e.target.value)}
+                            onChange={(e) => setData(prev => ({ ...prev, location_id: e.target.value }))}
                             error={errors.location_id}
                             styles={{
                                 input: {
@@ -450,7 +529,7 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                             label="Account ID"
                             placeholder="ID du compte"
                             value={data.account_id}
-                            onChange={(e) => setData('account_id', e.target.value)}
+                            onChange={(e) => setData(prev => ({ ...prev, account_id: e.target.value }))}
                             error={errors.account_id}
                             styles={{
                                 input: {
@@ -466,7 +545,7 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                         label="Notion ID"
                         placeholder="ID Notion (optionnel)"
                         value={data.notion_id}
-                        onChange={(e) => setData('notion_id', e.target.value)}
+                        onChange={(e) => setData(prev => ({ ...prev, notion_id: e.target.value }))}
                         error={errors.notion_id}
                         styles={{
                             input: {
@@ -492,7 +571,7 @@ export const EditPostModal = ({ post, opened, onClose, filterOptions }: EditPost
                 </Stack>
             </form>
             
-            {/* NOUVEAU : Modal de résolution de conflit */}
+            {/* Modal de résolution de conflit */}
             <Modal
                 opened={showConflictModal}
                 onClose={() => setShowConflictModal(false)}

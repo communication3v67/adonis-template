@@ -65,6 +65,12 @@ export const useInfiniteScroll = (
             return
         }
         
+        // 🛡️ PROTECTION MODAL : Éviter les réinitialisations pendant l'édition modal
+        if (window._isModalEditing) {
+            console.log('🛡️ Édition modal en cours - pas de réinitialisation scroll infini')
+            return
+        }
+        
         // 🛡️ PROTECTION SSE : Ignorer les mises à jour trop récentes 
         const timeSinceSSE = Date.now() - (window.lastSSEUpdate || 0)
         if (timeSinceSSE < 2000) { // 2 secondes de protection
@@ -355,6 +361,24 @@ export const useInfiniteScroll = (
             isLoading: state.isLoadingMore
         }
     }, [state.allPosts.length, state.hasMore, state.isLoadingMore])
+    
+    // Mémorisation de la signature des filtres pour optimiser la détection de changements
+    const filtersSignature = useMemo(() => {
+        return JSON.stringify({
+            basic: {
+                search: filters.search,
+                status: filters.status,
+                client: filters.client,
+                project: filters.project,
+                sortBy: filters.sortBy,
+                sortOrder: filters.sortOrder,
+                dateFrom: filters.dateFrom,
+                dateTo: filters.dateTo
+            },
+            advanced: advancedFilters,
+            hasAdvanced: hasActiveAdvancedFilters
+        })
+    }, [filters, advancedFilters, hasActiveAdvancedFilters])
 
     return {
         posts: memoizedPosts,
