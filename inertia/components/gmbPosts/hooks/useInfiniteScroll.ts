@@ -7,6 +7,42 @@ import { debugAdvancedFilters } from '../utils/debugAdvancedFilters'
 import { useOptimisticUpdates } from './useOptimisticUpdates'
 
 /**
+ * Fonction utilitaire pour trier globalement une liste de posts
+ */
+const sortPostsGlobally = (posts: GmbPost[], sortBy: string, sortOrder: string): GmbPost[] => {
+    return posts.sort((a, b) => {
+        let aValue = a[sortBy as keyof GmbPost]
+        let bValue = b[sortBy as keyof GmbPost]
+        
+        // Gestion spéciale pour les dates
+        if (sortBy === 'date' || sortBy === 'createdAt' || sortBy === 'updatedAt') {
+            aValue = new Date(aValue as string).getTime()
+            bValue = new Date(bValue as string).getTime()
+        }
+        
+        // Gestion pour les valeurs numériques
+        if (sortBy === 'id' || sortBy === 'price' || sortBy === 'input_tokens' || sortBy === 'output_tokens') {
+            aValue = Number(aValue) || 0
+            bValue = Number(bValue) || 0
+        }
+        
+        // Gestion pour les chaînes de caractères (insensible à la casse)
+        if (typeof aValue === 'string') {
+            aValue = aValue.toLowerCase()
+        }
+        if (typeof bValue === 'string') {
+            bValue = bValue.toLowerCase()
+        }
+        
+        if (sortOrder === 'desc') {
+            return bValue > aValue ? 1 : bValue < aValue ? -1 : 0
+        } else {
+            return aValue > bValue ? 1 : aValue < bValue ? -1 : 0
+        }
+    })
+}
+
+/**
  * Interface pour les méthodes exposées du hook
  */
 export interface InfiniteScrollMethods {
@@ -238,16 +274,28 @@ export const useInfiniteScroll = (
             const data = await response.json()
             console.log('📦 Données reçues:', data.posts?.data?.length || 0, 'nouveaux posts')
 
-            setState(prev => ({
-                ...prev,
-                allPosts: [...prev.allPosts, ...data.posts.data],
-                currentPage: nextPage,
-                hasMore: data.posts.data.length === INFINITE_SCROLL_CONFIG.ITEMS_PER_PAGE && 
-                         (prev.allPosts.length + data.posts.data.length) < (initialPosts.meta.total || 0),
-                isLoadingMore: false
-            }))
+            setState(prev => {
+                // ✅ CORRECTION CRITIQUE : Concaténer ET retrier globalement avec la fonction dédiée
+                const allCombinedPosts = [...prev.allPosts, ...data.posts.data]
+                
+                // Appliquer le tri global avec notre fonction optimisée
+                const sortedPosts = sortPostsGlobally(allCombinedPosts, filters.sortBy, filters.sortOrder)
+                
+                console.log(`🔄 Tri global corrigé appliqué sur ${allCombinedPosts.length} posts (${filters.sortBy} ${filters.sortOrder})`)
+                console.log(`📊 Premier post après tri: ${sortedPosts[0]?.[filters.sortBy]} | Dernier post: ${sortedPosts[sortedPosts.length - 1]?.[filters.sortBy]}`)
+                
+                return {
+                    ...prev,
+                    allPosts: sortedPosts,
+                    currentPage: nextPage,
+                    hasMore: data.posts.data.length === INFINITE_SCROLL_CONFIG.ITEMS_PER_PAGE && 
+                             sortedPosts.length < (initialPosts.meta.total || 0),
+                    isLoadingMore: false
+                }
+            })
 
-            console.log(`✅ ${data.posts.data.length} nouveaux posts chargés`)
+            console.log(`✅ ${data.posts.data.length} nouveaux posts chargés et triés globalement`)
+            console.log(`🎯 Tri ${filters.sortBy} ${filters.sortOrder} appliqué sur l'ensemble des posts`)
         } catch (error) {
             console.error('❌ Erreur chargement scroll infini:', error)
             setState(prev => ({ ...prev, isLoadingMore: false }))
@@ -267,12 +315,16 @@ export const useInfiniteScroll = (
         isSSEUpdateRef.current = true
         
         setState(prevState => {
+            // Appliquer la mise à jour optimiste puis le tri global
             const updatedPosts = applyOptimisticUpdate(
                 prevState.allPosts,
                 { action, data: postData },
                 filters.sortBy,
                 filters.sortOrder
             )
+            
+            // Appliquer le tri global pour s'assurer que l'ordre est correct
+            const sortedPosts = sortPostsGlobally(updatedPosts, filters.sortBy, filters.sortOrder)
             
             // Gestion intelligente de hasMore selon l'action
             let newHasMore = prevState.hasMore
@@ -301,7 +353,7 @@ export const useInfiniteScroll = (
             
             const newState = {
                 ...prevState,
-                allPosts: updatedPosts,
+                allPosts: sortedPosts,
                 hasMore: newHasMore
             }
             

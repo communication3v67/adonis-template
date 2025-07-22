@@ -2,6 +2,43 @@ import { useCallback, useRef } from 'react'
 import { GmbPost, PaginatedPosts } from '../types'
 
 /**
+ * Fonction utilitaire pour trier globalement une liste de posts
+ * (Réplique de la fonction dans useInfiniteScroll pour cohérence)
+ */
+const sortPostsGlobally = (posts: GmbPost[], sortBy: string, sortOrder: string): GmbPost[] => {
+    return posts.sort((a, b) => {
+        let aValue = a[sortBy as keyof GmbPost]
+        let bValue = b[sortBy as keyof GmbPost]
+        
+        // Gestion spéciale pour les dates
+        if (sortBy === 'date' || sortBy === 'createdAt' || sortBy === 'updatedAt') {
+            aValue = new Date(aValue as string).getTime()
+            bValue = new Date(bValue as string).getTime()
+        }
+        
+        // Gestion pour les valeurs numériques
+        if (sortBy === 'id' || sortBy === 'price' || sortBy === 'input_tokens' || sortBy === 'output_tokens') {
+            aValue = Number(aValue) || 0
+            bValue = Number(bValue) || 0
+        }
+        
+        // Gestion pour les chaînes de caractères (insensible à la casse)
+        if (typeof aValue === 'string') {
+            aValue = aValue.toLowerCase()
+        }
+        if (typeof bValue === 'string') {
+            bValue = bValue.toLowerCase()
+        }
+        
+        if (sortOrder === 'desc') {
+            return bValue > aValue ? 1 : bValue < aValue ? -1 : 0
+        } else {
+            return aValue > bValue ? 1 : aValue < bValue ? -1 : 0
+        }
+    })
+}
+
+/**
  * Hook pour la mise à jour optimiste des données locales
  * Évite les rechargements serveur et préserve le scroll infini
  */
@@ -40,23 +77,8 @@ export const useOptimisticUpdates = () => {
 
         const newList = [...currentPosts, newPost]
         
-        // Trier selon les critères actuels
-        return newList.sort((a, b) => {
-            let aValue = a[sortBy as keyof GmbPost]
-            let bValue = b[sortBy as keyof GmbPost]
-            
-            // Gestion spéciale pour les dates
-            if (sortBy === 'date' || sortBy === 'createdAt' || sortBy === 'updatedAt') {
-                aValue = new Date(aValue as string).getTime()
-                bValue = new Date(bValue as string).getTime()
-            }
-            
-            if (sortOrder === 'desc') {
-                return bValue > aValue ? 1 : -1
-            } else {
-                return aValue > bValue ? 1 : -1
-            }
-        })
+        // Utiliser la fonction de tri globale améliorée
+        return sortPostsGlobally(newList, sortBy, sortOrder)
     }, [updatePostInList])
 
     /**
