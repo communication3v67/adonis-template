@@ -1,3 +1,16 @@
+// Types globaux pour la protection d'édition et des requêtes multiples
+declare global {
+    interface Window {
+        _isInlineEditing: boolean
+        _isModalEditing: boolean
+        lastSSEUpdate: number
+        lastUserAction: number
+        _editingPostId: number | null
+        _editingField: string | null
+        _loadingPages: Set<string> // Nouvelle protection contre les requêtes multiples
+    }
+}
+
 import { useState, useEffect, useCallback, useImperativeHandle, forwardRef, useRef, useMemo } from 'react'
 import { notifications } from '@mantine/notifications'
 import { PaginatedPosts, InfiniteScrollState, FilterState, AdvancedFilterState, GmbPost } from '../types'
@@ -5,6 +18,25 @@ import { INFINITE_SCROLL_CONFIG } from '../utils/constants'
 import { advancedFiltersToUrlParams, getAdvancedFiltersSignature } from '../utils/advancedFiltersUtils'
 import { debugAdvancedFilters } from '../utils/debugAdvancedFilters'
 import { useOptimisticUpdates } from './useOptimisticUpdates'
+
+/**
+ * Fonction utilitaire pour dédupliquer une liste de posts par ID
+ */
+const deduplicatePostsById = (posts: GmbPost[]): GmbPost[] => {
+    const seenIds = new Set<number>()
+    const uniquePosts: GmbPost[] = []
+    
+    for (const post of posts) {
+        if (!seenIds.has(post.id)) {
+            seenIds.add(post.id)
+            uniquePosts.push(post)
+        } else {
+            console.log(`🖮️ Dédoublon détecté et supprimé: Post ID ${post.id}`)
+        }
+    }
+    
+    return uniquePosts
+}
 
 /**
  * Fonction utilitaire pour trier globalement une liste de posts
@@ -230,8 +262,9 @@ export const useInfiniteScroll = (
         console.log('hasMore:', state.hasMore)
         console.log('currentPage:', state.currentPage)
         
+        // 🛡️ PROTECTION : Éviter les requêtes multiples simultanées
         if (state.isLoadingMore || !state.hasMore) {
-            console.log('❌ Sortie prématurée')
+            console.log('❌ Sortie prématurée - déjà en cours de chargement ou plus de posts')
             return
         }
 
@@ -239,6 +272,18 @@ export const useInfiniteScroll = (
 
         try {
             const nextPage = state.currentPage + 1
+            
+            // 🛡️ Vérifier que la page suivante n'est pas déjà en cours de chargement
+            const loadingKey = `page-${nextPage}`
+            if (window._loadingPages && window._loadingPages.has(loadingKey)) {
+                console.log(`⚠️ Page ${nextPage} déjà en cours de chargement - ignoré`)
+                setState(prev => ({ ...prev, isLoadingMore: false }))
+                return
+            }
+            
+            // Marquer la page comme en cours de chargement
+            if (!window._loadingPages) window._loadingPages = new Set()
+            window._loadingPages.add(loadingKey)
             
             // Construire les paramètres avec TOUS les filtres (basiques + avancés)
             let allParams = { ...filters }
@@ -275,13 +320,17 @@ export const useInfiniteScroll = (
             console.log('📦 Données reçues:', data.posts?.data?.length || 0, 'nouveaux posts')
 
             setState(prev => {
-                // ✅ CORRECTION CRITIQUE : Concaténer ET retrier globalement avec la fonction dédiée
+                // ✅ CORRECTION CRITIQUE : Concaténer, dédupliquer ET retrier globalement
                 const allCombinedPosts = [...prev.allPosts, ...data.posts.data]
                 
-                // Appliquer le tri global avec notre fonction optimisée
-                const sortedPosts = sortPostsGlobally(allCombinedPosts, filters.sortBy, filters.sortOrder)
+                // 🔍 ÉTAPE 1 : Déduplication pour éviter les doublons
+                const deduplicatedPosts = deduplicatePostsById(allCombinedPosts)
+                console.log(`🖮️ Déduplication: ${allCombinedPosts.length} -> ${deduplicatedPosts.length} posts uniques`)
                 
-                console.log(`🔄 Tri global corrigé appliqué sur ${allCombinedPosts.length} posts (${filters.sortBy} ${filters.sortOrder})`)
+                // 🔄 ÉTAPE 2 : Tri global avec notre fonction optimisée
+                const sortedPosts = sortPostsGlobally(deduplicatedPosts, filters.sortBy, filters.sortOrder)
+                
+                console.log(`🔄 Tri global corrigé appliqué sur ${deduplicatedPosts.length} posts uniques (${filters.sortBy} ${filters.sortOrder})`)
                 console.log(`📊 Premier post après tri: ${sortedPosts[0]?.[filters.sortBy]} | Dernier post: ${sortedPosts[sortedPosts.length - 1]?.[filters.sortBy]}`)
                 
                 return {
@@ -304,6 +353,14 @@ export const useInfiniteScroll = (
                 message: 'Erreur lors du chargement des posts supplémentaires',
                 color: 'red',
             })
+        } finally {
+            // 🧹 Nettoyer la protection de page en cours de chargement
+            const nextPage = state.currentPage + 1
+            const loadingKey = `page-${nextPage}`
+            if (window._loadingPages) {
+                window._loadingPages.delete(loadingKey)
+                console.log(`🧹 Protection nettoyée pour page ${nextPage}`)
+            }
         }
     }, [state.isLoadingMore, state.hasMore, state.currentPage, filters, advancedFilters, hasActiveAdvancedFilters, initialPosts.meta.total])
 
@@ -315,7 +372,7 @@ export const useInfiniteScroll = (
         isSSEUpdateRef.current = true
         
         setState(prevState => {
-            // Appliquer la mise à jour optimiste puis le tri global
+            // Appliquer la mise à jour optimiste puis déduplication et tri global
             const updatedPosts = applyOptimisticUpdate(
                 prevState.allPosts,
                 { action, data: postData },
@@ -323,8 +380,11 @@ export const useInfiniteScroll = (
                 filters.sortOrder
             )
             
+            // Déduplication pour éviter les doublons (ex: SSE + action utilisateur)
+            const deduplicatedPosts = deduplicatePostsById(updatedPosts)
+            
             // Appliquer le tri global pour s'assurer que l'ordre est correct
-            const sortedPosts = sortPostsGlobally(updatedPosts, filters.sortBy, filters.sortOrder)
+            const sortedPosts = sortPostsGlobally(deduplicatedPosts, filters.sortBy, filters.sortOrder)
             
             // Gestion intelligente de hasMore selon l'action
             let newHasMore = prevState.hasMore
