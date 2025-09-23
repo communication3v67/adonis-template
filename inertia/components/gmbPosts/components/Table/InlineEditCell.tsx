@@ -368,6 +368,35 @@ export const InlineEditCell = ({
                             {value}
                         </Text>
                         </Tooltip>
+                    ) : field === 'informations' ? (
+                        <Tooltip
+                            label={value}
+                            multiline
+                            styles={{
+                                tooltip: {
+                                    'maxWidth': '90vw',
+                                    'wordWrap': 'break-word',
+                                    'whiteSpace': 'pre-wrap',
+                                    '@media (min-width: 768px)': {
+                                        maxWidth: '50vw',
+                                    },
+                                    '@media (min-width: 1024px)': {
+                                        maxWidth: '33vw',
+                                    },
+                                },
+                            }}
+                        >
+                            <Text size="sm" style={{ 
+                            lineHeight: '1.4',
+                            maxHeight: '3.5em', 
+                            overflow: 'hidden',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical'
+                        }}>
+                            {value}
+                        </Text>
+                        </Tooltip>
                     ) : field === 'date' ? (
                         <Text size="sm">{value ? new Date(value).toLocaleDateString('fr-FR') : '-'}</Text>
                     ) : (field === 'image_url' || field === 'link_url') && value ? (

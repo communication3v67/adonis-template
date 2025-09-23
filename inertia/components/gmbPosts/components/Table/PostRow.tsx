@@ -444,7 +444,7 @@ export const PostRow = ({
     }
 
     return (
-        <tr key={post.id} style={{ height: '60px' }}>
+        <tr key={post.id} style={{ maxHeight: '60px' }}>
             {visibleColumns.map((column) => renderCell(column))}
         </tr>
     )
