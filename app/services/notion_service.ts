@@ -86,6 +86,11 @@ export class NotionService {
 
         this.notion = new Client({
             auth: this.config.apiKey,
+            fetch: (url, init) => {
+                const headers = new Headers(init?.headers)
+                headers.set('connection', 'close')
+                return fetch(url, { ...init, headers })
+            },
         })
         this.databaseId = this.config.databaseId
 
